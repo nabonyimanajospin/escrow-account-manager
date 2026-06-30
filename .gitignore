@@ -1,0 +1,57 @@
+# ===========================
+# Node.js
+# ===========================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ===========================
+# Environment Variables
+# NEVER push .env files
+# ===========================
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+
+# ===========================
+# Build Output
+# ===========================
+dist/
+build/
+out/
+
+# ===========================
+# Logs
+# ===========================
+logs/
+*.log
+
+# ===========================
+# OS Files
+# ===========================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===========================
+# IDE / Editor
+# ===========================
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# ===========================
+# Vite
+# ===========================
+.vite/
+
+# ===========================
+# Prompt file (excluded intentionally)
+# ===========================
+Prompt1.md
