@@ -50,7 +50,7 @@ This Software Requirements Specification (SRS) document formally defines the com
 ### 1.2 Scope
 The Escrow Account Manager is a full-stack web application that facilitates secure, trustless real estate property transactions through a virtual escrow mechanism. The system manages the complete lifecycle of a property transaction — from initial listing through fund deposit, legal mutation tracking, and final fund release or refund — ensuring that neither the buyer nor the seller can complete a unilateral financial action without system verification.
 
-The application is built using the **MERN stack** (MongoDB, Express.js, React.js, Node.js) with Vite as the frontend build tool and Tailwind CSS for styling.
+The application is built using the **PERN stack** (PostgreSQL, Express.js, React.js, Node.js) with Vite as the frontend build tool and Tailwind CSS for styling.
 
 ### 1.3 Document Conventions
 - **P0** — Mandatory requirement. The system cannot be considered complete without this.
@@ -73,7 +73,7 @@ The application is built using the **MERN stack** (MongoDB, Express.js, React.js
 - PRD Document: `EAM-PRD-001`
 - FRS Document: `EAM-FRS-001`
 - IEEE Std 830-1998: IEEE Recommended Practice for Software Requirements Specifications
-- MERN Stack Documentation: https://www.mongodb.com, https://expressjs.com, https://react.dev, https://nodejs.org
+- PERN Stack Documentation: https://www.postgresql.org, https://sequelize.org, https://expressjs.com, https://react.dev, https://nodejs.org
 
 ---
 
@@ -99,11 +99,11 @@ The Escrow Account Manager is a standalone, independent web application. It is n
 │  │  Controllers: AuthCtrl ─ PropertyCtrl ─ TxnCtrl         │   │
 │  └─────────────────────────────────────────────────────────┘   │
 └──────────────────────────┬──────────────────────────────────────┘
-                           │ Mongoose ODM
+                           │ Sequelize ORM
                            ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                  MongoDB Database                               │
-│   Collections: Users │ Properties │ Transactions │ Escrow      │
+│                  PostgreSQL Database                            │
+│   Tables: Users │ Properties │ Transactions │ EscrowAccounts  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -127,18 +127,18 @@ The system provides the following high-level capabilities:
 ### 2.4 Operating Environment
 - **Client:** Any modern web browser (Chrome, Firefox, Safari, Edge) on desktop or mobile.
 - **Backend Server:** Node.js v18+ running on a Linux/Windows/macOS server or cloud platform (e.g., Render.com).
-- **Database:** MongoDB v6+ running locally or on MongoDB Atlas (cloud).
+- **Database:** PostgreSQL v15+ running locally or on a cloud platform (e.g., Supabase, Railway, Render).
 - **Network:** Standard HTTP/HTTPS over TCP/IP.
 
 ### 2.5 Design and Implementation Constraints
-- The technology stack is fixed: MongoDB, Express.js, React.js, Node.js (MERN).
+- The technology stack is fixed: PostgreSQL, Express.js, React.js, Node.js (PERN).
 - The frontend must be initialized using **Vite** (not Create React App).
 - Budget is $0 — only free-tier tools and platforms are permitted.
 - Timeline is 4–6 weeks from requirements to final presentation.
 - Fund transfers are virtual/simulated; no real payment gateway integration is required.
 
 ### 2.6 Assumptions and Dependencies
-- A MongoDB instance (local or Atlas) is available and accessible to the backend.
+- A PostgreSQL instance (local or cloud-hosted) is available and accessible to the backend.
 - Node.js v18 or higher and npm v9 or higher are installed on the development machine.
 - The ADMIN account is pre-seeded in the database; it is not self-registrable.
 - All mutation documents are represented as text strings (URLs or descriptions), not binary file uploads.
@@ -216,7 +216,7 @@ The system provides the following high-level capabilities:
 
 | Interface              | Technology      | Purpose                                              |
 |------------------------|-----------------|------------------------------------------------------|
-| Database Interface     | Mongoose ODM    | Connects Node.js backend to MongoDB collections      |
+| Database Interface     | Sequelize ORM   | Connects Node.js backend to PostgreSQL tables        |
 | HTTP Client Interface  | Axios           | Frontend communicates with backend REST API          |
 | Authentication Interface | JSON Web Token | Secures API routes; tokens stored in localStorage   |
 | Build Interface        | Vite            | Frontend development server and production bundler   |
@@ -239,7 +239,7 @@ The system provides the following high-level capabilities:
 | NFR-S3  | All protected API endpoints must validate the JWT token on every request — no session persistence on the server. |
 | NFR-S4  | Role-based middleware must enforce that buyers cannot release funds, sellers cannot refund, etc.               |
 | NFR-S5  | The system must not expose sensitive user data (passwords, internal IDs) in API responses unnecessarily.       |
-| NFR-S6  | MongoDB queries must use parameterized inputs via Mongoose to prevent NoSQL injection attacks.                 |
+| NFR-S6  | All database queries must use parameterized inputs via Sequelize to prevent SQL injection attacks.            |
 
 ### 5.2 Performance Requirements
 
@@ -281,7 +281,7 @@ The system provides the following high-level capabilities:
 
 | Constraint ID | Description                                                                                          |
 |---------------|------------------------------------------------------------------------------------------------------|
-| CON-01        | Technology stack is fixed: MongoDB, Express.js, React.js (Vite), Node.js. No alternatives permitted. |
+| CON-01        | Technology stack is fixed: PostgreSQL, Express.js, React.js (Vite), Node.js. No alternatives permitted. |
 | CON-02        | The project budget is $0. Only free-tier services and open-source libraries may be used.             |
 | CON-03        | The project timeline is 4–6 weeks from requirements gathering to final presentation.                 |
 | CON-04        | No real financial transactions or payment gateway integrations are permitted in v1.0.0.              |
@@ -301,8 +301,8 @@ The system provides the following high-level capabilities:
 | Frontend HTTP      | Axios                  | Latest    | REST API HTTP client                         |
 | Backend Runtime    | Node.js                | ≥ 18.x    | Server-side JavaScript runtime               |
 | Backend Framework  | Express.js             | ≥ 4.x     | REST API routing and middleware              |
-| Database           | MongoDB                | ≥ 6.x     | NoSQL document database                      |
-| Database ODM       | Mongoose               | ≥ 7.x     | Schema modeling and query interface          |
+| Database           | PostgreSQL             | ≥ 15.x    | Relational database                          |
+| Database ORM       | Sequelize              | ≥ 6.x     | Schema modeling and query interface          |
 | Authentication     | jsonwebtoken           | Latest    | JWT generation and verification              |
 | Password Hashing   | bcryptjs               | Latest    | Secure password hashing                      |
 | Dev Tooling        | nodemon                | Latest    | Auto-restart backend during development      |
@@ -328,7 +328,7 @@ The system provides the following high-level capabilities:
 
 | Field        | Type     | Required | Constraints                                         |
 |--------------|----------|----------|-----------------------------------------------------|
-| seller       | ObjectId | Yes      | Reference to User                                   |
+| seller_id    | Integer  | Yes      | Foreign key — references Users table                |
 | title        | String   | Yes      | Max 100 characters                                  |
 | description  | String   | Yes      | Max 2000 characters                                 |
 | price        | Number   | Yes      | Greater than 0                                      |
@@ -346,11 +346,11 @@ The system provides the following high-level capabilities:
 | Field              | Type       | Required | Constraints                                                    |
 |--------------------|------------|----------|----------------------------------------------------------------|
 | transactionId      | String     | Auto     | Unique, auto-generated: `TXN-{timestamp}-{random}`            |
-| property           | ObjectId   | Yes      | Reference to Property                                          |
-| buyer              | ObjectId   | Yes      | Reference to User                                              |
-| seller             | ObjectId   | Yes      | Reference to User                                              |
+| property_id        | Integer    | Yes      | Foreign key — references Properties table                      |
+| buyer_id           | Integer    | Yes      | Foreign key — references Users table                           |
+| seller_id          | Integer    | Yes      | Foreign key — references Users table                           |
 | amount             | Number     | Yes      | Must match property price                                      |
-| escrowAccount      | ObjectId   | Yes      | Reference to EscrowAccount                                     |
+| escrow_account_id  | Integer    | Yes      | Foreign key — references EscrowAccounts table                  |
 | status             | String     | Auto     | Enum: `PENDING`, `FUNDS_DEPOSITED`, `MUTATION_INITIATED`, `MUTATION_IN_PROGRESS`, `MUTATION_COMPLETED`, `FUNDS_RELEASED`, `FAILED`, `REFUNDED` |
 | mutationDocuments  | [Object]   | No       | Array of `{description, uploadedAt}`                          |
 | depositDate        | Date       | No       | Set when status → `FUNDS_DEPOSITED`                            |
@@ -366,7 +366,7 @@ The system provides the following high-level capabilities:
 
 | Field          | Type       | Required | Constraints                                                       |
 |----------------|------------|----------|-------------------------------------------------------------------|
-| transaction    | ObjectId   | Yes      | Unique reference to Transaction                                   |
+| transaction_id | Integer    | Yes      | Unique foreign key — references Transactions table               |
 | accountNumber  | String     | Auto     | Unique, auto-generated: `ESC-{timestamp}-{random}`               |
 | balance        | Number     | Auto     | Default: `0`. Must be `0` after RELEASED or REFUNDED.             |
 | currency       | String     | Auto     | Default: `USD`                                                    |
@@ -387,9 +387,9 @@ The system provides the following high-level capabilities:
 | State Machine     | A computational model that defines a set of allowed states and the valid transitions between them.           |
 | JWT               | JSON Web Token — a digitally signed token encoding user identity and role, used for stateless authentication. |
 | RBAC              | Role-Based Access Control — an authorization model where system access permissions are assigned based on roles. |
-| MERN Stack        | A JavaScript technology stack: MongoDB, Express.js, React.js, Node.js.                                       |
+| PERN Stack        | A JavaScript technology stack: PostgreSQL, Express.js, React.js, Node.js.                                    |
 | SPA               | Single Page Application — a web app that dynamically rewrites the current page rather than reloading from the server. |
-| ODM               | Object Data Modeling — mapping database documents to application-level JavaScript objects (via Mongoose).    |
+| ORM               | Object Relational Mapping — mapping database tables to application-level JavaScript objects (via Sequelize). |
 | REST API          | Representational State Transfer — a stateless, resource-based API architecture using standard HTTP methods.  |
 | Middleware        | Functions in Express.js that execute during the request-response cycle (e.g., authentication checks).       |
 | bcrypt            | A password-hashing algorithm designed to be computationally expensive to resist brute-force attacks.         |

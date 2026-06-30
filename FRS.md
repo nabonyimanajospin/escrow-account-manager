@@ -78,19 +78,19 @@ This document covers:
 
 | Action                         | BUYER | SELLER | ADMIN |
 |--------------------------------|-------|--------|-------|
-| Register / Login               | ✅    | ✅     | ✅    |
-| View Property Listings         | ✅    | ✅     | ✅    |
-| Create Property Listing        | ❌    | ✅     | ✅    |
-| Update / Delete Own Property   | ❌    | ✅     | ✅    |
-| Initiate Transaction           | ✅    | ❌     | ❌    |
-| Deposit Funds to Escrow        | ✅    | ❌     | ❌    |
-| Initiate Mutation              | ❌    | ✅     | ✅    |
-| Upload Mutation Documents      | ❌    | ✅     | ✅    |
-| Complete Mutation              | ❌    | ✅     | ✅    |
-| Release Funds to Seller        | ❌    | ❌     | ✅    |
-| Refund Buyer                   | ❌    | ❌     | ✅    |
-| View All Transactions          | ❌    | ❌     | ✅    |
-| View Own Transactions          | ✅    | ✅     | ✅    |
+| Register / Login               | Yes   | Yes    | Yes   |
+| View Property Listings         | Yes   | Yes    | Yes   |
+| Create Property Listing        | No    | Yes    | Yes   |
+| Update / Delete Own Property   | No    | Yes    | Yes   |
+| Initiate Transaction           | Yes   | No     | No    |
+| Deposit Funds to Escrow        | Yes   | No     | No    |
+| Initiate Mutation              | No    | Yes    | Yes   |
+| Upload Mutation Documents      | No    | Yes    | Yes   |
+| Complete Mutation              | No    | Yes    | Yes   |
+| Release Funds to Seller        | No    | No     | Yes   |
+| Refund Buyer                   | No    | No     | Yes   |
+| View All Transactions          | No    | No     | Yes   |
+| View Own Transactions          | Yes   | Yes    | Yes   |
 
 ---
 
@@ -464,10 +464,5 @@ The transaction lifecycle is governed by a strict, linear state machine. Each st
 | State Machine         | A model defining all possible states of a transaction and the valid, ordered transitions between them.     |
 | JWT                   | JSON Web Token — a signed token used to authenticate and identify users on every API request.              |
 | RBAC                  | Role-Based Access Control — access permissions are defined by the user's role (BUYER, SELLER, ADMIN).      |
-| Escrow Account        | A virtual account holding the buyer's deposited funds for a specific transaction until release or refund.  |
-| Transaction ID        | A unique identifier auto-generated for each transaction in the format `TXN-{timestamp}-{random}`.          |
-| Account Number        | A unique identifier auto-generated for each escrow account in the format `ESC-{timestamp}-{random}`.      |
-| Deposit History       | A log of all fund deposits made to an escrow account, stored as an array on the EscrowAccount model.      |
-| Release History       | A log of all fund release or refund events on an escrow account.                                           |
-| Bearer Token          | An HTTP authentication scheme where the client sends the JWT in the Authorization header as `Bearer <token>`. |
-| P0 / P1 / P2          | Priority classification: P0 = mandatory MVP, P1 = important secondary feature, P2 = nice-to-have.         |
+| PERN Stack        | A JavaScript technology stack: PostgreSQL, Express.js, React.js, Node.js.                                  |
+| ORM               | Object Relational Mapping — mapping database tables to application objects (via Sequelize).                |

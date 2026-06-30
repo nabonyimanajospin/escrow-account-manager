@@ -52,7 +52,7 @@ The **Escrow Account Manager** is a secure, web-based platform designed to facil
 
 In traditional property sales, both parties face high financial risks — buyers may lose money to fraudulent sellers, while sellers may transfer ownership without receiving verified payment. This system eliminates both risks by acting as a neutral digital intermediary: buyer funds are locked in a virtual escrow account and are only released to the seller after a legal property ownership transfer (called a "mutation") has been verified and confirmed by a trusted system administrator.
 
-The system is developed as a full-stack MERN application (MongoDB, Express.js, React.js, Node.js) and follows a structured SDLC approach, from requirements gathering through to deployment.
+The system is developed as a full-stack application (PostgreSQL, Express.js, React.js, Node.js) and follows a structured SDLC approach, from requirements gathering through to deployment.
 
 ---
 
@@ -142,11 +142,11 @@ The system holds deposited buyer funds in a transaction-specific virtual escrow 
    │     └── Transaction / Escrow Controller
         |
         ↓
-[ MongoDB Database (Mongoose ODM) ]
-   ├── Users Collection
-   ├── Properties Collection
-   ├── Transactions Collection
-   └── EscrowAccounts Collection
+[ PostgreSQL Database (Sequelize ORM) ]
+   ├── Users Table
+   ├── Properties Table
+   ├── Transactions Table
+   └── EscrowAccounts Table
 ```
 
 ---
@@ -202,7 +202,7 @@ The following items are explicitly excluded from version 1.0.0 of this system:
 ## 10. Assumptions & Dependencies
 
 ### Assumptions
-- MongoDB Atlas or a local MongoDB instance is available and accessible.
+- PostgreSQL instance (local or cloud) is available and accessible.
 - Node.js v18 or higher and npm v9 or higher are installed on the development machine.
 - Fund transfers are simulated virtually within the application — no real banking API is used.
 - The Admin role is created manually (seeded into the database); there is no self-registration for Admin accounts.
@@ -214,8 +214,8 @@ The following items are explicitly excluded from version 1.0.0 of this system:
 |--------------------|----------|---------------------------------------------|
 | Node.js            | ≥ 18.x   | Backend JavaScript runtime                  |
 | Express.js         | ≥ 4.x    | Backend REST API framework                  |
-| MongoDB            | ≥ 6.x    | NoSQL document database                     |
-| Mongoose           | ≥ 7.x    | MongoDB object data modeling (ODM)          |
+| PostgreSQL         | ≥ 15.x   | Relational database                         |
+| Sequelize          | ≥ 6.x    | PostgreSQL object relational mapping (ORM)  |
 | React.js           | ≥ 18.x   | Frontend user interface library             |
 | Vite               | ≥ 4.x    | Frontend build tool and dev server          |
 | JSON Web Token     | Latest   | Stateless authentication tokens             |
@@ -230,7 +230,7 @@ The following items are explicitly excluded from version 1.0.0 of this system:
 
 | Risk ID | Risk Description                                               | Likelihood | Impact | Mitigation Strategy                                              |
 |---------|----------------------------------------------------------------|------------|--------|------------------------------------------------------------------|
-| R-01    | MongoDB connection failure in development environment          | Medium     | High   | Use connection error handling with clear console error messages  |
+| R-01    | PostgreSQL connection failure in development environment       | Medium     | High   | Use connection error handling with clear console error messages  |
 | R-02    | JWT token expiry causes session disruption for active users    | Low        | Medium | Implement token refresh logic; show clear session expired UI     |
 | R-03    | Incorrect transaction state transitions leading to fund loss   | Low        | Critical | Implement strict state machine validation in controller logic   |
 | R-04    | Developer unfamiliarity with JavaScript/Node.js (learning curve) | High    | Medium | Follow step-by-step implementation plan; use descriptive comments |
@@ -273,10 +273,10 @@ The following items are explicitly excluded from version 1.0.0 of this system:
 | Escrow            | A financial arrangement where a neutral third party temporarily holds funds until agreed conditions are fulfilled. |
 | Mutation          | The legal process of transferring property ownership from a seller to a buyer in a land registry. |
 | JWT               | JSON Web Token — a compact, URL-safe standard for securely transmitting claims between parties.  |
-| MERN Stack        | A technology stack comprising MongoDB, Express.js, React.js, and Node.js.                        |
+| PERN Stack        | A technology stack comprising PostgreSQL, Express.js, React.js, and Node.js.                     |
 | SPA               | Single Page Application — a web app that loads a single HTML page and dynamically updates content. |
 | RBAC              | Role-Based Access Control — a security model restricting system access based on user roles.      |
 | REST API          | Representational State Transfer API — an architectural style for networked hypermedia applications. |
 | MVP               | Minimum Viable Product — the smallest feature set required to deliver core product value.        |
 | SDLC              | Software Development Life Cycle — a structured process for planning, creating, testing, and delivering software. |
-| ODM               | Object Data Modeling — a technique for mapping database documents to application objects (Mongoose). |
+| ORM               | Object Relational Mapping — a technique for mapping database tables to application objects (Sequelize). |
