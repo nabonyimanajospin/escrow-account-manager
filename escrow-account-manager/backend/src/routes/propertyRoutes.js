@@ -5,17 +5,14 @@ const {
   getProperty,
   createProperty,
   updateProperty,
-  deleteProperty
+  deleteProperty,
 } = require('../controllers/propertyController');
 const { protect, authorize } = require('../middleware/auth');
 
-router.route('/')
-  .get(getProperties)
-  .post(protect, authorize('SELLER', 'ADMIN'), createProperty);
-
-router.route('/:id')
-  .get(getProperty)
-  .put(protect, authorize('SELLER', 'ADMIN'), updateProperty)
-  .delete(protect, authorize('SELLER', 'ADMIN'), deleteProperty);
+router.get('/', protect, getProperties);
+router.post('/', protect, authorize('SELLER', 'ADMIN'), createProperty);
+router.get('/:id', protect, getProperty);
+router.put('/:id', protect, authorize('SELLER', 'ADMIN'), updateProperty);
+router.delete('/:id', protect, authorize('SELLER', 'ADMIN'), deleteProperty);
 
 module.exports = router;

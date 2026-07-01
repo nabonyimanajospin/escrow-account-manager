@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const {
   getTransactions,
+  getMyTransactions,
   getTransaction,
   initiateTransaction,
   depositFunds,
@@ -9,38 +10,19 @@ const {
   uploadMutationDocument,
   completeMutation,
   releaseFunds,
-  refundBuyer
+  refundBuyer,
 } = require('../controllers/transactionController');
 const { protect, authorize } = require('../middleware/auth');
 
-// All routes require protection
-router.use(protect);
-
-router.route('/')
-  .get(getTransactions);
-
-router.route('/initiate')
-  .post(authorize('BUYER'), initiateTransaction);
-
-router.route('/:id')
-  .get(getTransaction);
-
-router.route('/:id/deposit')
-  .post(authorize('BUYER'), depositFunds);
-
-router.route('/:id/initiate-mutation')
-  .post(authorize('SELLER'), initiateMutation);
-
-router.route('/:id/upload-document')
-  .post(authorize('SELLER'), uploadMutationDocument);
-
-router.route('/:id/complete-mutation')
-  .post(authorize('SELLER', 'ADMIN'), completeMutation);
-
-router.route('/:id/release')
-  .post(authorize('ADMIN'), releaseFunds);
-
-router.route('/:id/refund')
-  .post(authorize('ADMIN'), refundBuyer);
+router.get('/', protect, authorize('ADMIN'), getTransactions);
+router.get('/my', protect, authorize('BUYER', 'SELLER'), getMyTransactions);
+router.get('/:id', protect, getTransaction);
+router.post('/initiate', protect, authorize('BUYER'), initiateTransaction);
+router.post('/:id/deposit', protect, authorize('BUYER'), depositFunds);
+router.post('/:id/initiate-mutation', protect, authorize('SELLER'), initiateMutation);
+router.post('/:id/upload-document', protect, authorize('SELLER'), uploadMutationDocument);
+router.post('/:id/complete-mutation', protect, authorize('SELLER', 'ADMIN'), completeMutation);
+router.post('/:id/release', protect, authorize('ADMIN'), releaseFunds);
+router.post('/:id/refund', protect, authorize('ADMIN'), refundBuyer);
 
 module.exports = router;

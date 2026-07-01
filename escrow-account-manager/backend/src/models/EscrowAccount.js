@@ -1,59 +1,49 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/database');
 
-const EscrowAccountSchema = new mongoose.Schema({
-  transaction: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Transaction',
-    required: true,
-    unique: true
+const EscrowAccount = sequelize.define('EscrowAccount', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
+  transactionId: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    unique: true,
   },
   accountNumber: {
-    type: String,
+    type: DataTypes.STRING,
+    allowNull: false,
     unique: true,
-    required: true
   },
   balance: {
-    type: Number,
-    default: 0
+    type: DataTypes.DECIMAL(15, 2),
+    defaultValue: 0.00,
   },
   currency: {
-    type: String,
-    default: 'USD'
+    type: DataTypes.STRING(10),
+    defaultValue: 'USD',
   },
   status: {
-    type: String,
-    enum: ['ACTIVE', 'RELEASED', 'REFUNDED', 'CLOSED'],
-    default: 'ACTIVE'
+    type: DataTypes.ENUM('ACTIVE', 'RELEASED', 'REFUNDED', 'CLOSED'),
+    defaultValue: 'ACTIVE',
   },
-  depositHistory: [{
-    amount: Number,
-    date: Date,
-    reference: String,
-    status: String
-  }],
-  releaseHistory: [{
-    amount: Number,
-    date: Date,
-    reference: String,
-    status: String
-  }],
-  createdAt: {
-    type: Date,
-    default: Date.now
+  depositHistory: {
+    type: DataTypes.JSONB,
+    defaultValue: [],
   },
-  updatedAt: {
-    type: Date,
-    default: Date.now
-  }
+  releaseHistory: {
+    type: DataTypes.JSONB,
+    defaultValue: [],
+  },
+}, {
+  timestamps: true,
+  hooks: {
+    beforeCreate: (escrow) => {
+      escrow.accountNumber = 'ESC-' + Date.now() + '-' + Math.random().toString(36).substr(2, 8).toUpperCase();
+    },
+  },
 });
 
-// Generate account number
-EscrowAccountSchema.pre('save', function(next) {
-  if (!this.accountNumber) {
-    this.accountNumber = 'ESC-' + Date.now() + '-' + Math.random().toString(36).substr(2, 8).toUpperCase();
-  }
-  this.updatedAt = Date.now();
-  next();
-});
-
-module.exports = mongoose.model('EscrowAccount', EscrowAccountSchema);
+module.exports = EscrowAccount;

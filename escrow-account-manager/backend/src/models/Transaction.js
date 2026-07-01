@@ -1,37 +1,39 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/database');
 
-const TransactionSchema = new mongoose.Schema({
+const Transaction = sequelize.define('Transaction', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
   transactionId: {
-    type: String,
+    type: DataTypes.STRING,
+    allowNull: false,
     unique: true,
-    required: true
   },
-  property: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Property',
-    required: true
+  propertyId: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
   },
-  buyer: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
+  buyerId: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
   },
-  seller: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
+  sellerId: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
   },
   amount: {
-    type: Number,
-    required: true
+    type: DataTypes.DECIMAL(15, 2),
+    allowNull: false,
   },
-  escrowAccount: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'EscrowAccount'
+  escrowAccountId: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
   },
   status: {
-    type: String,
-    enum: [
+    type: DataTypes.ENUM(
       'PENDING',
       'FUNDS_DEPOSITED',
       'MUTATION_INITIATED',
@@ -40,44 +42,44 @@ const TransactionSchema = new mongoose.Schema({
       'FUNDS_RELEASED',
       'FAILED',
       'REFUNDED'
-    ],
-    default: 'PENDING'
+    ),
+    defaultValue: 'PENDING',
   },
-  mutationDocuments: [{
-    documentUrl: {
-      type: String
-    },
-    description: {
-      type: String
-    },
-    uploadedAt: {
-      type: Date,
-      default: Date.now
-    }
-  }],
-  depositDate: Date,
-  mutationStartDate: Date,
-  mutationEndDate: Date,
-  releaseDate: Date,
-  refundDate: Date,
-  notes: String,
-  createdAt: {
-    type: Date,
-    default: Date.now
+  mutationDocuments: {
+    type: DataTypes.JSONB,
+    defaultValue: [],
   },
-  updatedAt: {
-    type: Date,
-    default: Date.now
-  }
+  depositDate: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  },
+  mutationStartDate: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  },
+  mutationEndDate: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  },
+  releaseDate: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  },
+  refundDate: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  },
+  notes: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+}, {
+  timestamps: true,
+  hooks: {
+    beforeCreate: (transaction) => {
+      transaction.transactionId = 'TXN-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6).toUpperCase();
+    },
+  },
 });
 
-// Generate transaction ID
-TransactionSchema.pre('save', function(next) {
-  if (!this.transactionId) {
-    this.transactionId = 'TXN-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6).toUpperCase();
-  }
-  this.updatedAt = Date.now();
-  next();
-});
-
-module.exports = mongoose.model('Transaction', TransactionSchema);
+module.exports = Transaction;

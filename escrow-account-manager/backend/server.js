@@ -1,12 +1,15 @@
 const express = require('express');
 const cors = require('cors');
-const connectDB = require('./src/config/database');
+const { connectDB } = require('./src/config/database');
 const errorHandler = require('./src/middleware/errorHandler');
 require('dotenv').config();
 
+// Import models to register associations before sync
+require('./src/models');
+
 const app = express();
 
-// Connect to Database
+// Connect to PostgreSQL and sync models
 connectDB();
 
 // Middleware
@@ -23,10 +26,10 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date() });
 });
 
-// Error handling middleware
+// Global error handler — must be last
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });

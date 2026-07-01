@@ -1,32 +1,50 @@
-const Transaction = require('../models/Transaction');
-const EscrowAccount = require('../models/EscrowAccount');
-const Property = require('../models/Property');
+const { Transaction, EscrowAccount, Property, User } = require('../models');
 
-// @desc    Get all transactions related to logged-in user
+// Shared include config for full transaction details
+const transactionIncludes = [
+  { model: Property, as: 'property' },
+  { model: User, as: 'buyer', attributes: ['id', 'name', 'email', 'phone'] },
+  { model: User, as: 'seller', attributes: ['id', 'name', 'email', 'phone'] },
+  { model: EscrowAccount, as: 'escrowAccount' },
+];
+
+// @desc    Get all transactions (Admin) or own transactions (Buyer/Seller)
 // @route   GET /api/transactions
 // @access  Private
 exports.getTransactions = async (req, res, next) => {
   try {
-    let query = {};
+    const where = {};
+    if (req.user.role === 'BUYER') where.buyerId = req.user.id;
+    if (req.user.role === 'SELLER') where.sellerId = req.user.id;
 
-    // Admin sees all, buyer/seller see their own
-    if (req.user.role === 'BUYER') {
-      query.buyer = req.user.id;
-    } else if (req.user.role === 'SELLER') {
-      query.seller = req.user.id;
-    }
-
-    const transactions = await Transaction.find(query)
-      .populate('property')
-      .populate('buyer', 'name email phone')
-      .populate('seller', 'name email phone')
-      .populate('escrowAccount');
-
-    res.status(200).json({
-      success: true,
-      count: transactions.length,
-      data: transactions
+    const transactions = await Transaction.findAll({
+      where,
+      include: transactionIncludes,
+      order: [['createdAt', 'DESC']],
     });
+
+    res.status(200).json({ success: true, count: transactions.length, data: transactions });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get own transactions only
+// @route   GET /api/transactions/my
+// @access  Private (BUYER, SELLER)
+exports.getMyTransactions = async (req, res, next) => {
+  try {
+    const where = req.user.role === 'BUYER'
+      ? { buyerId: req.user.id }
+      : { sellerId: req.user.id };
+
+    const transactions = await Transaction.findAll({
+      where,
+      include: transactionIncludes,
+      order: [['createdAt', 'DESC']],
+    });
+
+    res.status(200).json({ success: true, count: transactions.length, data: transactions });
   } catch (error) {
     next(error);
   }
@@ -34,172 +52,137 @@ exports.getTransactions = async (req, res, next) => {
 
 // @desc    Get single transaction by ID
 // @route   GET /api/transactions/:id
-// @access  Private
+// @access  Private (participant or admin)
 exports.getTransaction = async (req, res, next) => {
   try {
-    const transaction = await Transaction.findById(req.params.id)
-      .populate('property')
-      .populate('buyer', 'name email phone')
-      .populate('seller', 'name email phone')
-      .populate('escrowAccount');
+    const transaction = await Transaction.findByPk(req.params.id, {
+      include: transactionIncludes,
+    });
 
     if (!transaction) {
-      return res.status(404).json({
-        success: false,
-        message: 'Transaction not found'
-      });
+      return res.status(404).json({ success: false, message: 'Transaction not found' });
     }
 
-    // Verify authorized access
-    if (
-      transaction.buyer._id.toString() !== req.user.id &&
-      transaction.seller._id.toString() !== req.user.id &&
-      req.user.role !== 'ADMIN'
-    ) {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to view this transaction'
-      });
+    const isParticipant =
+      transaction.buyerId === req.user.id ||
+      transaction.sellerId === req.user.id ||
+      req.user.role === 'ADMIN';
+
+    if (!isParticipant) {
+      return res.status(403).json({ success: false, message: 'Not authorized to view this transaction' });
     }
 
-    res.status(200).json({
-      success: true,
-      data: transaction
-    });
+    res.status(200).json({ success: true, data: transaction });
   } catch (error) {
     next(error);
   }
 };
 
-// @desc    Initiate transaction
+// @desc    Buyer initiates a transaction
 // @route   POST /api/transactions/initiate
-// @access  Private (Buyer)
+// @access  Private (BUYER)
 exports.initiateTransaction = async (req, res, next) => {
   try {
     const { propertyId } = req.body;
-    const buyerId = req.user.id;
 
-    // Get property
-    const property = await Property.findById(propertyId);
+    if (!propertyId) {
+      return res.status(400).json({ success: false, message: 'Property ID is required' });
+    }
+
+    const property = await Property.findByPk(propertyId);
     if (!property) {
-      return res.status(404).json({
-        success: false,
-        message: 'Property not found'
-      });
+      return res.status(404).json({ success: false, message: 'Property not found' });
     }
 
-    // Check if property is available
     if (property.status !== 'AVAILABLE') {
-      return res.status(400).json({
-        success: false,
-        message: 'Property is not available for transaction'
-      });
+      return res.status(400).json({ success: false, message: 'Property is not available for transaction' });
     }
 
-    // Check if buyer is not the seller
-    if (property.seller.toString() === buyerId) {
-      return res.status(400).json({
-        success: false,
-        message: 'You cannot buy your own property'
-      });
+    if (property.sellerId === req.user.id) {
+      return res.status(400).json({ success: false, message: 'You cannot buy your own property' });
     }
 
     // Create transaction
     const transaction = await Transaction.create({
-      property: propertyId,
-      buyer: buyerId,
-      seller: property.seller,
+      propertyId: property.id,
+      buyerId: req.user.id,
+      sellerId: property.sellerId,
       amount: property.price,
-      status: 'PENDING'
+      status: 'PENDING',
     });
 
-    // Update property status
-    property.status = 'PENDING';
-    await property.save();
-
-    // Create escrow account
+    // Create escrow account linked to this transaction
     const escrowAccount = await EscrowAccount.create({
-      transaction: transaction._id,
-      balance: 0,
-      status: 'ACTIVE'
+      transactionId: transaction.id,
+      balance: 0.00,
+      status: 'ACTIVE',
     });
 
-    // Update transaction with escrow account
-    transaction.escrowAccount = escrowAccount._id;
-    await transaction.save();
+    // Link escrow account back to transaction
+    await transaction.update({ escrowAccountId: escrowAccount.id });
 
-    res.status(201).json({
-      success: true,
-      data: {
-        transaction,
-        escrowAccount
-      }
-    });
+    // Set property to PENDING
+    await property.update({ status: 'PENDING' });
+
+    const result = await Transaction.findByPk(transaction.id, { include: transactionIncludes });
+
+    res.status(201).json({ success: true, data: result });
   } catch (error) {
     next(error);
   }
 };
 
-// @desc    Deposit funds to escrow
+// @desc    Buyer deposits funds to escrow
 // @route   POST /api/transactions/:id/deposit
-// @access  Private (Buyer)
+// @access  Private (BUYER)
 exports.depositFunds = async (req, res, next) => {
   try {
-    const transactionId = req.params.id;
     const { amount, reference } = req.body;
 
-    const transaction = await Transaction.findById(transactionId);
+    if (!amount) {
+      return res.status(400).json({ success: false, message: 'Amount is required' });
+    }
+
+    const transaction = await Transaction.findByPk(req.params.id);
     if (!transaction) {
-      return res.status(404).json({
-        success: false,
-        message: 'Transaction not found'
-      });
+      return res.status(404).json({ success: false, message: 'Transaction not found' });
     }
 
-    // Check if buyer is the one depositing
-    if (transaction.buyer.toString() !== req.user.id) {
-      return res.status(403).json({
-        success: false,
-        message: 'Only the buyer can deposit funds'
-      });
+    if (transaction.buyerId !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Only the buyer can deposit funds' });
     }
 
-    // Check if transaction is in correct state
     if (transaction.status !== 'PENDING') {
-      return res.status(400).json({
-        success: false,
-        message: 'Transaction is not in pending state'
-      });
+      return res.status(400).json({ success: false, message: 'Transaction is not in PENDING state' });
     }
 
-    // Check if amount matches transaction amount
-    if (amount !== transaction.amount) {
-      return res.status(400).json({
-        success: false,
-        message: `Amount must be exactly ${transaction.amount}`
-      });
+    // Compare as numbers to avoid decimal mismatch
+    if (parseFloat(amount) !== parseFloat(transaction.amount)) {
+      return res.status(400).json({ success: false, message: `Amount must be exactly ${transaction.amount}` });
     }
 
-    // Update escrow account
-    const escrowAccount = await EscrowAccount.findById(transaction.escrowAccount);
-    escrowAccount.balance += amount;
-    escrowAccount.depositHistory.push({
-      amount,
+    const escrowAccount = await EscrowAccount.findByPk(transaction.escrowAccountId);
+
+    // Add deposit to history
+    const depositHistory = [...escrowAccount.depositHistory, {
+      amount: parseFloat(amount),
       date: new Date(),
       reference: reference || `DEP-${Date.now()}`,
-      status: 'COMPLETED'
-    });
-    await escrowAccount.save();
+      status: 'COMPLETED',
+    }];
 
-    // Update transaction
-    transaction.status = 'FUNDS_DEPOSITED';
-    transaction.depositDate = new Date();
-    await transaction.save();
-
-    res.status(200).json({
-      success: true,
-      data: transaction
+    await escrowAccount.update({
+      balance: parseFloat(amount),
+      depositHistory,
     });
+
+    await transaction.update({
+      status: 'FUNDS_DEPOSITED',
+      depositDate: new Date(),
+    });
+
+    const result = await Transaction.findByPk(transaction.id, { include: transactionIncludes });
+    res.status(200).json({ success: true, data: result });
   } catch (error) {
     next(error);
   }
@@ -207,260 +190,174 @@ exports.depositFunds = async (req, res, next) => {
 
 // @desc    Seller initiates mutation process
 // @route   POST /api/transactions/:id/initiate-mutation
-// @access  Private (Seller)
+// @access  Private (SELLER)
 exports.initiateMutation = async (req, res, next) => {
   try {
-    const transaction = await Transaction.findById(req.params.id);
+    const transaction = await Transaction.findByPk(req.params.id);
     if (!transaction) {
-      return res.status(404).json({
-        success: false,
-        message: 'Transaction not found'
-      });
+      return res.status(404).json({ success: false, message: 'Transaction not found' });
     }
 
-    // Verify req.user is the seller
-    if (transaction.seller.toString() !== req.user.id) {
-      return res.status(403).json({
-        success: false,
-        message: 'Only the seller can initiate mutation'
-      });
+    if (transaction.sellerId !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Only the seller can initiate mutation' });
     }
 
-    // Must be in FUNDS_DEPOSITED state
     if (transaction.status !== 'FUNDS_DEPOSITED') {
-      return res.status(400).json({
-        success: false,
-        message: 'Mutation can only be initiated after funds are deposited'
-      });
+      return res.status(400).json({ success: false, message: 'Mutation can only be initiated after funds are deposited' });
     }
 
-    transaction.status = 'MUTATION_INITIATED';
-    transaction.mutationStartDate = new Date();
-    await transaction.save();
-
-    res.status(200).json({
-      success: true,
-      data: transaction
+    await transaction.update({
+      status: 'MUTATION_INITIATED',
+      mutationStartDate: new Date(),
     });
+
+    const result = await Transaction.findByPk(transaction.id, { include: transactionIncludes });
+    res.status(200).json({ success: true, data: result });
   } catch (error) {
     next(error);
   }
 };
 
-// @desc    Seller uploads mutation documents
+// @desc    Seller uploads mutation document
 // @route   POST /api/transactions/:id/upload-document
-// @access  Private (Seller)
+// @access  Private (SELLER)
 exports.uploadMutationDocument = async (req, res, next) => {
   try {
     const { documentUrl, description } = req.body;
+
     if (!documentUrl) {
-      return res.status(400).json({
-        success: false,
-        message: 'Document URL is required'
-      });
+      return res.status(400).json({ success: false, message: 'Document URL or reference is required' });
     }
 
-    const transaction = await Transaction.findById(req.params.id);
+    const transaction = await Transaction.findByPk(req.params.id);
     if (!transaction) {
-      return res.status(404).json({
-        success: false,
-        message: 'Transaction not found'
-      });
+      return res.status(404).json({ success: false, message: 'Transaction not found' });
     }
 
-    // Verify req.user is the seller
-    if (transaction.seller.toString() !== req.user.id) {
-      return res.status(403).json({
-        success: false,
-        message: 'Only the seller can upload documents'
-      });
+    if (transaction.sellerId !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Only the seller can upload documents' });
     }
 
-    // State check
     if (!['MUTATION_INITIATED', 'MUTATION_IN_PROGRESS'].includes(transaction.status)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Cannot upload mutation documents at this stage'
-      });
+      return res.status(400).json({ success: false, message: 'Cannot upload documents at this stage' });
     }
 
-    transaction.mutationDocuments.push({
+    const mutationDocuments = [...transaction.mutationDocuments, {
       documentUrl,
-      description: description || 'Mutation progress document',
-      uploadedAt: new Date()
+      description: description || 'Mutation document',
+      uploadedAt: new Date(),
+    }];
+
+    await transaction.update({
+      mutationDocuments,
+      status: 'MUTATION_IN_PROGRESS',
     });
 
-    transaction.status = 'MUTATION_IN_PROGRESS';
-    await transaction.save();
-
-    res.status(200).json({
-      success: true,
-      data: transaction
-    });
+    const result = await Transaction.findByPk(transaction.id, { include: transactionIncludes });
+    res.status(200).json({ success: true, data: result });
   } catch (error) {
     next(error);
   }
 };
 
-// @desc    Seller or Admin completes mutation
+// @desc    Seller or Admin marks mutation as complete
 // @route   POST /api/transactions/:id/complete-mutation
-// @access  Private (Seller/Admin)
+// @access  Private (SELLER, ADMIN)
 exports.completeMutation = async (req, res, next) => {
   try {
-    const transaction = await Transaction.findById(req.params.id);
+    const transaction = await Transaction.findByPk(req.params.id);
     if (!transaction) {
-      return res.status(404).json({
-        success: false,
-        message: 'Transaction not found'
-      });
+      return res.status(404).json({ success: false, message: 'Transaction not found' });
     }
 
-    // Verify role
-    if (transaction.seller.toString() !== req.user.id && req.user.role !== 'ADMIN') {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to complete mutation'
-      });
+    const isAuthorized = transaction.sellerId === req.user.id || req.user.role === 'ADMIN';
+    if (!isAuthorized) {
+      return res.status(403).json({ success: false, message: 'Not authorized to complete mutation' });
     }
 
     if (!['MUTATION_INITIATED', 'MUTATION_IN_PROGRESS'].includes(transaction.status)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Mutation is not in progress or initiated'
-      });
+      return res.status(400).json({ success: false, message: 'Mutation is not in progress' });
     }
 
-    transaction.status = 'MUTATION_COMPLETED';
-    transaction.mutationEndDate = new Date();
-    await transaction.save();
-
-    res.status(200).json({
-      success: true,
-      data: transaction
+    await transaction.update({
+      status: 'MUTATION_COMPLETED',
+      mutationEndDate: new Date(),
     });
+
+    const result = await Transaction.findByPk(transaction.id, { include: transactionIncludes });
+    res.status(200).json({ success: true, data: result });
   } catch (error) {
     next(error);
   }
 };
 
-// @desc    Release funds to seller
+// @desc    Admin releases escrow funds to seller
 // @route   POST /api/transactions/:id/release
-// @access  Private (Admin only)
+// @access  Private (ADMIN)
 exports.releaseFunds = async (req, res, next) => {
   try {
-    const transactionId = req.params.id;
-
-    const transaction = await Transaction.findById(transactionId);
+    const transaction = await Transaction.findByPk(req.params.id);
     if (!transaction) {
-      return res.status(404).json({
-        success: false,
-        message: 'Transaction not found'
-      });
+      return res.status(404).json({ success: false, message: 'Transaction not found' });
     }
 
-    // Check if transaction is in correct state
     if (transaction.status !== 'MUTATION_COMPLETED') {
-      return res.status(400).json({
-        success: false,
-        message: 'Transaction must be in MUTATION_COMPLETED state to release funds'
-      });
+      return res.status(400).json({ success: false, message: 'Transaction must be in MUTATION_COMPLETED state to release funds' });
     }
 
-    // Get escrow account
-    const escrowAccount = await EscrowAccount.findById(transaction.escrowAccount);
+    const escrowAccount = await EscrowAccount.findByPk(transaction.escrowAccountId);
     if (!escrowAccount) {
-      return res.status(404).json({
-        success: false,
-        message: 'Escrow account not found'
-      });
+      return res.status(404).json({ success: false, message: 'Escrow account not found' });
     }
-    
-    // Release funds
-    const amount = escrowAccount.balance;
-    escrowAccount.balance = 0;
-    escrowAccount.status = 'RELEASED';
-    escrowAccount.releaseHistory.push({
+
+    const amount = parseFloat(escrowAccount.balance);
+
+    const releaseHistory = [...escrowAccount.releaseHistory, {
       amount,
       date: new Date(),
       reference: `REL-${Date.now()}`,
-      status: 'COMPLETED'
-    });
-    await escrowAccount.save();
+      status: 'COMPLETED',
+    }];
 
-    // Update transaction
-    transaction.status = 'FUNDS_RELEASED';
-    transaction.releaseDate = new Date();
-    await transaction.save();
+    await escrowAccount.update({ balance: 0.00, status: 'RELEASED', releaseHistory });
+    await transaction.update({ status: 'FUNDS_RELEASED', releaseDate: new Date() });
+    await Property.update({ status: 'SOLD' }, { where: { id: transaction.propertyId } });
 
-    // Update property status to SOLD
-    const property = await Property.findById(transaction.property);
-    property.status = 'SOLD';
-    await property.save();
-
-    res.status(200).json({
-      success: true,
-      data: transaction,
-      message: `Released ${amount} to seller successfully`
-    });
+    const result = await Transaction.findByPk(transaction.id, { include: transactionIncludes });
+    res.status(200).json({ success: true, message: `Released ${amount} to seller successfully`, data: result });
   } catch (error) {
     next(error);
   }
 };
 
-// @desc    Refund buyer
+// @desc    Admin refunds buyer
 // @route   POST /api/transactions/:id/refund
-// @access  Private (Admin only)
+// @access  Private (ADMIN)
 exports.refundBuyer = async (req, res, next) => {
   try {
-    const transactionId = req.params.id;
-
-    const transaction = await Transaction.findById(transactionId);
+    const transaction = await Transaction.findByPk(req.params.id);
     if (!transaction) {
-      return res.status(404).json({
-        success: false,
-        message: 'Transaction not found'
-      });
+      return res.status(404).json({ success: false, message: 'Transaction not found' });
     }
 
-    // Check if transaction is in a refundable state (FUNDS_DEPOSITED, MUTATION_INITIATED, MUTATION_IN_PROGRESS, MUTATION_COMPLETED)
     const refundableStates = ['FUNDS_DEPOSITED', 'MUTATION_INITIATED', 'MUTATION_IN_PROGRESS', 'MUTATION_COMPLETED'];
     if (!refundableStates.includes(transaction.status)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Cannot refund at this stage'
-      });
+      return res.status(400).json({ success: false, message: 'Cannot refund at this stage' });
     }
 
-    // Get escrow account
-    const escrowAccount = await EscrowAccount.findById(transaction.escrowAccount);
+    const escrowAccount = await EscrowAccount.findByPk(transaction.escrowAccountId);
     if (!escrowAccount) {
-      return res.status(404).json({
-        success: false,
-        message: 'Escrow account not found'
-      });
+      return res.status(404).json({ success: false, message: 'Escrow account not found' });
     }
-    
-    // Refund funds
-    const amount = escrowAccount.balance;
-    escrowAccount.balance = 0;
-    escrowAccount.status = 'REFUNDED';
-    await escrowAccount.save();
 
-    // Update transaction
-    transaction.status = 'REFUNDED';
-    transaction.refundDate = new Date();
-    await transaction.save();
+    const amount = parseFloat(escrowAccount.balance);
 
-    // Revert property status to AVAILABLE
-    const property = await Property.findById(transaction.property);
-    property.status = 'AVAILABLE';
-    await property.save();
+    await escrowAccount.update({ balance: 0.00, status: 'REFUNDED' });
+    await transaction.update({ status: 'REFUNDED', refundDate: new Date() });
+    await Property.update({ status: 'AVAILABLE' }, { where: { id: transaction.propertyId } });
 
-    res.status(200).json({
-      success: true,
-      data: transaction,
-      message: `Refunded ${amount} to buyer successfully`
-    });
+    const result = await Transaction.findByPk(transaction.id, { include: transactionIncludes });
+    res.status(200).json({ success: true, message: `Refunded ${amount} to buyer successfully`, data: result });
   } catch (error) {
     next(error);
   }

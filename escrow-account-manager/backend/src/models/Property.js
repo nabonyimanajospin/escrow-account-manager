@@ -1,60 +1,80 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/database');
 
-const PropertySchema = new mongoose.Schema({
-  seller: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
+const Property = sequelize.define('Property', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
+  sellerId: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
   },
   title: {
-    type: String,
-    required: [true, 'Please add a title'],
-    trim: true,
-    maxlength: [100, 'Title cannot be more than 100 characters']
+    type: DataTypes.STRING(100),
+    allowNull: false,
+    validate: {
+      notEmpty: { msg: 'Title is required' },
+      len: { args: [2, 100], msg: 'Title cannot exceed 100 characters' },
+    },
   },
   description: {
-    type: String,
-    required: [true, 'Please add a description'],
-    maxlength: [2000, 'Description cannot be more than 2000 characters']
+    type: DataTypes.TEXT,
+    allowNull: false,
+    validate: {
+      notEmpty: { msg: 'Description is required' },
+    },
   },
   price: {
-    type: Number,
-    required: [true, 'Please add a price'],
-    min: [1, 'Price must be greater than 0']
+    type: DataTypes.DECIMAL(15, 2),
+    allowNull: false,
+    validate: {
+      min: { args: [1], msg: 'Price must be greater than 0' },
+    },
   },
   location: {
-    type: String,
-    required: [true, 'Please add a location']
+    type: DataTypes.STRING,
+    allowNull: false,
+    validate: {
+      notEmpty: { msg: 'Location is required' },
+    },
   },
   bedrooms: {
-    type: Number,
-    required: [true, 'Please add number of bedrooms']
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    validate: {
+      min: { args: [0], msg: 'Bedrooms cannot be negative' },
+    },
   },
   bathrooms: {
-    type: Number,
-    required: [true, 'Please add number of bathrooms']
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    validate: {
+      min: { args: [0], msg: 'Bathrooms cannot be negative' },
+    },
   },
   area: {
-    type: Number,
-    required: [true, 'Please add area in square feet']
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false,
+    validate: {
+      min: { args: [1], msg: 'Area must be greater than 0' },
+    },
   },
   propertyType: {
-    type: String,
-    enum: ['APARTMENT', 'HOUSE', 'VILLA', 'COMMERCIAL', 'LAND'],
-    required: true
+    type: DataTypes.ENUM('APARTMENT', 'HOUSE', 'VILLA', 'COMMERCIAL', 'LAND'),
+    allowNull: false,
   },
-  images: [{
-    type: String
-  }],
+  images: {
+    type: DataTypes.ARRAY(DataTypes.TEXT),
+    defaultValue: [],
+  },
   status: {
-    type: String,
-    enum: ['AVAILABLE', 'PENDING', 'SOLD'],
-    default: 'AVAILABLE'
+    type: DataTypes.ENUM('AVAILABLE', 'PENDING', 'SOLD'),
+    defaultValue: 'AVAILABLE',
   },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  }
+}, {
+  timestamps: true,
 });
 
-module.exports = mongoose.model('Property', PropertySchema);
+module.exports = Property;

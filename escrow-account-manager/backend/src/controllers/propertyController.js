@@ -1,22 +1,20 @@
-const Property = require('../models/Property');
+const { Property, User } = require('../models');
 
 // @desc    Get all properties
 // @route   GET /api/properties
-// @access  Public
+// @access  Private
 exports.getProperties = async (req, res, next) => {
   try {
-    // Optional filter by status
-    const filter = {};
-    if (req.query.status) {
-      filter.status = req.query.status;
-    }
-    
-    const properties = await Property.find(filter).populate('seller', 'name email phone');
-    res.status(200).json({
-      success: true,
-      count: properties.length,
-      data: properties
+    const where = {};
+    if (req.query.status) where.status = req.query.status;
+
+    const properties = await Property.findAll({
+      where,
+      include: [{ model: User, as: 'seller', attributes: ['id', 'name', 'email', 'phone'] }],
+      order: [['createdAt', 'DESC']],
     });
+
+    res.status(200).json({ success: true, count: properties.length, data: properties });
   } catch (error) {
     next(error);
   }
@@ -24,20 +22,18 @@ exports.getProperties = async (req, res, next) => {
 
 // @desc    Get single property
 // @route   GET /api/properties/:id
-// @access  Public
+// @access  Private
 exports.getProperty = async (req, res, next) => {
   try {
-    const property = await Property.findById(req.params.id).populate('seller', 'name email phone');
-    if (!property) {
-      return res.status(404).json({
-        success: false,
-        message: 'Property not found'
-      });
-    }
-    res.status(200).json({
-      success: true,
-      data: property
+    const property = await Property.findByPk(req.params.id, {
+      include: [{ model: User, as: 'seller', attributes: ['id', 'name', 'email', 'phone'] }],
     });
+
+    if (!property) {
+      return res.status(404).json({ success: false, message: 'Property not found' });
+    }
+
+    res.status(200).json({ success: true, data: property });
   } catch (error) {
     next(error);
   }
@@ -45,17 +41,29 @@ exports.getProperty = async (req, res, next) => {
 
 // @desc    Create new property
 // @route   POST /api/properties
-// @access  Private (Seller/Admin)
+// @access  Private (SELLER, ADMIN)
 exports.createProperty = async (req, res, next) => {
   try {
-    req.body.seller = req.user.id;
+    const { title, description, price, location, bedrooms, bathrooms, area, propertyType, images } = req.body;
 
-    const property = await Property.create(req.body);
+    if (!title || !description || !price || !location || !bedrooms || !bathrooms || !area || !propertyType) {
+      return res.status(400).json({ success: false, message: 'Please provide all required property fields' });
+    }
 
-    res.status(201).json({
-      success: true,
-      data: property
+    const property = await Property.create({
+      sellerId: req.user.id,
+      title,
+      description,
+      price,
+      location,
+      bedrooms,
+      bathrooms,
+      area,
+      propertyType,
+      images: images || [],
     });
+
+    res.status(201).json({ success: true, data: property });
   } catch (error) {
     next(error);
   }
@@ -63,35 +71,27 @@ exports.createProperty = async (req, res, next) => {
 
 // @desc    Update property
 // @route   PUT /api/properties/:id
-// @access  Private (Seller/Admin)
+// @access  Private (SELLER owner, ADMIN)
 exports.updateProperty = async (req, res, next) => {
   try {
-    let property = await Property.findById(req.params.id);
+    const property = await Property.findByPk(req.params.id);
 
     if (!property) {
-      return res.status(404).json({
-        success: false,
-        message: 'Property not found'
-      });
+      return res.status(404).json({ success: false, message: 'Property not found' });
     }
 
-    // Verify ownership
-    if (property.seller.toString() !== req.user.id && req.user.role !== 'ADMIN') {
-      return res.status(403).json({
-        success: false,
-        message: `User is not authorized to update this property`
-      });
+    if (property.sellerId !== req.user.id && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ success: false, message: 'Not authorized to update this property' });
     }
 
-    property = await Property.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true
-    });
+    // Cannot update a property that is in an active transaction
+    if (property.status !== 'AVAILABLE') {
+      return res.status(400).json({ success: false, message: 'Cannot update a property that is in an active transaction' });
+    }
 
-    res.status(200).json({
-      success: true,
-      data: property
-    });
+    await property.update(req.body);
+
+    res.status(200).json({ success: true, data: property });
   } catch (error) {
     next(error);
   }
@@ -99,32 +99,26 @@ exports.updateProperty = async (req, res, next) => {
 
 // @desc    Delete property
 // @route   DELETE /api/properties/:id
-// @access  Private (Seller/Admin)
+// @access  Private (SELLER owner, ADMIN)
 exports.deleteProperty = async (req, res, next) => {
   try {
-    const property = await Property.findById(req.params.id);
+    const property = await Property.findByPk(req.params.id);
 
     if (!property) {
-      return res.status(404).json({
-        success: false,
-        message: 'Property not found'
-      });
+      return res.status(404).json({ success: false, message: 'Property not found' });
     }
 
-    // Verify ownership
-    if (property.seller.toString() !== req.user.id && req.user.role !== 'ADMIN') {
-      return res.status(403).json({
-        success: false,
-        message: `User is not authorized to delete this property`
-      });
+    if (property.sellerId !== req.user.id && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ success: false, message: 'Not authorized to delete this property' });
     }
 
-    await Property.findByIdAndDelete(req.params.id);
+    if (property.status !== 'AVAILABLE') {
+      return res.status(400).json({ success: false, message: 'Cannot delete a property that is in an active transaction' });
+    }
 
-    res.status(200).json({
-      success: true,
-      message: 'Property deleted successfully'
-    });
+    await property.destroy();
+
+    res.status(200).json({ success: true, message: 'Property deleted successfully' });
   } catch (error) {
     next(error);
   }
