@@ -16,6 +16,9 @@ const EscrowAccount = sequelize.define('EscrowAccount', {
     type: DataTypes.STRING,
     allowNull: false,
     unique: true,
+    validate: {
+      notEmpty: true,
+    },
   },
   balance: {
     type: DataTypes.DECIMAL(15, 2),
@@ -40,8 +43,10 @@ const EscrowAccount = sequelize.define('EscrowAccount', {
 }, {
   timestamps: true,
   hooks: {
-    beforeCreate: (escrow) => {
-      escrow.accountNumber = 'ESC-' + Date.now() + '-' + Math.random().toString(36).substr(2, 8).toUpperCase();
+    beforeValidate: (escrow) => {
+      if (!escrow.accountNumber) {
+        escrow.accountNumber = 'ESC-' + Date.now() + '-' + Math.random().toString(36).substr(2, 8).toUpperCase();
+      }
     },
   },
 });

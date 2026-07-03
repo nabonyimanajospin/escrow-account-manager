@@ -3,214 +3,146 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import axios from '../../api/axiosConfig';
 import LoadingSpinner from '../common/LoadingSpinner';
+import StatusBadge from '../common/StatusBadge';
+
+const StatCard = ({ label, value, sub }) => (
+  <div className="stat-card p-6">
+    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">{label}</p>
+    <p className="text-3xl font-extrabold text-slate-900">{value}</p>
+    <p className="text-xs text-slate-400 mt-2">{sub}</p>
+  </div>
+);
 
 const Dashboard = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({
-    activeTransactions: 0,
-    totalEscrowBalance: 0,
-    propertiesCount: 0,
-    completedDeals: 0
-  });
+  const [stats, setStats] = useState({ active: 0, escrow: 0, properties: 0, completed: 0 });
   const [recentTxns, setRecentTxns] = useState([]);
   const [myProperties, setMyProperties] = useState([]);
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, [user]);
+  useEffect(() => { fetchData(); }, [user]);
 
-  const fetchDashboardData = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
-      // Fetch properties
-      const propResponse = await axios.get('/properties');
-      const propertiesList = propResponse.data.data || [];
+      const [propRes, txnRes] = await Promise.all([
+        axios.get('/properties'),
+        axios.get(user?.role === 'ADMIN' ? '/transactions' : '/transactions/my'),
+      ]);
 
-      // Filter properties owned by seller
-      const sellerProps = propertiesList.filter(p => p.seller?._id === user?.id);
+      const allProps = propRes.data.data || [];
+      const txns = txnRes.data.data || [];
+
+      const sellerProps = allProps.filter((p) => p.sellerId === user?.id);
       setMyProperties(sellerProps);
+      setRecentTxns(txns.slice(0, 5));
 
-      // Fetch transactions
-      const txnResponse = await axios.get('/transactions');
-      const txnList = txnResponse.data.data || [];
-      setRecentTxns(txnList.slice(0, 5)); // show top 5
-
-      // Calculate stats based on user role
-      let active = 0;
-      let escrowHeld = 0;
-      let completed = 0;
-
-      txnList.forEach(t => {
-        if (['PENDING', 'FUNDS_DEPOSITED', 'MUTATION_INITIATED', 'MUTATION_IN_PROGRESS', 'MUTATION_COMPLETED'].includes(t.status)) {
+      let active = 0, escrow = 0, completed = 0;
+      txns.forEach((t) => {
+        const activeStates = ['PENDING','FUNDS_DEPOSITED','MUTATION_INITIATED','MUTATION_IN_PROGRESS','MUTATION_COMPLETED'];
+        if (activeStates.includes(t.status)) {
           active++;
-          if (t.escrowAccount) {
-            escrowHeld += t.escrowAccount.balance;
-          }
-        } else if (t.status === 'FUNDS_RELEASED') {
-          completed++;
+          escrow += Number(t.escrowAccount?.balance || 0);
         }
+        if (t.status === 'FUNDS_RELEASED') completed++;
       });
 
       setStats({
-        activeTransactions: active,
-        totalEscrowBalance: escrowHeld,
-        propertiesCount: user?.role === 'SELLER' ? sellerProps.length : propertiesList.length,
-        completedDeals: completed
+        active,
+        escrow,
+        properties: user?.role === 'SELLER' ? sellerProps.length : allProps.length,
+        completed,
       });
-    } catch (error) {
-      console.error('Error loading dashboard data:', error);
+    } catch (err) {
+      console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
-  if (loading) {
-    return <LoadingSpinner />;
-  }
+  if (loading) return <LoadingSpinner />;
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Welcome Header */}
-      <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between">
+    <div className="page-wrapper space-y-7 animate-fade-in">
+
+      {/* Welcome banner */}
+      <div className="card-tinted p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-0">
-            Welcome back, {user?.name}! 👋
-          </h1>
-          <p className="text-gray-500 mt-1">
-            You are logged in as a <strong className="text-primary-600 uppercase">{user?.role}</strong>.
+          <h1 className="text-2xl font-bold text-slate-900">Welcome back, {user?.name}!</h1>
+          <p className="text-slate-500 mt-1 text-sm">
+            Logged in as <span className="font-semibold text-primary-600">{user?.role}</span>
+            {user?.role === 'ADMIN' && ' — Full platform access'}
           </p>
         </div>
-        <div className="mt-4 md:mt-0 flex space-x-2">
+        <div className="flex flex-wrap gap-2">
           {user?.role === 'SELLER' && (
-            <Link
-              to="/properties/create"
-              className="bg-primary-600 hover:bg-primary-700 text-white font-medium px-4 py-2 rounded-lg text-sm transition-all shadow-sm flex items-center"
-            >
-              ➕ Create Listing
+            <Link to="/properties/create" className="btn-primary text-sm">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Create Listing
             </Link>
           )}
-          <Link
-            to="/properties"
-            className="bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-200 font-medium px-4 py-2 rounded-lg text-sm transition-all flex items-center"
-          >
-            🔍 Browse Properties
-          </Link>
+          <Link to="/properties" className="btn-secondary text-sm">Browse Properties</Link>
         </div>
       </div>
 
-      {/* Metrics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-        {/* Active Transactions */}
-        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Active Deals</p>
-              <h3 className="text-2xl font-bold text-gray-950 mt-2">{stats.activeTransactions}</h3>
-            </div>
-            <span className="text-2xl bg-amber-50 p-2 rounded-lg">💼</span>
-          </div>
-          <p className="text-xs text-gray-400 mt-4">Transactions currently in progress</p>
-        </div>
-
-        {/* Escrow Balance */}
-        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Escrow Balance</p>
-              <h3 className="text-2xl font-bold text-gray-950 mt-2">
-                ${stats.totalEscrowBalance.toLocaleString()}
-              </h3>
-            </div>
-            <span className="text-2xl bg-green-50 p-2 rounded-lg">💰</span>
-          </div>
-          <p className="text-xs text-gray-400 mt-4">Funds securely locked in escrow</p>
-        </div>
-
-        {/* Properties Count */}
-        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
-                {user?.role === 'SELLER' ? 'My Properties' : 'Available Houses'}
-              </p>
-              <h3 className="text-2xl font-bold text-gray-950 mt-2">{stats.propertiesCount}</h3>
-            </div>
-            <span className="text-2xl bg-blue-50 p-2 rounded-lg">🏠</span>
-          </div>
-          <p className="text-xs text-gray-400 mt-4">
-            {user?.role === 'SELLER' ? 'Your listed property entries' : 'Properties listed in catalog'}
-          </p>
-        </div>
-
-        {/* Completed Deals */}
-        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Finished Deals</p>
-              <h3 className="text-2xl font-bold text-gray-950 mt-2">{stats.completedDeals}</h3>
-            </div>
-            <span className="text-2xl bg-purple-50 p-2 rounded-lg">✅</span>
-          </div>
-          <p className="text-xs text-gray-400 mt-4">Transactions successfully settled</p>
-        </div>
+      {/* Stats */}
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+        <StatCard label="Active Deals"    value={stats.active}                        sub="Transactions in progress" />
+        <StatCard label="Escrow Balance"  value={`$${stats.escrow.toLocaleString()}`} sub="Funds locked in escrow" />
+        <StatCard
+          label={user?.role === 'SELLER' ? 'My Listings' : 'Available Properties'}
+          value={stats.properties}
+          sub={user?.role === 'SELLER' ? 'Your listed properties' : 'Properties in catalog'}
+        />
+        <StatCard label="Completed Deals" value={stats.completed}                     sub="Successfully settled" />
       </div>
 
-      {/* Main Grid: Recent Transactions */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: Recent Transactions list */}
-        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm lg:col-span-2 space-y-4">
-          <div className="flex justify-between items-center border-b border-gray-100 pb-3">
-            <h3 className="text-lg font-bold text-gray-900">Recent Transactions</h3>
-            <Link to="/transactions" className="text-sm font-semibold text-primary-600 hover:text-primary-700">
-              View All
-            </Link>
+      {/* Main content */}
+      <div className="grid gap-6 lg:grid-cols-3">
+
+        {/* Recent transactions */}
+        <div className="card p-6 lg:col-span-2">
+          <div className="flex items-center justify-between mb-5 pb-4 border-b border-slate-100">
+            <h2 className="text-lg font-bold text-slate-900">Recent Transactions</h2>
+            <Link to="/transactions" className="text-sm font-semibold text-primary-600 hover:text-primary-700">View All</Link>
           </div>
 
           {recentTxns.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              No transactions found. Go to the <Link to="/properties" className="text-primary-600 hover:underline">Properties</Link> catalog to start buying!
+            <div className="py-10 text-center">
+              <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center mx-auto mb-3">
+                <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+              </div>
+              <p className="text-slate-600 text-sm font-medium">No transactions yet</p>
+              <Link to="/properties" className="text-primary-600 text-sm font-semibold hover:underline mt-1 inline-block">
+                Browse properties to start
+              </Link>
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-100">
+              <table className="min-w-full">
                 <thead>
-                  <tr className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    <th className="pb-3">Deal ID</th>
-                    <th className="pb-3">Property</th>
-                    <th className="pb-3">Amount</th>
-                    <th className="pb-3">Status</th>
-                    <th className="pb-3">Action</th>
+                  <tr className="text-left text-xs font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100">
+                    <th className="pb-3 pr-4">Deal ID</th>
+                    <th className="pb-3 pr-4">Property</th>
+                    <th className="pb-3 pr-4">Amount</th>
+                    <th className="pb-3 pr-4">Status</th>
+                    <th className="pb-3"></th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50 text-sm">
+                <tbody className="divide-y divide-slate-50">
                   {recentTxns.map((txn) => (
-                    <tr key={txn._id} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="py-3.5 font-mono text-xs font-semibold text-gray-700">
-                        {txn.transactionId}
-                      </td>
-                      <td className="py-3.5 font-medium text-gray-900">
-                        {txn.property?.title || 'Unknown Property'}
-                      </td>
-                      <td className="py-3.5 text-gray-700">
-                        ${txn.amount?.toLocaleString()}
-                      </td>
+                    <tr key={txn.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="py-3.5 pr-4 font-mono text-xs font-semibold text-slate-600">{txn.transactionId}</td>
+                      <td className="py-3.5 pr-4 text-sm font-medium text-slate-800 max-w-[140px] truncate">{txn.property?.title || 'Unknown'}</td>
+                      <td className="py-3.5 pr-4 text-sm text-slate-700 font-semibold">${Number(txn.amount || 0).toLocaleString()}</td>
+                      <td className="py-3.5 pr-4"><StatusBadge status={txn.status} /></td>
                       <td className="py-3.5">
-                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                          txn.status === 'FUNDS_RELEASED' ? 'bg-green-100 text-green-800' :
-                          txn.status === 'REFUNDED' ? 'bg-red-100 text-red-800' :
-                          txn.status === 'PENDING' ? 'bg-gray-100 text-gray-800' :
-                          'bg-amber-100 text-amber-800'
-                        }`}>
-                          {txn.status}
-                        </span>
-                      </td>
-                      <td className="py-3.5">
-                        <Link
-                          to={`/transactions/${txn._id}`}
-                          className="text-primary-600 hover:text-primary-700 font-semibold"
-                        >
-                          Workspace &rarr;
+                        <Link to={`/transactions/${txn.id}`} className="text-xs font-semibold text-primary-600 hover:text-primary-700 whitespace-nowrap">
+                          Open
                         </Link>
                       </td>
                     </tr>
@@ -221,45 +153,68 @@ const Dashboard = () => {
           )}
         </div>
 
-        {/* Right Column: Mini Panel depending on user role */}
-        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
+        {/* Side panel */}
+        <div className="card p-6">
           {user?.role === 'SELLER' ? (
             <>
-              <h3 className="text-lg font-bold text-gray-900 border-b border-gray-100 pb-3">My Listings</h3>
+              <div className="flex items-center justify-between mb-5 pb-4 border-b border-slate-100">
+                <h2 className="text-lg font-bold text-slate-900">My Listings</h2>
+                <Link to="/properties/create" className="text-xs font-semibold text-primary-600 hover:text-primary-700">+ New</Link>
+              </div>
               {myProperties.length === 0 ? (
-                <div className="text-center py-6 text-gray-500 text-sm">
-                  No properties listed yet.{' '}
-                  <Link to="/properties/create" className="text-primary-600 hover:underline">
-                    Create your first list entry!
+                <div className="py-6 text-center">
+                  <p className="text-slate-500 text-sm">No listings yet.</p>
+                  <Link to="/properties/create" className="text-primary-600 text-sm font-semibold hover:underline mt-1 inline-block">
+                    Create your first listing
                   </Link>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {myProperties.slice(0, 3).map((p) => (
-                    <div key={p._id} className="flex justify-between items-center p-2 hover:bg-gray-50 rounded-lg">
-                      <div>
-                        <p className="font-semibold text-sm text-gray-900">{p.title}</p>
-                        <p className="text-xs text-gray-400">{p.location}</p>
+                  {myProperties.slice(0, 4).map((p) => (
+                    <Link key={p.id} to={`/properties/${p.id}`} className="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 transition-colors group">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-800 truncate group-hover:text-primary-600 transition-colors">{p.title}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">{p.location}</p>
                       </div>
-                      <span className="text-xs bg-primary-50 text-primary-700 px-2 py-0.5 rounded-full font-bold">
-                        ${p.price?.toLocaleString()}
-                      </span>
-                    </div>
+                      <div className="text-right ml-3 flex-shrink-0">
+                        <p className="text-sm font-bold text-primary-600">${Number(p.price).toLocaleString()}</p>
+                        <StatusBadge status={p.status} />
+                      </div>
+                    </Link>
                   ))}
                 </div>
               )}
             </>
           ) : (
             <>
-              <h3 className="text-lg font-bold text-gray-900 border-b border-gray-100 pb-3">Security Notice</h3>
-              <div className="bg-primary-50 p-4 rounded-xl border border-primary-100 text-xs text-primary-950 space-y-2">
-                <p className="font-bold">🛡️ How does Escrow work?</p>
-                <ol className="list-decimal pl-4 space-y-1">
-                  <li><strong>Deposit:</strong> The buyer deposits funds matching the selling price.</li>
-                  <li><strong>Mutation:</strong> The seller legally transfers property deeds (ownership transfer).</li>
-                  <li><strong>Verification:</strong> The seller uploads mutation proof, and the administrator verifies it.</li>
-                  <li><strong>Payout/Refund:</strong> Admin releases funds to the seller, or refunds the buyer if mutation fails.</li>
-                </ol>
+              <h2 className="text-lg font-bold text-slate-900 mb-5 pb-4 border-b border-slate-100">How Escrow Works</h2>
+              <div className="space-y-4">
+                {[
+                  { n: '1', t: 'Confirm Deposit',  d: 'Buyer confirms the exact property price. The amount is locked in the escrow account.' },
+                  { n: '2', t: 'Mutation Process', d: 'Seller initiates legal ownership transfer and uploads proof documents.' },
+                  { n: '3', t: 'Verification',     d: 'Admin reviews the uploaded documents and verifies the mutation is complete.' },
+                  { n: '4', t: 'Payout or Refund', d: 'Admin releases funds to the seller, or refunds the buyer if mutation fails.' },
+                ].map((item) => (
+                  <div key={item.n} className="flex gap-3">
+                    <div className="w-6 h-6 rounded-full gradient-accent flex items-center justify-center text-white text-xs font-bold flex-shrink-0 mt-0.5">
+                      {item.n}
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">{item.t}</p>
+                      <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">{item.d}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-5 pt-4 border-t border-slate-200">
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                  <p className="text-xs font-bold text-amber-800 uppercase tracking-wider mb-1.5">Simulation Notice</p>
+                  <p className="text-xs text-amber-700 leading-relaxed">
+                    This system simulates escrow. No real money is transferred. Depositing funds means
+                    confirming the amount in the system. A real deployment would connect to a payment gateway.
+                  </p>
+                </div>
               </div>
             </>
           )}

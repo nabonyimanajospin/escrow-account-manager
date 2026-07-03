@@ -1,0 +1,69 @@
+hey do you see the project, I was working with another ai but it ended the limit, I want you to proceed from where it were but with carefulness
+
+scan the project well and accurately and fully and please make sure you see if all things are good and also please check if things are we
+
+ll wired
+
+See what it said to me:
+
+Now I have the full picture. Let me map out every logical problem before writing a single line:
+
+**Flow analysis — what's wrong:**
+
+StatusBUYER seesSELLER seesADMIN seesProblem
+```
+PENDING
+```
+
+Deposit button ✓NothingNothingSELLER & ADMIN have no context — they don't know they're waiting on buyer
+```
+FUNDS_DEPOSITED
+```
+
+"Waiting" message ✓Initiate Mutation ✓NothingADMIN sees blank panel — no context
+```
+MUTATION_INITIATED
+```
+
+"Waiting" message ✓Upload Doc + Complete MutationComplete Mutation + RefundADMIN can complete mutation without any document uploaded — logically wrong. Also SELLER should complete mutation only after uploading at least one doc
+```
+MUTATION_IN_PROGRESS
+```
+
+"Waiting" message ✓Upload more docs + Complete MutationComplete Mutation + RefundADMIN completing mutation here is fine ✓
+```
+MUTATION_COMPLETED
+```
+
+"Waiting" message ✓NothingRelease + Refund ✓SELLER sees blank — no context**Logical corrections needed:**
+
+1. **ADMIN should NOT be able to "Complete Mutation" at **
+
+```
+MUTATION_INITIATED
+```
+
+ — mutation initiated just means seller declared intent. No documents exist yet. Admin completing it at this stage makes no sense. Admin can only complete it at 
+```
+MUTATION_IN_PROGRESS
+```
+
+ (documents uploaded).
+2. **SELLER should NOT be able to "Complete Mutation" at **
+
+```
+MUTATION_INITIATED
+```
+
+ — same reason. They need to upload at least one document first, which moves it to 
+```
+MUTATION_IN_PROGRESS
+```
+
+, then they can complete.
+3. **Every role needs a "waiting" context message** when it's not their turn — currently only BUYER gets one.
+4. **ADMIN needs a clear oversight panel** at every stage showing what's happening and what they're waiting for, plus their available actions clearly separated.
+5. **"Complete Mutation" for ADMIN should require a confirm modal** — it's an irreversible state change, same as release/refund.
+
+
+It was not done, it was about to change the TransactionDetails.jsx file, please if you can proceed and also please help me to make sure that the flow go well, so that the admin will be able to activate things  accordingly, 

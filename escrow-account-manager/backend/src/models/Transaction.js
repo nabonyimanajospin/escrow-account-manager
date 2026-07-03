@@ -11,6 +11,9 @@ const Transaction = sequelize.define('Transaction', {
     type: DataTypes.STRING,
     allowNull: false,
     unique: true,
+    validate: {
+      notEmpty: true,
+    },
   },
   propertyId: {
     type: DataTypes.INTEGER,
@@ -76,8 +79,10 @@ const Transaction = sequelize.define('Transaction', {
 }, {
   timestamps: true,
   hooks: {
-    beforeCreate: (transaction) => {
-      transaction.transactionId = 'TXN-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6).toUpperCase();
+    beforeValidate: (transaction) => {
+      if (!transaction.transactionId) {
+        transaction.transactionId = 'TXN-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6).toUpperCase();
+      }
     },
   },
 });
