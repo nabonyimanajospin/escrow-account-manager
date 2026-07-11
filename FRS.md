@@ -99,30 +99,27 @@ This document covers:
 The transaction lifecycle is governed by a strict, linear state machine. Each state transition is triggered by a specific actor action. Invalid transitions must be rejected by the system.
 
 ```
-[ PENDING ]
+[ PENDING ]  <--- (Auto-expires after 10 mins back to AVAILABLE if not funded)
       │
-      │  Buyer calls: POST /api/transactions/:id/deposit
+      │  Buyer calls: POST /api/escrow/:id/deposit
       │  (Exact amount verified against property price)
       ▼
-[ FUNDS_DEPOSITED ]
+[ FUNDED ]
       │
-      │  Seller calls: POST /api/transactions/:id/initiate-mutation
+      │  Seller calls: POST /api/escrow/:id/initiate-mutation
       ▼
-[ MUTATION_INITIATED ]
+[ MUTATION_STARTED ]
       │
-      │  Seller calls: POST /api/transactions/:id/upload-document
+      │  Seller calls: POST /api/escrow/:id/upload-document
+      │  Seller calls: POST /api/escrow/:id/complete-mutation
       ▼
-[ MUTATION_IN_PROGRESS ]
+[ UNDER_REVIEW ]
       │
-      │  Seller/Admin calls: POST /api/transactions/:id/complete-mutation
-      ▼
-[ MUTATION_COMPLETED ]
+      ├──── Admin calls: POST /api/admin/transactions/:id/release
+      │           └──→ [ COMPLETED ]  →  Property: SOLD
       │
-      ├──── Admin calls: POST /api/transactions/:id/release
-      │           └──→ [ FUNDS_RELEASED ]  →  Property: SOLD
-      │
-      └──── Admin calls: POST /api/transactions/:id/refund
-                  └──→ [ REFUNDED ]        →  Property: AVAILABLE
+      └──── Admin calls: POST /api/admin/transactions/:id/refund
+                  └──→ [ REFUNDED ]   →  Property: AVAILABLE
 ```
 
 ### State Definitions
@@ -130,13 +127,11 @@ The transaction lifecycle is governed by a strict, linear state machine. Each st
 | State                | Description                                                                       |
 |----------------------|-----------------------------------------------------------------------------------|
 | `PENDING`            | Transaction created; escrow account exists but has no funds.                      |
-| `FUNDS_DEPOSITED`    | Buyer has deposited the full property price; escrow balance equals property price. |
-| `MUTATION_INITIATED` | Seller has officially started the legal property ownership transfer process.       |
-| `MUTATION_IN_PROGRESS` | Seller has uploaded proof documentation; mutation is actively underway.          |
-| `MUTATION_COMPLETED` | Seller confirms the ownership transfer is legally complete.                       |
-| `FUNDS_RELEASED`     | Admin has verified and released escrow funds to the seller. Escrow balance = 0.   |
+| `FUNDED`             | Buyer has deposited the full property price; escrow balance equals property price. |
+| `MUTATION_STARTED`   | Seller has officially started the legal property ownership transfer process.       |
+| `UNDER_REVIEW`       | Seller has uploaded proof deeds and submitted the deal for final Admin review.   |
+| `COMPLETED`          | Admin has verified deeds and released escrow funds to the seller. Escrow balance = 0. |
 | `REFUNDED`           | Admin has triggered refund. Buyer receives virtual funds back. Escrow balance = 0.|
-| `FAILED`             | System error or exceptional case; transaction is invalid.                         |
 
 ---
 
@@ -289,16 +284,16 @@ The transaction lifecycle is governed by a strict, linear state machine. Each st
 ### UC-09: Release Escrow Funds to Seller (Admin)
 
 - **Actor:** Admin
-- **Preconditions:** Transaction status is `MUTATION_COMPLETED`. Requesting user has `ADMIN` role.
-- **Postconditions:** Escrow balance = 0. Transaction status = `FUNDS_RELEASED`. Property status = `SOLD`.
+- **Preconditions:** Transaction status is `UNDER_REVIEW`. Requesting user has `ADMIN` role.
+- **Postconditions:** Escrow balance = 0. Transaction status = `COMPLETED`. Property status = `SOLD`.
 
 **Main Flow:**
 1. Admin reviews the mutation documents and confirms completion.
 2. Admin clicks "Release Escrow Funds".
-3. System verifies the transaction is in `MUTATION_COMPLETED` state.
+3. System verifies the transaction is in `UNDER_REVIEW` state.
 4. System reads the escrow account balance.
 5. System sets escrow balance to `0`, status → `RELEASED`, appends release history entry.
-6. System updates transaction: status → `FUNDS_RELEASED`, sets `releaseDate`.
+6. System updates transaction: status → `COMPLETED`, sets `releaseDate`.
 7. System updates property: status → `SOLD`.
 8. System returns updated transaction with confirmation of amount released.
 
@@ -424,9 +419,9 @@ The transaction lifecycle is governed by a strict, linear state machine. Each st
 | BR-03  | Deposit amounts must exactly equal the property listing price — no partial deposits or overpayments are permitted.   |
 | BR-04  | Only the buyer of a transaction can deposit funds to its escrow account.                                             |
 | BR-05  | Only the seller of a transaction can initiate the mutation process or upload documents.                              |
-| BR-06  | Escrow funds can only be released when the transaction is in `MUTATION_COMPLETED` state.                             |
+| BR-06  | Escrow funds can only be released when the transaction is in `UNDER_REVIEW` state.                             |
 | BR-07  | Only the `ADMIN` role may execute fund release or buyer refund actions.                                              |
-| BR-08  | After any final state (`FUNDS_RELEASED` or `REFUNDED`), no further state transitions are permitted on that transaction. |
+| BR-08  | After any final state (`COMPLETED` or `REFUNDED`), no further state transitions are permitted on that transaction. |
 | BR-09  | An escrow account balance must be exactly `0` after its status is set to `RELEASED` or `REFUNDED`.                  |
 | BR-10  | Property status must always reflect the latest transaction state: `AVAILABLE` when no active transaction, `PENDING` during a transaction, `SOLD` after release, and back to `AVAILABLE` after refund. |
 

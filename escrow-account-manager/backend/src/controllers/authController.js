@@ -111,3 +111,41 @@ exports.getMe = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Update current user profile
+// @route   PUT /api/auth/me
+// @access  Private
+exports.updateMe = async (req, res, next) => {
+  try {
+    const { name, phone, address } = req.body;
+    const user = await User.findByPk(req.user.id);
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    if (name)    user.name    = name;
+    if (phone !== undefined) user.phone   = phone;
+    if (address !== undefined) user.address = address;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      user: { id: user.id, name: user.name, email: user.email, role: user.role, phone: user.phone, address: user.address },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get all users (Admin only)
+// @route   GET /api/auth/users
+// @access  Private (ADMIN)
+exports.getUsers = async (req, res, next) => {
+  try {
+    const users = await User.findAll({
+      attributes: { exclude: ['password'] },
+      order: [['createdAt', 'DESC']],
+    });
+    res.status(200).json({ success: true, count: users.length, data: users });
+  } catch (error) {
+    next(error);
+  }
+};

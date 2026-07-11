@@ -176,38 +176,33 @@ STEP 5 — Admin reviews all documents and verifies mutation outcome
 The escrow transaction follows a strict, ordered state machine:
 
 ```
-[ PENDING ]
+[ PENDING ]  <--- (Auto-expires after 10 mins back to AVAILABLE if not funded)
     |
     |  Buyer deposits exact property price
     v
-[ FUNDS_DEPOSITED ]
+[ FUNDED ]
     |
     |  Seller initiates mutation process
     v
-[ MUTATION_INITIATED ]
+[ MUTATION_STARTED ]
     |
-    |  Seller uploads proof documents
+    |  Seller uploads proof documents + submits
     v
-[ MUTATION_IN_PROGRESS ]
+[ UNDER_REVIEW ]
     |
-    |  Seller/Admin confirms mutation complete
-    v
-[ MUTATION_COMPLETED ]
+    +------  Admin approves  ------> [ COMPLETED ]  -->  Property: SOLD
     |
-    +------  Admin approves  ------> [ FUNDS_RELEASED ]  -->  Property: SOLD
-    |
-    +------  Admin rejects   ------> [ REFUNDED ]        -->  Property: AVAILABLE
+    +------  Admin rejects   ------> [ REFUNDED ]   -->  Property: AVAILABLE
 ```
 
 | State                  | Description                                                    |
 |------------------------|----------------------------------------------------------------|
 | PENDING                | Transaction created, escrow account exists with zero balance   |
-| FUNDS_DEPOSITED        | Buyer has deposited the full property price into escrow        |
-| MUTATION_INITIATED     | Seller has officially started the ownership transfer process   |
-| MUTATION_IN_PROGRESS   | Seller has uploaded mutation proof; transfer is underway       |
-| MUTATION_COMPLETED     | Ownership transfer is legally complete and confirmed           |
-| FUNDS_RELEASED         | Admin released funds to seller; escrow balance is zero         |
-| REFUNDED               | Admin refunded buyer; escrow balance is zero                   |
+| FUNDED                 | Buyer has deposited the full property price into escrow        |
+| MUTATION_STARTED       | Seller has officially started the ownership transfer process   |
+| UNDER_REVIEW           | Mutation submitted by seller; under Admin review               |
+| COMPLETED              | Admin released funds to seller; escrow balance is zero         |
+| REFUNDED               | Admin refunded buyer (or PENDING deal auto-expired); balance 0 |
 
 ---
 

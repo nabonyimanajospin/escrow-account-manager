@@ -1,7 +1,8 @@
 const User = require('./User');
 const Property = require('./Property');
 const Transaction = require('./Transaction');
-const EscrowAccount = require('./EscrowAccount');
+const Escrow = require('./Escrow');
+const AuditLog = require('./AuditLog');
 
 // User — Property associations
 User.hasMany(Property, { foreignKey: 'sellerId', as: 'properties' });
@@ -17,8 +18,12 @@ Transaction.belongsTo(User, { foreignKey: 'sellerId', as: 'seller' });
 Property.hasMany(Transaction, { foreignKey: 'propertyId', as: 'transactions' });
 Transaction.belongsTo(Property, { foreignKey: 'propertyId', as: 'property' });
 
-// Transaction — EscrowAccount association
-Transaction.hasOne(EscrowAccount, { foreignKey: 'transactionId', as: 'escrowAccount' });
-EscrowAccount.belongsTo(Transaction, { foreignKey: 'transactionId', as: 'transaction' });
+// Transaction — Escrow association
+Transaction.hasOne(Escrow, { foreignKey: 'transactionId', as: 'escrowAccount' });
+Escrow.belongsTo(Transaction, { foreignKey: 'transactionId', as: 'transaction' });
 
-module.exports = { User, Property, Transaction, EscrowAccount };
+// Transaction — AuditLog association
+Transaction.hasMany(AuditLog, { foreignKey: 'transactionId', as: 'auditLogs' });
+AuditLog.belongsTo(Transaction, { foreignKey: 'transactionId', as: 'transaction' });
+
+module.exports = { User, Property, Transaction, Escrow, AuditLog };

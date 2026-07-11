@@ -1,4 +1,4 @@
-import React from 'react';
+
 
 const LoadingSpinner = ({ text = 'Loading...' }) => (
   <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4 animate-fade-in">

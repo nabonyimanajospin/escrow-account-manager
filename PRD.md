@@ -158,7 +158,7 @@ The system holds deposited buyer funds in a transaction-specific virtual escrow 
 | F-01       | User Authentication    | P0       | Secure registration and login with JWT. Roles: `BUYER`, `SELLER`, `ADMIN`.                              |
 | F-02       | Property Listings      | P0       | Sellers can create, update, and delete property listings. Buyers can browse and view listing details.    |
 | F-03       | Escrow Account Creation| P0       | A unique virtual escrow account is automatically created when a buyer initiates a transaction.           |
-| F-04       | Fund Deposit to Escrow | P0       | Buyer deposits the exact listing price into the escrow account. Transaction moves to `FUNDS_DEPOSITED`.  |
+| F-04       | Fund Deposit to Escrow | P0       | Buyer deposits the exact listing price into the escrow account. Transaction moves to `FUNDED`.  |
 | F-05       | Mutation Tracking      | P0       | Seller initiates mutation, uploads proof documents. Transaction progresses through mutation states.      |
 | F-06       | Fund Release           | P0       | Admin approves and releases escrowed funds to the seller upon successful mutation completion.            |
 | F-07       | Fund Refund            | P0       | Admin triggers refund to buyer if mutation fails or is canceled.                                         |
@@ -191,7 +191,7 @@ The following items are explicitly excluded from version 1.0.0 of this system:
 | NFR-03 | Security     | Role-based access control (RBAC) must prevent unauthorized actions (e.g., buyer cannot release funds). |
 | NFR-04 | Performance  | API response time must be under 500ms for standard requests under normal load.                      |
 | NFR-05 | Performance  | Frontend page load time must be under 3 seconds on a standard broadband connection.                 |
-| NFR-06 | Reliability  | The transaction state machine must prevent invalid state transitions (e.g., skipping from PENDING to FUNDS_RELEASED). |
+| NFR-06 | Reliability  | The transaction state machine must prevent invalid state transitions (e.g., skipping from PENDING to COMPLETED). |
 | NFR-07 | Reliability  | No escrow account must ever have a non-zero balance after RELEASED or REFUNDED status.              |
 | NFR-08 | Usability    | The frontend must be responsive and functional on both desktop (1920×1080) and mobile (375px width) screens. |
 | NFR-09 | Maintainability | Code must follow a modular MVC (Model-View-Controller) architecture for clarity and extensibility. |

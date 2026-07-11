@@ -181,11 +181,11 @@ The system provides the following high-level capabilities:
 | FR3.3   | P0       | Upon transaction initiation, the system shall: (a) create a Transaction record with a unique ID (`TXN-XXXX`), (b) create a linked EscrowAccount with a unique account number (`ESC-XXXX`) and balance of `0`, and (c) set the property status to `PENDING`. |
 | FR3.4   | P0       | Only the buyer of a transaction shall be permitted to deposit funds into the linked escrow account.              |
 | FR3.5   | P0       | The deposited amount must exactly match the property listing price. Mismatched amounts shall be rejected with a validation error. |
-| FR3.6   | P0       | Upon successful deposit, the escrow account balance shall be updated and the transaction status shall change to `FUNDS_DEPOSITED`. |
-| FR3.7   | P0       | Only the seller of a transaction shall be permitted to initiate the mutation process (state → `MUTATION_INITIATED`). |
-| FR3.8   | P0       | The seller shall be able to upload mutation document references (state → `MUTATION_IN_PROGRESS`).               |
-| FR3.9   | P0       | The transaction state must change to `MUTATION_COMPLETED` when the seller or admin confirms ownership transfer is finalized. |
-| FR3.10  | P0       | Only a user with the `ADMIN` role shall be permitted to release escrowed funds to the seller. Upon release: (a) escrow balance is set to `0`, (b) escrow account status → `RELEASED`, (c) transaction status → `FUNDS_RELEASED`, (d) property status → `SOLD`. |
+| FR3.6   | P0       | Upon successful deposit, the escrow account balance shall be updated and the transaction status shall change to `FUNDED`. |
+| FR3.7   | P0       | Only the seller of a transaction shall be permitted to initiate the mutation process (state → `MUTATION_STARTED`). |
+| FR3.8   | P0       | The seller shall be able to upload mutation document references.                                                 |
+| FR3.9   | P0       | The transaction state must change to `UNDER_REVIEW` when the seller or admin confirms ownership transfer is finalized. |
+| FR3.10  | P0       | Only a user with the `ADMIN` role shall be permitted to release escrowed funds to the seller. Upon release: (a) escrow balance is set to `0`, (b) escrow account status → `RELEASED`, (c) transaction status → `COMPLETED`, (d) property status → `SOLD`. |
 | FR3.11  | P0       | Only a user with the `ADMIN` role shall be permitted to trigger a buyer refund. Upon refund: (a) escrow balance is set to `0`, (b) escrow account status → `REFUNDED`, (c) transaction status → `REFUNDED`, (d) property status → `AVAILABLE`. |
 | FR3.12  | P1       | All deposit events shall be stored in the escrow account's deposit history with: amount, timestamp, and reference number. |
 | FR3.13  | P1       | All release events shall be stored in the escrow account's release history with: amount, timestamp, and reference number. |
@@ -351,12 +351,12 @@ The system provides the following high-level capabilities:
 | seller_id          | Integer    | Yes      | Foreign key — references Users table                           |
 | amount             | Number     | Yes      | Must match property price                                      |
 | escrow_account_id  | Integer    | Yes      | Foreign key — references EscrowAccounts table                  |
-| status             | String     | Auto     | Enum: `PENDING`, `FUNDS_DEPOSITED`, `MUTATION_INITIATED`, `MUTATION_IN_PROGRESS`, `MUTATION_COMPLETED`, `FUNDS_RELEASED`, `FAILED`, `REFUNDED` |
+| status             | String     | Auto     | Enum: `PENDING`, `FUNDED`, `MUTATION_STARTED`, `UNDER_REVIEW`, `COMPLETED`, `REFUNDED` |
 | mutationDocuments  | [Object]   | No       | Array of `{description, uploadedAt}`                          |
-| depositDate        | Date       | No       | Set when status → `FUNDS_DEPOSITED`                            |
-| mutationStartDate  | Date       | No       | Set when status → `MUTATION_INITIATED`                         |
-| mutationEndDate    | Date       | No       | Set when status → `MUTATION_COMPLETED`                         |
-| releaseDate        | Date       | No       | Set when status → `FUNDS_RELEASED`                             |
+| depositDate        | Date       | No       | Set when status → `FUNDED`                            |
+| mutationStartDate  | Date       | No       | Set when status → `MUTATION_STARTED`                         |
+| mutationEndDate    | Date       | No       | Set when status → `UNDER_REVIEW`                         |
+| releaseDate        | Date       | No       | Set when status → `COMPLETED`                             |
 | refundDate         | Date       | No       | Set when status → `REFUNDED`                                   |
 | notes              | String     | No       | Optional admin notes                                           |
 | createdAt          | Date       | Auto     | Default: current timestamp                                     |

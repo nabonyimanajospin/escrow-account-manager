@@ -1,4 +1,5 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+/* eslint-disable react-refresh/only-export-components */
+import { createContext, useState, useContext, useEffect } from 'react';
 import axios from '../api/axiosConfig';
 import toast from 'react-hot-toast';
 
@@ -17,10 +18,6 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  useEffect(() => {
-    checkAuth();
-  }, []);
-
   const checkAuth = async () => {
     const token = localStorage.getItem('token');
     if (token) {
@@ -29,6 +26,7 @@ export const AuthProvider = ({ children }) => {
         setUser(response.data.user);
         setIsAuthenticated(true);
       } catch (error) {
+        console.error('Session validation failed:', error.message);
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         setUser(null);
@@ -38,15 +36,33 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   };
 
+  useEffect(() => {
+    checkAuth();
+  }, []);
+
+  const refreshUser = async () => {
+    try {
+      const response = await axios.get('/auth/me');
+      setUser(response.data.user);
+    } catch (err) {
+      console.error('Failed to refresh profile info:', err.message);
+    }
+  };
+
+  useEffect(() => {
+    window.addEventListener('profile-updated', refreshUser);
+    return () => window.removeEventListener('profile-updated', refreshUser);
+  }, []);
+
   const login = async (email, password) => {
     try {
       const response = await axios.post('/auth/login', { email, password });
-      const { token, user } = response.data;
+      const { token, user: loggedUser } = response.data;
       
       localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(user));
+      localStorage.setItem('user', JSON.stringify(loggedUser));
       
-      setUser(user);
+      setUser(loggedUser);
       setIsAuthenticated(true);
       
       toast.success('Login successful! Welcome back!');
@@ -62,15 +78,15 @@ export const AuthProvider = ({ children }) => {
   const register = async (userData) => {
     try {
       const response = await axios.post('/auth/register', userData);
-      const { token, user } = response.data;
+      const { token, user: registeredUser } = response.data;
       
       localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(user));
+      localStorage.setItem('user', JSON.stringify(registeredUser));
       
-      setUser(user);
+      setUser(registeredUser);
       setIsAuthenticated(true);
       
-      toast.success('Registration successful! Welcome!');
+      toast.success('Registration successful!');
       return { success: true };
     } catch (error) {
       return { 
@@ -85,21 +101,12 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('user');
     setUser(null);
     setIsAuthenticated(false);
-    toast.success('Logged out successfully');
-  };
-
-  const value = {
-    user,
-    loading,
-    isAuthenticated,
-    login,
-    register,
-    logout,
+    toast.success('Logged out successfully.');
   };
 
   return (
-    <AuthContext.Provider value={value}>
-      {!loading && children}
+    <AuthContext.Provider value={{ user, loading, isAuthenticated, login, register, logout, refreshUser }}>
+      {children}
     </AuthContext.Provider>
   );
 };

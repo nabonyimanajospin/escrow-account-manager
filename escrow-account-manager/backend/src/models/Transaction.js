@@ -38,15 +38,25 @@ const Transaction = sequelize.define('Transaction', {
   status: {
     type: DataTypes.ENUM(
       'PENDING',
-      'FUNDS_DEPOSITED',
-      'MUTATION_INITIATED',
-      'MUTATION_IN_PROGRESS',
-      'MUTATION_COMPLETED',
-      'FUNDS_RELEASED',
-      'FAILED',
+      'FUNDED',
+      'MUTATION_STARTED',
+      'UNDER_REVIEW',
+      'COMPLETED',
       'REFUNDED'
     ),
     defaultValue: 'PENDING',
+  },
+  verificationCode: {
+    type: DataTypes.STRING(4),
+    allowNull: false,
+  },
+  buyerAuthorized: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
+  sellerAuthorized: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
   },
   mutationDocuments: {
     type: DataTypes.JSONB,
@@ -82,6 +92,10 @@ const Transaction = sequelize.define('Transaction', {
     beforeValidate: (transaction) => {
       if (!transaction.transactionId) {
         transaction.transactionId = 'TXN-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6).toUpperCase();
+      }
+      if (!transaction.verificationCode) {
+        // Generate random 4-digit code
+        transaction.verificationCode = Math.floor(1000 + Math.random() * 9000).toString();
       }
     },
   },

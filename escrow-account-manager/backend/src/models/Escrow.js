@@ -1,7 +1,8 @@
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/database');
+const crypto = require('crypto');
 
-const EscrowAccount = sequelize.define('EscrowAccount', {
+const Escrow = sequelize.define('Escrow', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -16,9 +17,6 @@ const EscrowAccount = sequelize.define('EscrowAccount', {
     type: DataTypes.STRING,
     allowNull: false,
     unique: true,
-    validate: {
-      notEmpty: true,
-    },
   },
   balance: {
     type: DataTypes.DECIMAL(15, 2),
@@ -31,6 +29,10 @@ const EscrowAccount = sequelize.define('EscrowAccount', {
   status: {
     type: DataTypes.ENUM('ACTIVE', 'RELEASED', 'REFUNDED', 'CLOSED'),
     defaultValue: 'ACTIVE',
+  },
+  contractAddress: {
+    type: DataTypes.STRING,
+    allowNull: false,
   },
   depositHistory: {
     type: DataTypes.JSONB,
@@ -47,8 +49,13 @@ const EscrowAccount = sequelize.define('EscrowAccount', {
       if (!escrow.accountNumber) {
         escrow.accountNumber = 'ESC-' + Date.now() + '-' + Math.random().toString(36).substr(2, 8).toUpperCase();
       }
+      if (!escrow.contractAddress) {
+        const uniqueVal = crypto.randomUUID() + '-' + Date.now() + '-' + escrow.transactionId;
+        const hash = crypto.createHash('sha256').update(uniqueVal).digest('hex');
+        escrow.contractAddress = '0x' + hash;
+      }
     },
   },
 });
 
-module.exports = EscrowAccount;
+module.exports = Escrow;
