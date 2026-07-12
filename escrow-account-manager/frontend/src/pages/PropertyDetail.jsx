@@ -95,6 +95,7 @@ const PropertyDetail = () => {
   }
 
   const isOwner = user?.id === property.sellerId;
+  const isAdmin = user?.role === 'ADMIN';
   const showEscrowBtn = user?.role === 'BUYER' && property.status === 'AVAILABLE';
 
   return (
@@ -193,15 +194,23 @@ const PropertyDetail = () => {
               </button>
             )}
 
-            {property.status !== 'AVAILABLE' && !isOwner && (
-              <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg text-xs font-semibold text-center leading-relaxed">
-                This property is currently locked in an active escrow transaction or has been sold.
+            {property.status === 'SOLD' && !isOwner && !isAdmin && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-xs font-semibold text-center leading-relaxed">
+                This property has been successfully sold.
               </div>
             )}
 
-            {isOwner && (
+            {property.status !== 'AVAILABLE' && property.status !== 'SOLD' && !isOwner && !isAdmin && (
+              <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg text-xs font-semibold text-center leading-relaxed">
+                This property is currently locked in an active escrow transaction.
+              </div>
+            )}
+
+            {(isOwner || isAdmin) && (
               <div className="space-y-2">
-                <p className="text-xs font-bold text-slate-400 text-center uppercase mb-2">Seller Controls</p>
+                <p className="text-xs font-bold text-slate-400 text-center uppercase mb-2">
+                  {isAdmin ? 'Admin Controls' : 'Seller Controls'}
+                </p>
                 <div className="grid grid-cols-2 gap-2">
                   <Link
                     to={`/properties/${property.id}/edit`}
@@ -209,7 +218,7 @@ const PropertyDetail = () => {
                   >
                     Edit Listing
                   </Link>
-                  {property.status === 'AVAILABLE' ? (
+                  {property.status === 'AVAILABLE' || isAdmin ? (
                     <button
                       onClick={handleDelete}
                       disabled={actionLoading}
@@ -227,7 +236,9 @@ const PropertyDetail = () => {
                   )}
                 </div>
                 {property.status !== 'AVAILABLE' && (
-                  <p className="text-[10px] text-red-500 font-bold text-center mt-1">Listing locked. Active escrow transaction is pending.</p>
+                  <p className="text-[10px] text-red-500 font-bold text-center mt-1">
+                    {property.status === 'SOLD' ? 'Listing sold. Property transfer is complete.' : 'Listing locked. Active escrow transaction is pending.'}
+                  </p>
                 )}
               </div>
             )}
