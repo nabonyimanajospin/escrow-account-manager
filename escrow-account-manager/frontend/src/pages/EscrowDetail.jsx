@@ -188,8 +188,22 @@ const EscrowDetail = () => {
 
   const handlePrintDeed = () => {
     const printContent = document.getElementById('printable-deed').innerHTML;
-    const printWindow = window.open('', '_blank');
-    printWindow.document.write(`
+    
+    // Create or locate a hidden iframe to prevent popup blocker blocking window.open
+    let iframe = document.getElementById('print-iframe');
+    if (!iframe) {
+      iframe = document.createElement('iframe');
+      iframe.id = 'print-iframe';
+      iframe.style.position = 'absolute';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = 'none';
+      document.body.appendChild(iframe);
+    }
+    
+    const doc = iframe.contentWindow.document;
+    doc.open();
+    doc.write(`
       <html>
         <head>
           <title>Deed of Sale - ${transaction.transactionId}</title>
@@ -204,6 +218,7 @@ const EscrowDetail = () => {
             .text-center { text-align: center; }
             .space-y-4 > * + * { margin-top: 16px; }
             .space-y-3 > * + * { margin-top: 12px; }
+            .space-y-1 > * + * { margin-top: 4px; }
             .border-b { border-bottom: 2px solid #1a202c; }
             .border-t { border-top: 1px solid #cbd5e0; }
             .pb-4 { padding-bottom: 16px; }
@@ -232,22 +247,44 @@ const EscrowDetail = () => {
             .pt-2 { padding-top: 8px; }
             .px-4 { padding-left: 16px; padding-right: 16px; }
             .leading-none { line-height: 1; }
+            .bg-emerald-50 { background-color: #ecfdf5; }
+            .text-emerald-600 { color: #059669; }
+            .border-emerald-200 { border-color: #a7f3d0; }
+            .bg-slate-100 { background-color: #f1f5f9; }
+            .text-slate-700 { color: #334155; }
+            .text-slate-800 { color: #1e293b; }
+            .border { border: 1px solid #cbd5e0; }
+            .rounded { border-radius: 4px; }
+            .px-2 { padding-left: 8px; padding-right: 8px; }
+            .py-1 { padding-top: 4px; padding-bottom: 4px; }
+            .p-2 { padding: 8px; }
+            .inline-flex { display: inline-flex; }
+            .flex-col { flex-direction: column; }
+            .items-center { align-items: center; }
+            .items-end { align-items: flex-end; }
+            .text-[8px] { font-size: 8px; }
+            .text-[7px] { font-size: 7px; }
+            .shrink-0 { flex-shrink: 0; }
+            .gap-3 { gap: 12px; }
+            .gap-2 { gap: 8px; }
+            .text-primary-600 { color: #2563eb; }
+            .hover\\:underline { text-decoration: underline; }
           </style>
         </head>
         <body>
           <div style="max-width: 700px; margin: 0 auto; border: 4px double #1a202c; padding: 30px; border-radius: 8px;">
             ${printContent}
           </div>
-          <script>
-            window.onload = function() {
-              window.print();
-              window.close();
-            }
-          </script>
         </body>
       </html>
     `);
-    printWindow.document.close();
+    doc.close();
+    
+    // Focus and print after content has loaded
+    setTimeout(() => {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+    }, 300);
   };
 
 
@@ -726,28 +763,68 @@ const EscrowDetail = () => {
                       </div>
                     </div>
 
-                    <div className="p-3 bg-white border border-slate-200 rounded-lg font-sans text-[10px] space-y-1.5 leading-none">
-                      <p className="text-slate-400 font-bold uppercase text-[9px] tracking-wider border-b border-slate-100 pb-1">Cryptographic Proofs</p>
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">Buyer signature hash:</span>
-                        <span className="font-mono text-slate-700">{buyerSignature?.slice(0, 32)}...</span>
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* Left: Cryptographic Proofs */}
+                      <div className="p-3 bg-white border border-slate-200 rounded-lg font-sans text-[10px] space-y-2 leading-tight">
+                        <p className="text-slate-400 font-bold uppercase text-[9px] tracking-wider border-b border-slate-100 pb-1">Cryptographic Proofs</p>
+                        <div className="flex justify-between gap-2">
+                          <span className="text-slate-500 min-w-[90px]">Buyer signature:</span>
+                          <span className="font-mono text-slate-700 break-all">{buyerSignature?.slice(0, 24)}...</span>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <span className="text-slate-500 min-w-[90px]">Seller signature:</span>
+                          <span className="font-mono text-slate-700 break-all">{sellerSignature?.slice(0, 24)}...</span>
+                        </div>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">Seller signature hash:</span>
-                        <span className="font-mono text-slate-700">{sellerSignature?.slice(0, 32)}...</span>
+
+                      {/* Right: Security Verification Portal */}
+                      <div className="p-3 bg-white border border-slate-200 rounded-lg font-sans text-[10px] flex items-center gap-3 leading-tight">
+                        <div className="shrink-0">
+                          <svg width="42" height="42" viewBox="0 0 29 29" className="text-slate-800" fill="currentColor">
+                            <path d="M0,0 h7 v7 h-7 z M1,1 v5 h5 v-5 z M2,2 h3 v3 h-3 z" />
+                            <path d="M22,0 h7 v7 h-7 z M23,1 v5 h5 v-5 z M24,2 h3 v3 h-3 z" />
+                            <path d="M0,22 h7 v7 h-7 z M1,23 v5 h5 v-5 z M2,24 h3 v3 h-3 z" />
+                            <path d="M9,1 h2 v2 h-2 z M13,0 h1 v3 h-1 z M16,1 h3 v1 h-3 z M20,2 h1 v1 h-1 z M9,5 h3 v1 h-3 z M14,4 h2 v1 h-2 z M18,5 h2 v2 h-2 z M9,9 h1 v3 h-1 z M12,10 h2 v1 h-2 z M16,9 h1 v1 h-1 z M19,10 h3 v1 h-3 z M24,9 h2 v3 h-2 z M1,9 h2 v2 h-2 z M5,10 h1 v3 h-1 z M10,14 h2 v2 h-2 z M14,13 h3 v1 h-3 z M19,14 h1 v3 h-1 z M23,13 h2 v2 h-2 z M3,15 h2 v2 h-2 z M7,16 h1 v2 h-1 z M11,19 h3 v1 h-3 z M16,18 h2 v2 h-2 z M20,19 h3 v1 h-3 z M25,18 h1 v3 h-1 z M9,22 h2 v2 h-2 z M13,23 h1 v3 h-1 z M17,22 h3 v1 h-3 z M21,24 h1 v1 h-1 z M9,26 h3 v1 h-3 z M14,25 h2 v1 h-2 z M18,26 h2 v2 h-2 z M24,25 h3 v2 h-3 z" />
+                          </svg>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="font-bold text-slate-800 text-[8px] uppercase tracking-wide">Authenticity Verified</p>
+                          <p className="text-slate-400 text-[8px] leading-normal font-semibold">Scan QR to verify this deed on the platform registry.</p>
+                          <p className="font-mono text-primary-600 text-[7px] font-bold">escrowtrust.com/verify/{transaction.transactionId?.slice(0, 12)}</p>
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex justify-between pt-4 border-t border-slate-200 text-center font-sans text-[9px] font-bold text-slate-500">
-                    <div>
+                  <div className="flex justify-between items-end pt-4 border-t border-slate-200 text-center font-sans text-[9px] font-bold text-slate-500">
+                    <div className="space-y-3">
+                      {buyerSignature ? (
+                        <div className="text-center font-mono text-[8px] text-emerald-600 bg-emerald-50 px-2 py-1 rounded border border-emerald-200 leading-tight">
+                          SIGNED DIGITALLY<br/>{buyerSignature.slice(0, 16)}...
+                        </div>
+                      ) : (
+                        <div className="h-6"></div>
+                      )}
                       <p className="border-t border-slate-300 pt-1 px-4">Buyer Signature</p>
                     </div>
-                    <div>
+                    
+                    <div className="space-y-3">
+                      {sellerSignature ? (
+                        <div className="text-center font-mono text-[8px] text-emerald-600 bg-emerald-50 px-2 py-1 rounded border border-emerald-200 leading-tight">
+                          SIGNED DIGITALLY<br/>{sellerSignature.slice(0, 16)}...
+                        </div>
+                      ) : (
+                        <div className="h-6"></div>
+                      )}
                       <p className="border-t border-slate-300 pt-1 px-4">Seller Signature</p>
                     </div>
+
                     <div>
-                      <p className="border-t border-slate-300 pt-1 px-4">Escrow Admin Seal</p>
+                      <div className="inline-flex flex-col items-center p-2 bg-slate-100 border border-slate-300 rounded text-slate-700 font-mono text-[8px] leading-tight">
+                        <span className="font-bold text-[8px] text-slate-800 uppercase tracking-tight">PLATFORM ESCROW SEAL</span>
+                        <span className="text-emerald-600 mt-1 font-bold">STATUS: COMPLETED</span>
+                        <span className="text-[7px] text-slate-400 mt-0.5">RELEASED BY SYSTEM ADMIN</span>
+                      </div>
                     </div>
                   </div>
                 </div>
