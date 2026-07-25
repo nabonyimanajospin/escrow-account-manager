@@ -29,6 +29,10 @@ const EscrowDetail = () => {
   const [evidenceDesc, setEvidenceDesc] = useState('');
   const [arbitrationNotes, setArbitrationNotes] = useState('');
 
+  // AI Document Analysis state
+  const [docAnalysisReport, setDocAnalysisReport] = useState(null);
+  const [docAnalysisLoading, setDocAnalysisLoading] = useState(false);
+
   // AI Co-Pilot state
   const [isAIChatOpen, setIsAIChatOpen] = useState(false);
   const [chatInput, setChatInput] = useState('');
@@ -211,6 +215,26 @@ You can ask me questions like:
       toast.error(err.response?.data?.message || 'Cancellation failed');
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  // ── AI Document Analysis ──────────────────────────────────────────────────
+  const handleAnalyzeDocument = async () => {
+    try {
+      setDocAnalysisLoading(true);
+      toast.loading('🤖 AI is analyzing your document...', { id: 'doc-analysis' });
+      const res = await axios.post(`/escrow/${id}/analyze-document`);
+      setDocAnalysisReport(res.data.analysis);
+      toast.dismiss('doc-analysis');
+      const v = res.data.analysis?.verdict;
+      if (v === 'LIKELY_VALID') toast.success('✅ Document appears valid');
+      else if (v === 'NEEDS_REVIEW') toast.error('⚠️ Document needs admin review');
+      else toast.error('🚨 Document flagged as suspicious');
+    } catch (err) {
+      toast.dismiss('doc-analysis');
+      toast.error(err.response?.data?.message || 'AI analysis failed');
+    } finally {
+      setDocAnalysisLoading(false);
     }
   };
 
@@ -1039,6 +1063,64 @@ STATUS: COMPLETED MUTATION`;
                         )}
                       </div>
                     )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── AI Document Authenticity Analysis ─────────────────────── */}
+            {isSeller && status === 'MUTATION_STARTED' && transaction.mutationDocuments?.length > 0 && (
+              <div className="p-4 bg-purple-50 border border-purple-200 rounded-xl space-y-3 mt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-bold text-purple-900">🤖 AI Document Authenticity Check</p>
+                    <p className="text-[10px] text-purple-600 font-semibold mt-0.5">
+                      AI scans your uploaded document for UPI code, owner name, and fraud signals.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAnalyzeDocument}
+                    disabled={docAnalysisLoading}
+                    className="px-4 py-1.5 bg-purple-700 hover:bg-purple-800 text-white font-bold rounded-lg text-[11px] transition-colors cursor-pointer whitespace-nowrap disabled:opacity-60"
+                  >
+                    {docAnalysisLoading ? '🔍 Analyzing...' : '🤖 Run AI Analysis'}
+                  </button>
+                </div>
+                {docAnalysisReport && (
+                  <div className="bg-white border border-purple-100 rounded-xl p-4 space-y-3 mt-3">
+                    <div className={`flex items-center justify-between rounded-lg px-4 py-2.5 ${
+                      docAnalysisReport.verdict === 'LIKELY_VALID' ? 'bg-emerald-50 border border-emerald-200'
+                      : docAnalysisReport.verdict === 'NEEDS_REVIEW' ? 'bg-amber-50 border border-amber-200'
+                      : 'bg-red-50 border border-red-200'
+                    }`}>
+                      <span className={`text-sm font-extrabold ${docAnalysisReport.verdict === 'LIKELY_VALID' ? 'text-emerald-700' : docAnalysisReport.verdict === 'NEEDS_REVIEW' ? 'text-amber-700' : 'text-red-700'}`}>
+                        {docAnalysisReport.verdict === 'LIKELY_VALID' && '✅ Document appears valid'}
+                        {docAnalysisReport.verdict === 'NEEDS_REVIEW' && '⚠️ Admin review required'}
+                        {docAnalysisReport.verdict === 'SUSPICIOUS' && '🚨 Document is suspicious'}
+                      </span>
+                      <span className={`text-2xl font-black ${parseInt(docAnalysisReport.confidence) >= 80 ? 'text-emerald-600' : parseInt(docAnalysisReport.confidence) >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
+                        {docAnalysisReport.confidence}
+                      </span>
+                    </div>
+                    {docAnalysisReport.findings?.extractedUpi && (
+                      <p className="text-[10px] font-mono text-slate-700">UPI Detected: <strong>{docAnalysisReport.findings.extractedUpi}</strong></p>
+                    )}
+                    {docAnalysisReport.findings?.extractedOwner && (
+                      <p className="text-[10px] text-slate-700">Owner: <strong>{docAnalysisReport.findings.extractedOwner}</strong></p>
+                    )}
+                    {docAnalysisReport.crossChecks?.upiMatchNote && (
+                      <p className="text-[10px] text-emerald-600 font-bold">{docAnalysisReport.crossChecks.upiMatchNote}</p>
+                    )}
+                    {docAnalysisReport.flags?.length > 0 && (
+                      <div className="mt-2">
+                        <p className="text-[10px] font-bold text-red-500 mb-1">⚠️ Flags:</p>
+                        {docAnalysisReport.flags.map((f, i) => (
+                          <p key={i} className="text-[10px] text-red-600 font-semibold">• {f}</p>
+                        ))}
+                      </div>
+                    )}
+                    <p className="text-[9px] text-slate-400 font-mono mt-2">{docAnalysisReport.model} • {docAnalysisReport.processingTime}</p>
                   </div>
                 )}
               </div>

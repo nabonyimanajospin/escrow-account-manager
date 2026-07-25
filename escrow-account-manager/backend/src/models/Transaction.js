@@ -154,6 +154,15 @@ const Transaction = sequelize.define('Transaction', {
     type: DataTypes.DATE,
     allowNull: true,
   },
+  /**
+   * AI document analysis report — stored when seller uploads mutation docs.
+   * Structure: { verdict, confidence, flags, findings, crossChecks, ... }
+   */
+  documentAnalysisReport: {
+    type: DataTypes.JSONB,
+    allowNull: true,
+    defaultValue: null,
+  },
 }, {
   timestamps: true,
   defaultScope: {

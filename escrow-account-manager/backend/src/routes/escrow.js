@@ -75,4 +75,13 @@ router.post('/:id/ai-chat', protect, chatWithAI);
 // Offer acceptance route
 router.post('/offers/:id/accept', protect, roleCheck('SELLER'), acceptOffer);
 
+// AI document analysis
+const { analyzeTransactionDocument, getDocumentAnalysisReport } = require('../controllers/documentAnalysisController');
+
+// Trigger AI analysis on the latest uploaded mutation document
+router.post('/:id/analyze-document', protect, roleCheck('SELLER', 'ADMIN'), analyzeTransactionDocument);
+
+// Get stored AI analysis report
+router.get('/:id/document-analysis', protect, getDocumentAnalysisReport);
+
 module.exports = router;
