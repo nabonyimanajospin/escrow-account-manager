@@ -55,6 +55,15 @@ const User = sequelize.define('User', {
     type: DataTypes.DATE,
     allowNull: true,
   },
+  walletBalance: {
+    type: DataTypes.DECIMAL(15, 2),
+    defaultValue: 0.00,
+    allowNull: false,
+  },
+  bio: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
 }, {
   timestamps: true,
   hooks: {

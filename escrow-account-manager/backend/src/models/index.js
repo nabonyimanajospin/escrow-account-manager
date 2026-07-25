@@ -8,6 +8,7 @@ const LedgerEntry = require('./LedgerEntry');
 const Dispute = require('./Dispute');
 const DisputeEvidence = require('./DisputeEvidence');
 const Notification = require('./Notification');
+const WalletTransaction = require('./WalletTransaction');
 
 // User — Property associations
 User.hasMany(Property, { foreignKey: 'sellerId', as: 'properties' });
@@ -66,4 +67,8 @@ DisputeEvidence.belongsTo(User, { foreignKey: 'uploaderId', as: 'uploader' });
 User.hasMany(Notification, { foreignKey: 'userId', as: 'notifications' });
 Notification.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 
-module.exports = { User, Property, Transaction, Escrow, AuditLog, Offer, LedgerEntry, Dispute, DisputeEvidence, Notification };
+// User — WalletTransaction associations
+User.hasMany(WalletTransaction, { foreignKey: 'userId', as: 'walletTransactions' });
+WalletTransaction.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
+module.exports = { User, Property, Transaction, Escrow, AuditLog, Offer, LedgerEntry, Dispute, DisputeEvidence, Notification, WalletTransaction };

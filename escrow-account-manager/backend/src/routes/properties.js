@@ -10,14 +10,15 @@ const {
 const { createOffer, getOffersByProperty } = require('../controllers/offerController');
 const { protect } = require('../middleware/auth');
 const roleCheck = require('../middleware/roleCheck');
+const { uploadPropertyImage } = require('../middleware/upload');
 
 // Public routes
 router.get('/', getProperties);
 router.get('/:id', getProperty);
 
-// Protected routes
-router.post('/', protect, roleCheck('SELLER', 'ADMIN'), createProperty);
-router.put('/:id', protect, roleCheck('SELLER', 'ADMIN'), updateProperty);
+// Protected routes (with optional image upload)
+router.post('/', protect, roleCheck('SELLER', 'ADMIN'), uploadPropertyImage, createProperty);
+router.put('/:id', protect, roleCheck('SELLER', 'ADMIN'), uploadPropertyImage, updateProperty);
 router.delete('/:id', protect, roleCheck('SELLER', 'ADMIN'), deleteProperty);
 
 // Offers / Bids routes

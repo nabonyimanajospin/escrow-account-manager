@@ -1,4 +1,4 @@
-const { Transaction, Escrow, Property, User, AuditLog, LedgerEntry } = require('../models');
+const { Transaction, Escrow, Property, User, AuditLog, LedgerEntry, WalletTransaction } = require('../models');
 const { sequelize } = require('../config/database');
 const ledgerService = require('../services/ledgerService');
 const otpService = require('../services/otpService');
@@ -646,6 +646,32 @@ const releaseFunds = async (req, res, next) => {
         accountType: 'PLATFORM_REVENUE',
         description: 'Credit platform service charges (1.0% buyer + 1.5% seller commissions)',
       }, t);
+
+      // ── Credit Seller Wallet ──────────────────────────────────────────────
+      const seller = await User.findByPk(transaction.sellerId, { transaction: t });
+      if (seller) {
+        const newBalance = parseFloat(seller.walletBalance || 0) + sellerNetPayout;
+        await seller.update({ walletBalance: newBalance }, { transaction: t });
+
+        await WalletTransaction.create({
+          userId: seller.id,
+          type: 'CREDIT',
+          amount: sellerNetPayout,
+          reference: transaction.reference || `TXN-${transaction.id}`,
+          notes: `Escrow released by admin. Net payout after 1.5% seller fee.`,
+          status: 'COMPLETED',
+        }, { transaction: t });
+
+        // Send email notification (fire-and-forget, non-blocking)
+        const notif = require('../services/notificationService');
+        notif.sendWalletCreditEmail(
+          seller.email,
+          seller.name,
+          sellerNetPayout,
+          newBalance,
+          transaction.reference || `TXN-${transaction.id}`
+        ).catch((e) => console.error('[Email] Wallet credit email failed:', e.message));
+      }
 
       await logAction(transaction.id, req, `Admin released funds. Audit Notes: ${adminNotes}. Split details: Seller Net Payout: $${sellerNetPayout}, Platform Commission: $${platformFee}. Status set to AWAITING_RECEIPT.`, { transaction: t });
     });

@@ -4,6 +4,7 @@ import axios from '../api/axiosConfig';
 import { useAuth } from '../context/AuthContext';
 import StatusBadge from '../components/StatusBadge';
 import toast from 'react-hot-toast';
+import CurrencyConverter from '../components/CurrencyConverter';
 
 const PropertyDetail = () => {
   const { id } = useParams();
@@ -222,7 +223,13 @@ const PropertyDetail = () => {
             <div>
               <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Secured Listing Price</p>
               <p className="text-3xl font-extrabold text-slate-900 mt-1">${Number(property.price).toLocaleString()}</p>
-              <span className="text-[10px] font-mono text-slate-400 block mt-1">Currency: USD Equivalent</span>
+              <span className="text-[10px] font-mono text-slate-400 block mt-1">Currency: USD</span>
+            </div>
+
+            {/* Live RWF Currency Converter */}
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-3">💱 Convert to Rwandan Francs</p>
+              <CurrencyConverter defaultUSD={property.price} compact={true} />
             </div>
 
             <div className="section-divider" />

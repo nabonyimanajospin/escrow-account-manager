@@ -188,12 +188,30 @@ const Navbar = () => {
                       {user?.role}
                     </span>
                   </div>
-                  <button
-                    onClick={handleLogout}
-                    className="btn-secondary !py-1.5 !px-3 text-xs"
-                  >
-                    Sign Out
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <Link
+                      to="/profile"
+                      className="text-xs font-semibold text-slate-600 hover:text-slate-900 px-2 py-1 rounded hover:bg-slate-100 transition-all"
+                      title="My Profile"
+                    >
+                      👤 Profile
+                    </Link>
+                    {(user?.role === 'SELLER' || user?.role === 'ADMIN') && (
+                      <Link
+                        to="/wallet"
+                        className="text-xs font-semibold text-emerald-600 hover:text-emerald-800 px-2 py-1 rounded hover:bg-emerald-50 transition-all"
+                        title="Seller Wallet"
+                      >
+                        💰 Wallet
+                      </Link>
+                    )}
+                    <button
+                      onClick={handleLogout}
+                      className="btn-secondary !py-1.5 !px-3 text-xs"
+                    >
+                      Sign Out
+                    </button>
+                  </div>
                 </div>
               </>
             ) : (

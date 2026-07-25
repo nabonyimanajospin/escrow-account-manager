@@ -37,6 +37,10 @@ const Dispute = sequelize.define('Dispute', {
     defaultValue: 'OPEN',
     allowNull: false,
   },
+  resolutionDeadline: {
+    type: DataTypes.DATE,
+    allowNull: true, // set to createdAt + 7 days on creation
+  },
 }, {
   timestamps: true,
 });

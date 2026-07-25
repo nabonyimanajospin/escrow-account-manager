@@ -1,6 +1,7 @@
 const { Dispute, DisputeEvidence, Transaction, Escrow, Property, User, LedgerEntry, AuditLog } = require('../models');
 const { sequelize } = require('../config/database');
 const ledgerService = require('../services/ledgerService');
+const notificationService = require('../services/notificationService');
 
 const transactionIncludes = [
   { model: Property, as: 'property' },
@@ -68,19 +69,32 @@ exports.raiseDispute = async (req, res, next) => {
     const result = await sequelize.transaction(async (t) => {
       await transaction.update({ status: 'DISPUTED' }, { transaction: t });
       
+      // 7-day buyer protection deadline
+      const resolutionDeadline = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
       const dispute = await Dispute.create({
         transactionId: transaction.id,
         initiatorId: req.user.id,
         reason,
         status: 'OPEN',
+        resolutionDeadline,
       }, { transaction: t });
 
-      await logAction(transaction.id, req, `${req.user.role} ${req.user.name} raised a formal dispute. Case #${dispute.id} initialized. Escrow locked.`, { transaction: t });
+      await logAction(transaction.id, req, `${req.user.role} ${req.user.name} raised a formal dispute. Case #${dispute.id} initialized. Escrow locked. Resolution deadline: ${resolutionDeadline.toISOString().split('T')[0]}.`, { transaction: t });
       return dispute;
     });
 
+    // Notify both parties via email (non-blocking)
+    const [buyer, seller] = await Promise.all([
+      User.findByPk(transaction.buyerId),
+      User.findByPk(transaction.sellerId),
+    ]);
+    const txRef = transaction.reference || `TXN-${transaction.id}`;
+    if (buyer) notificationService.sendDisputeNotificationEmail(buyer.email, buyer.name, txRef, 'BUYER').catch(() => {});
+    if (seller) notificationService.sendDisputeNotificationEmail(seller.email, seller.name, txRef, 'SELLER').catch(() => {});
+
     const updatedTx = await Transaction.findByPk(transaction.id, { include: transactionIncludes });
-    res.status(200).json({ success: true, message: 'Dispute successfully filed. Escrow locked.', dispute: result, data: updatedTx });
+    res.status(200).json({ success: true, message: 'Dispute successfully filed. Escrow locked. Resolution deadline set to 7 days.', dispute: result, data: updatedTx });
   } catch (error) {
     next(error);
   }
@@ -91,9 +105,14 @@ exports.raiseDispute = async (req, res, next) => {
 // @access  Private (BUYER, SELLER)
 exports.uploadEvidence = async (req, res, next) => {
   try {
-    const { fileUrl, description } = req.body;
+    // Support both real file uploads (Multer req.file) and legacy URL strings
+    let fileUrl = req.body.fileUrl;
+    if (req.file) {
+      fileUrl = `/uploads/evidence/${req.file.filename}`;
+    }
+    const { description } = req.body;
     if (!fileUrl) {
-      return res.status(400).json({ success: false, message: 'Evidence file URL/reference is required' });
+      return res.status(400).json({ success: false, message: 'Evidence file or URL is required' });
     }
 
     const transaction = await Transaction.findByPk(req.params.id);

@@ -1,0 +1,99 @@
+========================================================================
+             ESCROW ACCOUNT MANAGER - RUNNING INSTRUCTIONS
+========================================================================
+
+Follow these steps to set up and run the Escrow Account Manager system (both Frontend and Backend).
+
+------------------------------------------------------------------------
+Prerequisites
+------------------------------------------------------------------------
+Before you begin, ensure you have the following installed on your machine:
+- Node.js (version 18 or higher)
+- npm (version 9 or higher)
+- PostgreSQL (installed and running)
+
+------------------------------------------------------------------------
+Step 1: Set Up the Database
+------------------------------------------------------------------------
+1. Open your PostgreSQL terminal (psql) or pgAdmin.
+2. Create a new database for the project (e.g., named 'escrow_db'):
+   CREATE DATABASE escrow_db;
+
+------------------------------------------------------------------------
+Step 2: Configure and Run the Backend Server
+------------------------------------------------------------------------
+1. Navigate to the backend directory:
+   cd escrow-account-manager/backend
+
+2. Install backend dependencies:
+   npm install
+
+3. Create a '.env' file in the backend root directory (escrow-account-manager/backend/.env)
+   and configure your database and JWT settings:
+   
+   PORT=5000
+   DB_HOST=localhost
+   DB_PORT=5432
+   DB_NAME=escrow_db
+   DB_USER=your_postgres_username
+   DB_PASSWORD=your_postgres_password
+   JWT_SECRET=your_very_strong_secret_key
+   JWT_EXPIRE=24h
+   NODE_ENV=development
+
+4. (Highly Recommended) Seed the database with mock properties, roles, and a test transaction:
+   node seed.js
+
+5. Run the backend server in development mode (with hot reloading):
+   npm run dev
+
+   * Note: The server automatically runs database synchronization on startup,
+     creating the tables in your PostgreSQL database.
+   * The server will run on: http://localhost:5000
+
+------------------------------------------------------------------------
+Step 3: Configure and Run the Frontend
+------------------------------------------------------------------------
+1. Navigate to the frontend directory:
+   cd ../frontend
+
+2. Install frontend dependencies:
+   npm install
+
+3. Create a '.env' file in the frontend root directory (escrow-account-manager/frontend/.env)
+   and add the API URL pointing to the backend:
+
+   VITE_API_URL=http://localhost:5000/api
+   VITE_APP_NAME=Escrow Account Manager
+
+4. Start the frontend development server:
+   npm run dev
+
+   * The frontend will start and be accessible on: http://localhost:3000
+
+------------------------------------------------------------------------
+Step 4: Run Tests (Optional)
+------------------------------------------------------------------------
+To run the automated tests on the backend API:
+1. Navigate to the backend directory:
+   cd escrow-account-manager/backend
+2. Run tests:
+   npm run test
+
+------------------------------------------------------------------------
+Demo Login Credentials (After running node seed.js)
+------------------------------------------------------------------------
+You can use the following pre-seeded users to log in to the frontend:
+
+*   **ADMIN Role** (Approves/rejects mutations and releases/refunds funds):
+    - Email: admin@escrowtrust.com
+    - Password: Admin@123
+
+*   **SELLER Role** (Lists properties and uploads mutation documents):
+    - Email: seller@escrowtrust.com
+    - Password: Seller@123
+
+*   **BUYER Role** (Browses properties and deposits funds into escrow):
+    - Email: buyer@escrowtrust.com
+    - Password: Buyer@123
+========================================================================

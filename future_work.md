@@ -18,6 +18,10 @@ This document outlines the refinements completed in the current sprint, followed
 *   **Status**: **COMPLETED**
 *   **Details**: Implemented automated deal timeout. If a transaction stays in `PENDING` for more than **10 minutes** without a deposit, the backend automatically cancels the transaction, unlocks the property back to the market, and hashes a system cancellation log into the ledger. The frontend workspace features a live ticking countdown clock showing the remaining minutes and seconds.
 
+### 4. Non-Repudiated Ledger Logging & Live Activity Timeline (Pillars 2, 8, 9 & Principle 3)
+*   **Status**: **COMPLETED**
+*   **Details**: Integrated full IP and Browser/Device fingerprinting into all ledger signatures to ensure absolute non-repudiation. Additionally, designed and implemented a **Live Transaction Activity Feed** in the user's workspace, parsing complex block hashes into a beautiful chronological, human-readable timeline with custom styled status indicators.
+
 ---
 
 ## Future Roadmap (Next Sprints)

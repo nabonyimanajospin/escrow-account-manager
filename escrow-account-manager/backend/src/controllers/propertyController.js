@@ -100,6 +100,12 @@ exports.createProperty = async (req, res, next) => {
 
     const specs = normalizePropertySpecs({ propertyType, bedrooms, bathrooms, area });
 
+    // Handle image upload — uploaded file takes priority; fallback to URL array from body
+    let finalImages = Array.isArray(images) ? images.filter(Boolean) : [];
+    if (req.file) {
+      finalImages = [`/uploads/properties/${req.file.filename}`, ...finalImages];
+    }
+
     const property = await Property.create({
       sellerId: req.user.id,
       title,
@@ -108,7 +114,7 @@ exports.createProperty = async (req, res, next) => {
       location,
       ...specs,
       propertyType,
-      images: Array.isArray(images) ? images.filter(Boolean) : [],
+      images: finalImages,
       listingType: finalListingType,
       biddingDeadline: finalListingType === 'AUCTION' ? new Date(biddingDeadline) : null,
       upiCode: upiCode.toUpperCase(),

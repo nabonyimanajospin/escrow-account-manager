@@ -19,6 +19,7 @@ const { acceptOffer } = require('../controllers/offerController');
 const { chatWithAI } = require('../controllers/aiController');
 const { protect } = require('../middleware/auth');
 const roleCheck = require('../middleware/roleCheck');
+const { uploadEvidence: uploadEvidenceFile, uploadMutationDoc } = require('../middleware/upload');
 
 // Get user's active/past escrow transactions
 router.get('/my', protect, roleCheck('BUYER', 'SELLER', 'ADMIN'), getMyTransactions);
@@ -50,8 +51,8 @@ router.post('/:id/complete-mutation', protect, roleCheck('SELLER', 'ADMIN'), com
 // Raise dispute
 router.post('/:id/dispute', protect, roleCheck('BUYER', 'SELLER'), raiseDispute);
 
-// Upload evidence for dispute
-router.post('/:id/dispute/evidence', protect, roleCheck('BUYER', 'SELLER'), uploadEvidence);
+// Upload evidence for dispute (supports real file upload OR url string)
+router.post('/:id/dispute/evidence', protect, roleCheck('BUYER', 'SELLER'), uploadEvidenceFile, uploadEvidence);
 
 // Resolve dispute (Admin)
 router.post('/:id/dispute/resolve', protect, roleCheck('ADMIN'), resolveDispute);

@@ -119,23 +119,52 @@ exports.getMe = async (req, res, next) => {
   }
 };
 
-// @desc    Update current user profile
+// @desc    Update current user profile (name, phone, address, bio, password)
 // @route   PUT /api/auth/me
 // @access  Private
 exports.updateMe = async (req, res, next) => {
   try {
-    const { name, phone, address } = req.body;
+    const { name, phone, address, bio, currentPassword, newPassword } = req.body;
     const user = await User.findByPk(req.user.id);
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
     if (name)    user.name    = name;
-    if (phone !== undefined) user.phone   = phone;
+    if (phone !== undefined)   user.phone   = phone;
     if (address !== undefined) user.address = address;
+    if (bio !== undefined)     user.bio     = bio;
+
+    // Password change
+    if (newPassword) {
+      if (!currentPassword) {
+        return res.status(400).json({ success: false, message: 'Current password is required to set a new password.' });
+      }
+      const isMatch = await user.matchPassword(currentPassword);
+      if (!isMatch) {
+        return res.status(401).json({ success: false, message: 'Current password is incorrect.' });
+      }
+      if (newPassword.length < 6) {
+        return res.status(400).json({ success: false, message: 'New password must be at least 6 characters.' });
+      }
+      user.password = newPassword; // beforeUpdate hook will hash it
+    }
+
     await user.save();
 
     res.status(200).json({
       success: true,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role, phone: user.phone, address: user.address },
+      message: 'Profile updated successfully.',
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        phone: user.phone,
+        address: user.address,
+        bio: user.bio,
+        walletBalance: user.walletBalance,
+        isKycVerified: user.isKycVerified,
+        kycVerifiedAt: user.kycVerifiedAt,
+      },
     });
   } catch (error) {
     next(error);

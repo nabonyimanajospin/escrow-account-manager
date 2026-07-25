@@ -26,23 +26,21 @@ const PropertyForm = () => {
   const [biddingDeadline, setBiddingDeadline] = useState('');
   const [upiCode, setUpiCode] = useState('');
   const [imageInput, setImageInput] = useState(''); // Comma separated URLs
-  const [uploadMode, setUploadMode] = useState('link'); // 'link' or 'file'
-  const [uploadedBase64, setUploadedBase64] = useState('');
+  const [uploadMode, setUploadMode] = useState('file'); // 'link' or 'file'
+  const [imageFile, setImageFile] = useState(null);     // actual File object
+  const [imagePreview, setImagePreview] = useState(''); // preview URL
   const [error, setError] = useState('');
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) { // 2MB limit to keep database row payload lean
-        toast.error('File is too large. Please select an image under 2MB.');
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error('File is too large. Please select an image under 10MB.');
         e.target.value = '';
         return;
       }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setUploadedBase64(reader.result);
-      };
-      reader.readAsDataURL(file);
+      setImageFile(file);
+      setImagePreview(URL.createObjectURL(file));
     }
   };
 
@@ -113,40 +111,43 @@ const PropertyForm = () => {
     }
 
     let imagesArray = [];
-    if (uploadMode === 'file') {
-      if (uploadedBase64) {
-        imagesArray = [uploadedBase64];
-      }
-    } else {
+    if (uploadMode === 'link') {
       imagesArray = imageInput
         ? imageInput.split(',').map((url) => url.trim()).filter(Boolean)
         : [];
     }
+    // If uploadMode === 'file', the image is sent as multipart via FormData
 
     const isLand = propertyType === 'LAND';
 
-    const payload = {
-      title,
-      description,
-      price: Number(price),
-      location,
-      propertyType,
-      bedrooms: isLand ? 0 : Number(bedrooms),
-      bathrooms: isLand ? 0 : Number(bathrooms),
-      area: Number(area),
-      images: imagesArray,
-      listingType,
-      biddingDeadline: listingType === 'AUCTION' ? biddingDeadline : null,
-      upiCode,
-    };
-
     try {
       setLoading(true);
+
+      // Use FormData so Multer can receive the real image file
+      const formData = new FormData();
+      formData.append('title', title);
+      formData.append('description', description);
+      formData.append('price', Number(price));
+      formData.append('location', location);
+      formData.append('propertyType', propertyType);
+      formData.append('bedrooms', isLand ? 0 : Number(bedrooms));
+      formData.append('bathrooms', isLand ? 0 : Number(bathrooms));
+      formData.append('area', Number(area));
+      formData.append('listingType', listingType);
+      if (listingType === 'AUCTION' && biddingDeadline) formData.append('biddingDeadline', biddingDeadline);
+      formData.append('upiCode', upiCode);
+      imagesArray.forEach((url) => formData.append('images', url));
+      if (uploadMode === 'file' && imageFile) {
+        formData.append('image', imageFile); // field name Multer expects
+      }
+
+      const config = { headers: { 'Content-Type': 'multipart/form-data' } };
+
       if (isEditMode) {
-        await axios.put(`/properties/${id}`, payload);
+        await axios.put(`/properties/${id}`, formData, config);
         toast.success('Property listing updated successfully!');
       } else {
-        await axios.post('/properties', payload);
+        await axios.post('/properties', formData, config);
         toast.success('Property listing published successfully!');
       }
       navigate('/dashboard');

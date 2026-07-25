@@ -14,6 +14,8 @@ import PropertyDetail from './pages/PropertyDetail';
 import PropertyForm from './pages/PropertyForm';
 import EscrowDetail from './pages/EscrowDetail';
 import AdminPanel from './pages/AdminPanel';
+import Profile from './pages/Profile';
+import SellerWallet from './pages/SellerWallet';
 
 function App() {
   return (
@@ -59,6 +61,9 @@ function App() {
                 <Route path="/escrow/:id" element={<EscrowDetail />} />
                 {/* Backwards-compatibility alias for legacy paths */}
                 <Route path="/transactions/:id" element={<EscrowDetail />} />
+                {/* Profile & Wallet */}
+                <Route path="/profile" element={<Profile />} />
+                <Route path="/wallet" element={<SellerWallet />} />
               </Route>
 
               {/* Protected Admin Console Route */}

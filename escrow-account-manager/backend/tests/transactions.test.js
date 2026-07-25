@@ -47,9 +47,23 @@ jest.mock('../src/models', () => ({
     create: jest.fn(),
     update: jest.fn(),
   },
+  Dispute: { findOne: jest.fn(), findByPk: jest.fn(), create: jest.fn() },
+  DisputeEvidence: { create: jest.fn() },
+  WalletTransaction: { create: jest.fn() },
 }));
 
-const { User, Property, Transaction, Escrow, AuditLog, LedgerEntry, Offer } = require('../src/models');
+// Mock notification service to avoid real email calls in tests
+jest.mock('../src/services/notificationService', () => ({
+  sendOtpEmail: jest.fn().mockResolvedValue(undefined),
+  sendConsensusCode: jest.fn().mockResolvedValue(undefined),
+  sendTransactionStatusEmail: jest.fn().mockResolvedValue(undefined),
+  sendDisputeNotificationEmail: jest.fn().mockResolvedValue(undefined),
+  sendWalletCreditEmail: jest.fn().mockResolvedValue(undefined),
+  sendEmail: jest.fn().mockResolvedValue(undefined),
+}));
+
+const { User, Property, Transaction, Escrow, AuditLog, LedgerEntry, Offer, WalletTransaction } = require('../src/models');
+
 const app = require('../src/app');
 
 // ─── Shared actors ────────────────────────────────────────────────────────────
@@ -330,11 +344,18 @@ describe('POST /api/admin/transactions/:id/release', () => {
   it('releases funds to seller changing status to AWAITING_RECEIPT', async () => {
     asUser(admin);
     const escrow = makeEscrow({ balance: 100000 });
-    const { txn } = fullTxn({ status: 'UNDER_REVIEW', propertyId: 10 });
+    const { txn } = fullTxn({ status: 'UNDER_REVIEW', propertyId: 10, sellerId: 2 });
     Transaction.findByPk
       .mockResolvedValueOnce(txn)
       .mockResolvedValueOnce({ ...txn, status: 'AWAITING_RECEIPT' });
     Escrow.findByPk.mockResolvedValue(escrow);
+
+    // First call is auth middleware (admin), second call is wallet credit (seller)
+    User.findByPk
+      .mockResolvedValueOnce(admin)
+      .mockResolvedValueOnce({ ...seller, walletBalance: 0, update: jest.fn().mockResolvedValue(true) });
+
+    WalletTransaction.create.mockResolvedValue({});
 
     const res = await request(app)
       .post('/api/admin/transactions/5/release')
