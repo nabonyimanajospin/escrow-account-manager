@@ -246,3 +246,35 @@ exports.deleteProperty = async (req, res, next) => {
     next(error);
   }
 };
+
+const { generatePropertyDescription } = require('../services/aiService');
+
+// @desc    Generate a property description using AI
+// @route   POST /api/properties/ai-description
+// @access  Private (SELLER)
+exports.generateDescription = async (req, res, next) => {
+  try {
+    const { title, location, propertyType, price, area, bedrooms, bathrooms } = req.body;
+    
+    if (!title || !location || !propertyType || !price) {
+      return res.status(400).json({ success: false, message: 'Title, location, type, and price are required for AI generation.' });
+    }
+
+    let description;
+    try {
+      description = await generatePropertyDescription({ title, location, propertyType, price, area, bedrooms, bathrooms });
+    } catch (aiError) {
+      console.warn('Gemini AI description generation failed or key missing.');
+      // Fallback description if AI fails
+      description = `A fantastic ${propertyType.toLowerCase()} property located in ${location}. Priced competitively at $${price}, this property represents an excellent investment opportunity in the current market.`;
+      if (propertyType !== 'LAND') {
+        description += ` It features ${bedrooms} bedrooms and ${bathrooms} bathrooms.`;
+      }
+      description += ` Contact us today to learn more about ${title}!`;
+    }
+
+    res.status(200).json({ success: true, description });
+  } catch (error) {
+    next(error);
+  }
+};

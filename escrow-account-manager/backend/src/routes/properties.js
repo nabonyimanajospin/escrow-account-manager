@@ -6,6 +6,7 @@ const {
   createProperty,
   updateProperty,
   deleteProperty,
+  generateDescription,
 } = require('../controllers/propertyController');
 const { createOffer, getOffersByProperty } = require('../controllers/offerController');
 const { protect } = require('../middleware/auth');
@@ -13,6 +14,7 @@ const roleCheck = require('../middleware/roleCheck');
 const { uploadPropertyImage } = require('../middleware/upload');
 
 // Public routes
+router.post('/ai-description', protect, roleCheck('SELLER'), generateDescription);
 router.get('/', getProperties);
 router.get('/:id', getProperty);
 

@@ -30,6 +30,7 @@ const PropertyForm = () => {
   const [imageFile, setImageFile] = useState(null);     // actual File object
   const [imagePreview, setImagePreview] = useState(''); // preview URL
   const [error, setError] = useState('');
+  const [isGeneratingDesc, setIsGeneratingDesc] = useState(false);
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -95,6 +96,28 @@ const PropertyForm = () => {
       fetchProperty();
     }
   }, [id, isEditMode, navigate, user]);
+
+  const handleGenerateDescription = async () => {
+    if (!title || !location || !propertyType || !price) {
+      toast.error('Please fill in Title, Location, Property Type, and Price first.');
+      return;
+    }
+    try {
+      setIsGeneratingDesc(true);
+      toast.loading('✨ AI is writing the description...', { id: 'ai-desc' });
+      const res = await axios.post('/properties/ai-description', {
+        title, location, propertyType, price, area, bedrooms, bathrooms
+      });
+      setDescription(res.data.description);
+      toast.dismiss('ai-desc');
+      toast.success('Description generated!');
+    } catch (err) {
+      toast.dismiss('ai-desc');
+      toast.error(err.response?.data?.message || 'Failed to generate description');
+    } finally {
+      setIsGeneratingDesc(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -362,7 +385,17 @@ const PropertyForm = () => {
 
           {/* Description */}
           <div>
-            <label className="input-label" htmlFor="description">Listing Description</label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="input-label !mb-0" htmlFor="description">Listing Description</label>
+              <button
+                type="button"
+                onClick={handleGenerateDescription}
+                disabled={isGeneratingDesc || loading}
+                className="text-[10px] font-bold bg-purple-100 text-purple-700 hover:bg-purple-200 px-2 py-1 rounded transition-colors flex items-center gap-1 cursor-pointer"
+              >
+                {isGeneratingDesc ? '✨ Generating...' : '✨ Auto-Generate with AI'}
+              </button>
+            </div>
             <textarea
               id="description"
               required
@@ -371,7 +404,7 @@ const PropertyForm = () => {
               placeholder="Provide a detailed description of the property, structural features, and surrounding amenities..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              disabled={loading}
+              disabled={loading || isGeneratingDesc}
             />
           </div>
 

@@ -193,6 +193,8 @@ You can ask me questions like:
 - **Your Role**: **${role}**`;
 };
 
+const { generateChatResponse } = require('../services/aiService');
+
 // @desc    Chat with contextual AI Co-Pilot
 // @route   POST /api/escrow/:id/ai-chat
 // @access  Private
@@ -225,7 +227,22 @@ exports.chatWithAI = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Not authorized to chat about this transaction' });
     }
 
-    const responseText = getAIResponse(message, transaction, req.user.role);
+    let responseText;
+    try {
+      // Try Gemini AI first
+      const context = {
+        propTitle: transaction.property?.title || 'the property',
+        price: parseFloat(transaction.amount),
+        status: transaction.status,
+        role: req.user.role,
+        contractAddress: transaction.escrowAccount?.contractAddress || 'Not Generated'
+      };
+      responseText = await generateChatResponse(message, context);
+    } catch (aiError) {
+      // Fallback to hardcoded rules if Gemini fails or key is missing
+      console.warn('Gemini AI chat failed or key missing, falling back to rule-based engine.');
+      responseText = getAIResponse(message, transaction, req.user.role);
+    }
 
     res.status(200).json({
       success: true,
