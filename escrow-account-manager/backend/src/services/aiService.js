@@ -1,19 +1,25 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 let genAI = null;
-if (process.env.GEMINI_API_KEY) {
-  genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-}
+
+const getGenAI = () => {
+  if (genAI) return genAI;
+  if (process.env.GEMINI_API_KEY) {
+    genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+  }
+  return genAI;
+};
 
 /**
  * Generate a dynamic chat response using Gemini
  */
 exports.generateChatResponse = async (message, context) => {
-  if (!genAI) {
+  const ai = getGenAI();
+  if (!ai) {
     throw new Error('GEMINI_API_KEY not configured');
   }
 
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
   
   const systemPrompt = `You are the EscrowTrust AI Co-Pilot, an intelligent assistant built into a secure property escrow platform.
 Your job is to assist users with their transaction, explain the escrow process, and provide guidance based on the current transaction state.
@@ -56,7 +62,8 @@ Rules:
  * Generate a property listing description using Gemini
  */
 exports.generatePropertyDescription = async (details) => {
-  if (!genAI) {
+  const ai = getGenAI();
+  if (!ai) {
     throw new Error('GEMINI_API_KEY not configured');
   }
 
