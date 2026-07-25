@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import StatusBadge from '../components/StatusBadge';
 import toast from 'react-hot-toast';
 import CurrencyConverter from '../components/CurrencyConverter';
+import { resolveImageUrl } from '../utils/imageUtils';
 
 const PropertyDetail = () => {
   const { id } = useParams();
@@ -161,7 +162,7 @@ const PropertyDetail = () => {
           <div className="card overflow-hidden h-[400px] bg-slate-100 relative">
             {property.images && property.images[0] ? (
               <img
-                src={property.images[0]}
+                src={resolveImageUrl(property.images[0])}
                 alt={property.title}
                 className="w-full h-full object-cover"
               />

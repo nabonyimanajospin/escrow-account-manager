@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from '../api/axiosConfig';
 import { useAuth } from '../context/AuthContext';
+import { resolveImageUrl } from '../utils/imageUtils';
 import toast from 'react-hot-toast';
 
 const PropertyForm = () => {
@@ -522,7 +523,7 @@ const PropertyForm = () => {
                   <div className="mt-2">
                     <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Uploaded Preview</p>
                     <img
-                      src={imagePreview}
+                      src={resolveImageUrl(imagePreview)}
                       alt="Property upload preview"
                       className="w-40 h-28 object-cover rounded-xl border border-slate-200 shadow-sm"
                     />

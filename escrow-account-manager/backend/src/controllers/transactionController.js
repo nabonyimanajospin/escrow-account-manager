@@ -123,37 +123,7 @@ const getTransaction = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Not authorized to view this transaction' });
     }
 
-    // Auto-expiration check for PENDING deals (10 minutes limit)
-    const EXPIRATION_LIMIT = 10 * 60 * 1000;
-    if (transaction.status === 'PENDING') {
-      const timeElapsed = Date.now() - new Date(transaction.createdAt).getTime();
-      if (timeElapsed > EXPIRATION_LIMIT) {
-        await sequelize.transaction(async (t) => {
-          transaction.status = 'REFUNDED';
-          await transaction.save({ transaction: t });
 
-          // Unlock property back to AVAILABLE
-          await Property.update({ status: 'AVAILABLE' }, { where: { id: transaction.propertyId }, transaction: t });
-
-          // Log to immutable block ledger
-          await AuditLog.create({
-            transactionId: transaction.id,
-            userId: transaction.buyerId,
-            userName: 'SYSTEM_DAEMON',
-            userRole: 'SYSTEM',
-            action: 'AUTO_CANCEL_EXPIRED_PENDING',
-            ipAddress: '127.0.0.1',
-            userAgent: 'SYSTEM_DAEMON',
-          }, { transaction: t });
-        });
-
-        // Re-fetch transaction with updated relation attributes and logs
-        const updatedTransaction = await Transaction.findByPk(req.params.id, {
-          include: transactionIncludes,
-        });
-        return res.status(200).json({ success: true, data: updatedTransaction });
-      }
-    }
 
     res.status(200).json({ success: true, data: transaction });
   } catch (error) {
@@ -657,7 +627,7 @@ const releaseFunds = async (req, res, next) => {
           userId: seller.id,
           type: 'CREDIT',
           amount: sellerNetPayout,
-          reference: transaction.reference || `TXN-${transaction.id}`,
+          reference: transaction.transactionId || `TXN-${transaction.id}`,
           notes: `Escrow released by admin. Net payout after 1.5% seller fee.`,
           status: 'COMPLETED',
         }, { transaction: t });
@@ -688,6 +658,7 @@ const releaseFunds = async (req, res, next) => {
 // @access  Private (ADMIN)
 const refundBuyer = async (req, res, next) => {
   try {
+    const { adminNotes } = req.body;
     const transaction = await Transaction.findByPk(req.params.id);
     if (!transaction) {
       return res.status(404).json({ success: false, message: 'Transaction not found' });
@@ -729,7 +700,8 @@ const refundBuyer = async (req, res, next) => {
         description: 'Credit return of deposit to buyer account',
       }, t);
 
-      await logAction(transaction.id, req, `Admin rejected mutation/resolved dispute and refunded escrow balance of $${amount} to Buyer.`, { transaction: t });
+      const logMsg = `Admin rejected mutation/resolved dispute and refunded escrow balance of $${amount} to Buyer.` + (adminNotes ? ` Notes: ${adminNotes}` : '');
+      await logAction(transaction.id, req, logMsg, { transaction: t });
     });
 
     const result = await Transaction.findByPk(transaction.id, { include: transactionIncludes });

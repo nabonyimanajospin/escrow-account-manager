@@ -1,7 +1,8 @@
 const { Transaction, Property, User, Escrow } = require('../models');
+const registryService = require('../services/registryService');
 
 // Contextual rules matching query terms to return highly detailed responses
-const getAIResponse = (message, transaction, role) => {
+const getAIResponse = async (message, transaction, role) => {
   const query = message.toLowerCase();
   const status = transaction.status;
   const propTitle = transaction.property?.title || 'the property';
@@ -57,11 +58,7 @@ No documents have been uploaded yet. Please upload a draft deed of transfer firs
       docText = primaryDoc.documentUrl;
     }
 
-    const MOCK_REGISTRY_DATABASE = {
-      'UPI-12-34-5678': { owner: 'Alice Ishimwe', parcelTitle: 'Kimihurura Heights Apartment', status: 'CLEAN' },
-      'UPI-55-66-7788': { owner: 'Alice Ishimwe', parcelTitle: 'Kiyovu Luxury Villa', status: 'CLEAN' },
-      'UPI-88-23-4019': { owner: 'Alice Ishimwe', parcelTitle: 'Gahanga Premium Land Plot', status: 'CLEAN' },
-    };
+    // Fetching from registryService instead of hardcoded data
 
     const combinedContent = (docText + " " + primaryDoc.description).toUpperCase();
     const hasDeedType = combinedContent.includes('DEED') || combinedContent.includes('MUTATION') || combinedContent.includes('TRANSFER');
@@ -69,7 +66,7 @@ No documents have been uploaded yet. Please upload a draft deed of transfer firs
     const hasBuyer = combinedContent.includes(transaction.buyer.name.toUpperCase());
     const hasProperty = combinedContent.includes(transaction.property.title.toUpperCase()) || combinedContent.includes(`PROPERTY ID: ${transaction.propertyId}`) || combinedContent.includes(`PROP-${transaction.propertyId}`);
     
-    const upiRegex = /UPI-\d{2}-\d{2}-\d{4}/i;
+    const upiRegex = /\d{1,2}\/\d{2}\/\d{2}\/\d{2}\/\d{1,5}/;
     const upiMatch = combinedContent.match(upiRegex);
     const matchedUpi = upiMatch ? upiMatch[0].toUpperCase() : null;
 
@@ -77,14 +74,16 @@ No documents have been uploaded yet. Please upload a draft deed of transfer firs
     let ownerMatches = false;
     let parcelClean = false;
 
-    if (matchedUpi && MOCK_REGISTRY_DATABASE[matchedUpi]) {
-      const record = MOCK_REGISTRY_DATABASE[matchedUpi];
-      upiExists = true;
-      if (record.owner.toUpperCase() === transaction.seller.name.toUpperCase()) {
-        ownerMatches = true;
-      }
-      if (record.status === 'CLEAN') {
-        parcelClean = true;
+    if (matchedUpi) {
+      const record = await registryService.lookupParcel(matchedUpi);
+      if (record) {
+        upiExists = true;
+        if (record.owner.toUpperCase() === transaction.seller.name.toUpperCase()) {
+          ownerMatches = true;
+        }
+        if (record.status === 'CLEAN') {
+          parcelClean = true;
+        }
       }
     }
 
@@ -241,7 +240,7 @@ exports.chatWithAI = async (req, res, next) => {
     } catch (aiError) {
       // Fallback to hardcoded rules if Gemini fails or key is missing
       console.warn('Gemini AI chat failed or key missing, falling back to rule-based engine.');
-      responseText = getAIResponse(message, transaction, req.user.role);
+      responseText = await getAIResponse(message, transaction, req.user.role);
     }
 
     res.status(200).json({

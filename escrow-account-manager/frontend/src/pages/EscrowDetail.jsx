@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import StatusBadge from '../components/StatusBadge';
 import AuditLog from '../components/AuditLog';
 import toast from 'react-hot-toast';
+import { resolveImageUrl } from '../utils/imageUtils';
 
 const EscrowDetail = () => {
   const { id } = useParams();
@@ -1790,7 +1791,7 @@ STATUS: COMPLETED MUTATION`;
             <div className="flex gap-3 items-center">
               {transaction.property?.images && transaction.property?.images[0] && (
                 <img
-                  src={transaction.property.images[0]}
+                  src={resolveImageUrl(transaction.property.images[0])}
                   alt={transaction.property.title}
                   className="w-14 h-14 rounded-lg object-cover border border-slate-100 flex-shrink-0"
                 />

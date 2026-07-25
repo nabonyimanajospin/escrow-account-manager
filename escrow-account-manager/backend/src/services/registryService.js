@@ -1,7 +1,7 @@
 const MOCK_REGISTRY_DATABASE = {
-  'UPI-12-34-5678': { owner: 'Alice Ishimwe', parcelTitle: 'Kimihurura Heights Apartment', status: 'CLEAN', area: 160.00 },
-  'UPI-55-66-7788': { owner: 'Alice Ishimwe', parcelTitle: 'Kiyovu Luxury Villa', status: 'CLEAN', area: 520.00 },
-  'UPI-88-23-4019': { owner: 'Alice Ishimwe', parcelTitle: 'Gahanga Premium Land Plot', status: 'CLEAN', area: 1200.05 },
+  '1/03/01/04/1000': { owner: 'Alice Ishimwe', parcelTitle: 'Kimihurura Heights Apartment', status: 'CLEAN', area: 160.00 },
+  '2/04/02/05/2000': { owner: 'Alice Ishimwe', parcelTitle: 'Kiyovu Luxury Villa', status: 'CLEAN', area: 520.00 },
+  '3/05/03/06/3000': { owner: 'Alice Ishimwe', parcelTitle: 'Gahanga Premium Land Plot', status: 'CLEAN', area: 1200.05 },
 };
 
 const lookupParcel = async (upiCode) => {

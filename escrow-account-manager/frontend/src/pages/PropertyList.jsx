@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import axios from '../api/axiosConfig';
 import StatusBadge from '../components/StatusBadge';
 import toast from 'react-hot-toast';
+import { resolveImageUrl } from '../utils/imageUtils';
 
 const PropertyList = () => {
   const [properties, setProperties] = useState([]);
@@ -127,7 +128,7 @@ const PropertyList = () => {
               <div className="h-44 bg-slate-100 relative">
                 {p.images && p.images[0] ? (
                   <img
-                    src={p.images[0]}
+                    src={resolveImageUrl(p.images[0])}
                     alt={p.title}
                     className="w-full h-full object-cover"
                   />

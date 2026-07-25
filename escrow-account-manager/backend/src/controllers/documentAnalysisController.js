@@ -50,7 +50,7 @@ exports.analyzeTransactionDocument = async (req, res, next) => {
 
     // Analyze the most recent document
     const latestDoc = docs[docs.length - 1];
-    const docPath = resolveFilePath(latestDoc.url || latestDoc);
+    const docPath = resolveFilePath(latestDoc.documentUrl || latestDoc);
     const propertyType = transaction.property?.propertyType || 'LAND';
     const expectedUpi = transaction.property?.upiCode || '';
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { resolveImageUrl } from '../utils/imageUtils';
 import axios from '../api/axiosConfig';
 import StatusBadge from '../components/StatusBadge';
 
@@ -198,7 +198,7 @@ const LandingPage = () => {
               <div key={p.id} className="card overflow-hidden bg-white flex flex-col justify-between h-[360px]">
                 <div className="h-40 bg-slate-100 relative">
                   {p.images && p.images[0] && (
-                    <img src={p.images[0]} alt={p.title} className="w-full h-full object-cover" />
+                    <img src={resolveImageUrl(p.images[0])} alt={p.title} className="w-full h-full object-cover" />
                   )}
                   <div className="absolute top-3 right-3">
                     <StatusBadge status={p.status} />
