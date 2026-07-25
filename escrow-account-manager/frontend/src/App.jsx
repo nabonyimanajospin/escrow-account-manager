@@ -17,6 +17,7 @@ import AdminPanel from './pages/AdminPanel';
 import Profile from './pages/Profile';
 import SellerWallet from './pages/SellerWallet';
 import AIChatWidget from './components/AIChatWidget';
+import KYCPage from './pages/KYCPage';
 
 function App() {
   return (
@@ -65,6 +66,7 @@ function App() {
                 {/* Profile & Wallet */}
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/wallet" element={<SellerWallet />} />
+                <Route path="/kyc" element={<KYCPage />} />
               </Route>
 
               {/* Protected Admin Console Route */}

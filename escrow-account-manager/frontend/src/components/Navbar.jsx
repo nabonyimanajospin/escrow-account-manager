@@ -196,6 +196,15 @@ const Navbar = () => {
                     >
                       👤 Profile
                     </Link>
+                    {(user?.role === 'BUYER' || user?.role === 'SELLER') && (
+                      <Link
+                        to="/kyc"
+                        className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 px-2 py-1 rounded hover:bg-indigo-50 transition-all"
+                        title="KYC Verification"
+                      >
+                        🪪 KYC
+                      </Link>
+                    )}
                     {(user?.role === 'SELLER' || user?.role === 'ADMIN') && (
                       <Link
                         to="/wallet"
@@ -282,6 +291,16 @@ const Navbar = () => {
                   className="block px-3 py-2 rounded-lg text-base font-semibold text-slate-700 hover:bg-slate-50"
                 >
                   Admin Panel
+                </Link>
+              )}
+
+              {(user?.role === 'BUYER' || user?.role === 'SELLER') && (
+                <Link
+                  to="/kyc"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="block px-3 py-2 rounded-lg text-base font-semibold text-indigo-600 hover:bg-indigo-50"
+                >
+                  🪪 KYC Verification
                 </Link>
               )}
 

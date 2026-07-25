@@ -5,6 +5,8 @@ const otpService = require('../services/otpService');
 const notificationService = require('../services/notificationService');
 const paymentProvider = require('../services/paymentProvider');
 const registryService = require('../services/registryService');
+const { generateEscrowContract } = require('../services/contractService');
+const logger = require('../utils/logger');
 
 const { Dispute, DisputeEvidence } = require('../models');
 
@@ -883,10 +885,23 @@ const deleteTransaction = async (req, res, next) => {
 // @access  Private (ADMIN)
 const getAuditLogs = async (req, res, next) => {
   try {
-    const logs = await AuditLog.findAll({
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const offset = (page - 1) * limit;
+
+    const { count, rows } = await AuditLog.findAndCountAll({
       order: [['id', 'DESC']],
+      limit,
+      offset,
     });
-    res.status(200).json({ success: true, count: logs.length, data: logs });
+    res.status(200).json({
+      success: true,
+      count: rows.length,
+      total: count,
+      totalPages: Math.ceil(count / limit),
+      currentPage: page,
+      data: rows
+    });
   } catch (error) {
     next(error);
   }
@@ -941,6 +956,16 @@ const confirmReceipt = async (req, res, next) => {
         await notificationService.createInAppNotification(transaction.buyerId, 'Transaction Completed', 'The escrow transaction has been completed successfully.');
       }
     });
+
+    // Generate PDF completion contract
+    try {
+      const freshTx = await Transaction.findByPk(transaction.id, { include: transactionIncludes });
+      const contractPath = await generateEscrowContract(freshTx);
+      await freshTx.update({ contractDocumentUrl: contractPath });
+      logger.info(`[Contract] PDF generated for transaction ${transaction.id}: ${contractPath}`);
+    } catch (contractErr) {
+      logger.error('[Contract] PDF generation failed (non-blocking):', contractErr);
+    }
 
     const result = await Transaction.findByPk(transaction.id, { include: transactionIncludes });
     res.status(200).json({ success: true, message: 'Receipt confirmed. Agreement is fully finalized.', data: result });
@@ -1010,6 +1035,11 @@ const verifyRegistryDeed = async (req, res, next) => {
     let upiExists = false;
     let ownerMatches = false;
     let parcelClean = false;
+    // These are declared outside the loop so they are accessible in the report below
+    let hasDeedType = false;
+    let hasSeller = false;
+    let hasBuyer = false;
+    let hasProperty = false;
 
     for (const doc of transaction.mutationDocuments) {
       if (doc.documentUrl.startsWith('data:')) {
@@ -1025,15 +1055,18 @@ const verifyRegistryDeed = async (req, res, next) => {
       const docText = doc.description || "";
       const combinedContent = docText.toUpperCase();
       
-      const hasDeedType = combinedContent.includes('DEED') || combinedContent.includes('MUTATION') || combinedContent.includes('TRANSFER');
-      const hasSeller = combinedContent.includes(transaction.seller.name.toUpperCase());
-      const hasBuyer = combinedContent.includes(transaction.buyer.name.toUpperCase());
+      hasDeedType = combinedContent.includes('DEED') || combinedContent.includes('MUTATION') || combinedContent.includes('TRANSFER');
+      hasSeller = combinedContent.includes(transaction.seller.name.toUpperCase());
+      hasBuyer = combinedContent.includes(transaction.buyer.name.toUpperCase());
+      hasProperty = combinedContent.includes(transaction.property.title.toUpperCase()) ||
+        combinedContent.includes(`PROPERTY ID: ${transaction.propertyId}`) ||
+        combinedContent.includes(`PROP-${transaction.propertyId}`);
       
       const upiRegex = /\d{1,2}\/\d{2}\/\d{2}\/\d{2}\/\d{1,5}/;
       const upiMatch = combinedContent.match(upiRegex);
       const localMatchedUpi = upiMatch ? upiMatch[0].toUpperCase() : null;
 
-      if (hasDeedType && hasSeller && hasBuyer && localMatchedUpi) {
+      if (hasDeedType && hasSeller && hasBuyer && hasProperty && localMatchedUpi) {
         // structural check passed for this document
         validDocFound = true;
         matchedUpi = localMatchedUpi;

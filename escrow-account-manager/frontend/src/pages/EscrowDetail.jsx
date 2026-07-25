@@ -21,7 +21,7 @@ const EscrowDetail = () => {
   const [docUrl, setDocUrl] = useState('');
   const [docDesc, setDocDesc] = useState('');
   const [docUploadMode, setDocUploadMode] = useState('link'); // 'link' or 'file'
-  const [uploadedDocBase64, setUploadedDocBase64] = useState('');
+  const [uploadedDocFile, setUploadedDocFile] = useState(null);
   const [timeLeft, setTimeLeft] = useState(null);
   const [validationReport, setValidationReport] = useState(null);
   const [isVaultOpen, setIsVaultOpen] = useState(false);
@@ -54,16 +54,12 @@ You can ask me questions like:
   const handleDocFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      if (file.size > 3 * 1024 * 1024) { // 3MB limit
-        toast.error('File is too large. Please select a document under 3MB.');
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error('File is too large. Please select a document under 10MB.');
         e.target.value = '';
         return;
       }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setUploadedDocBase64(reader.result);
-      };
-      reader.readAsDataURL(file);
+      setUploadedDocFile(file);
     }
   };
 
@@ -169,20 +165,38 @@ You can ask me questions like:
 
   const handleUploadDoc = async (e) => {
     e.preventDefault();
-    const finalDocUrl = docUploadMode === 'file' ? uploadedDocBase64 : docUrl;
-    if (!finalDocUrl || !docDesc) {
-      toast.error('Please fill in both fields / select a file');
+    if (!docDesc) {
+      toast.error('Please provide a document description');
+      return;
+    }
+    if (docUploadMode === 'file' && !uploadedDocFile) {
+      toast.error('Please select a file to upload');
+      return;
+    }
+    if (docUploadMode === 'link' && !docUrl) {
+      toast.error('Please enter a document URL');
       return;
     }
     try {
       setActionLoading(true);
-      await axios.post(`/escrow/${id}/upload-document`, {
-        documentUrl: finalDocUrl,
-        description: docDesc,
-      });
-      toast.success('Mutation document uploaded');
+      if (docUploadMode === 'file') {
+        // Use multipart upload — backend stores file and returns path
+        const formData = new FormData();
+        formData.append('document', uploadedDocFile);
+        formData.append('description', docDesc);
+        const uploadRes = await axios.post(`/escrow/${id}/upload-mutation-file`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        toast.success('Mutation document uploaded');
+      } else {
+        await axios.post(`/escrow/${id}/upload-document`, {
+          documentUrl: docUrl,
+          description: docDesc,
+        });
+        toast.success('Mutation document uploaded');
+      }
       setDocUrl('');
-      setUploadedDocBase64('');
+      setUploadedDocFile(null);
       setDocDesc('');
       fetchTransaction();
     } catch (err) {
@@ -908,8 +922,8 @@ STATUS: COMPLETED MUTATION`;
                               file:bg-slate-200 file:text-slate-700
                               hover:file:bg-slate-300 cursor-pointer"
                           />
-                          {uploadedDocBase64 && (
-                            <span className="text-[10px] text-emerald-600 font-bold block mt-1">✓ Document loaded from PC</span>
+                          {uploadedDocFile && (
+                            <span className="text-[10px] text-emerald-600 font-bold block mt-1">✓ {uploadedDocFile.name}</span>
                           )}
                         </div>
                       )}
@@ -1398,13 +1412,23 @@ STATUS: COMPLETED MUTATION`;
                   </div>
                 </div>
 
-                <div className="flex justify-center mt-4">
+                <div className="flex justify-center gap-3 mt-4">
                   <button
                     onClick={handlePrintDeed}
                     className="btn-secondary text-xs font-semibold py-1.5 px-4 cursor-pointer"
                   >
                     Print Agreement Receipt
                   </button>
+                  {transaction.contractDocumentUrl && (
+                    <a
+                      href={transaction.contractDocumentUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-primary text-xs font-semibold py-1.5 px-4 cursor-pointer inline-flex items-center gap-1.5"
+                    >
+                      ↓ Download PDF Contract
+                    </a>
+                  )}
                 </div>
               </div>
             )}

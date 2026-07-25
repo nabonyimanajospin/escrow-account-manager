@@ -13,6 +13,9 @@ const AdminPanel = () => {
   const [usersList, setUsersList] = useState([]);
   const [ledgerLogs, setLedgerLogs] = useState([]);
   const [actionLoading, setActionLoading] = useState(false);
+  // Modal state for release/refund audit notes
+  const [modal, setModal] = useState(null); // { type: 'release'|'refund', txId, txCode }
+  const [modalNotes, setModalNotes] = useState('');
 
   const fetchData = useCallback(async () => {
     try {
@@ -68,34 +71,35 @@ const AdminPanel = () => {
     }
   };
 
-  const handleRelease = async (id, code) => {
-    const adminNotes = window.prompt(`Confirm Release: Please enter your administrative audit review notes for deal ${code}:`);
-    if (adminNotes === null) return;
-    if (!adminNotes.trim()) {
-      toast.error('Audit notes are required to approve and release escrow funds');
-      return;
-    }
-    try {
-      setActionLoading(true);
-      await axios.post(`/admin/transactions/${id}/release`, { adminNotes });
-      toast.success('Escrow funds successfully released to seller');
-      fetchData();
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Release transaction failed');
-    } finally {
-      setActionLoading(false);
-    }
+  const handleRelease = (id, code) => {
+    setModalNotes('');
+    setModal({ type: 'release', txId: id, txCode: code });
   };
 
-  const handleRefund = async (id, code) => {
-    if (!window.confirm(`Confirm: Refund buyer for deal ${code}? This transfers escrow balance back to the buyer and resets the property status to AVAILABLE.`)) return;
+  const handleRefund = (id, code) => {
+    setModalNotes('');
+    setModal({ type: 'refund', txId: id, txCode: code });
+  };
+
+  const handleModalConfirm = async () => {
+    if (!modalNotes.trim()) {
+      toast.error('Audit notes are required.');
+      return;
+    }
+    const { type, txId, txCode } = modal;
+    setModal(null);
     try {
       setActionLoading(true);
-      await axios.post(`/admin/transactions/${id}/refund`);
-      toast.success('Escrow funds successfully refunded to buyer');
+      if (type === 'release') {
+        await axios.post(`/admin/transactions/${txId}/release`, { adminNotes: modalNotes });
+        toast.success('Escrow funds successfully released to seller');
+      } else {
+        await axios.post(`/admin/transactions/${txId}/refund`, { adminNotes: modalNotes });
+        toast.success('Escrow funds successfully refunded to buyer');
+      }
       fetchData();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Refund transaction failed');
+      toast.error(err.response?.data?.message || `${type === 'release' ? 'Release' : 'Refund'} failed`);
     } finally {
       setActionLoading(false);
     }
@@ -382,6 +386,56 @@ const AdminPanel = () => {
         )}
 
       </div>
+
+      {/* ── Release / Refund Confirmation Modal ── */}
+      {modal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-lg ${
+                modal.type === 'release' ? 'bg-emerald-600' : 'bg-red-600'
+              }`}>
+                {modal.type === 'release' ? '\u2713' : '\u21a9'}
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">
+                  {modal.type === 'release' ? 'Approve & Release Escrow Funds' : 'Reject & Refund Buyer'}
+                </h3>
+                <p className="text-xs text-slate-400 font-semibold">Deal: {modal.txCode}</p>
+              </div>
+            </div>
+            <p className="text-xs text-slate-600 font-medium leading-relaxed">
+              {modal.type === 'release'
+                ? 'You are about to release the locked escrow funds to the seller. This action is irreversible. Please provide your audit review notes below.'
+                : 'You are about to refund the full escrow balance to the buyer and reset the property to AVAILABLE. Please provide your audit review notes below.'}
+            </p>
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Audit Review Notes (Required)</label>
+              <textarea
+                className="w-full border border-slate-200 rounded-xl p-3 text-xs font-medium text-slate-800 resize-none h-24 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                placeholder="Describe your review findings, document verification outcome, and reason for this decision..."
+                value={modalNotes}
+                onChange={(e) => setModalNotes(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="flex gap-3 pt-1">
+              <button onClick={() => setModal(null)} className="flex-1 btn-secondary text-xs !py-2">Cancel</button>
+              <button
+                onClick={handleModalConfirm}
+                disabled={!modalNotes.trim() || actionLoading}
+                className={`flex-1 text-xs py-2 font-bold rounded-xl border transition-all cursor-pointer disabled:opacity-40 ${
+                  modal.type === 'release'
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600'
+                    : 'bg-red-600 hover:bg-red-700 text-white border-red-600'
+                }`}
+              >
+                {modal.type === 'release' ? 'Confirm Release' : 'Confirm Refund'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

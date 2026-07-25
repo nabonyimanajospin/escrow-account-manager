@@ -1,5 +1,6 @@
 const nodemailer = require('nodemailer');
 const { Notification } = require('../models');
+const logger = require('../utils/logger');
 
 /**
  * Nodemailer transporter configured for Gmail SMTP.
@@ -22,7 +23,7 @@ const transporter = nodemailer.createTransport({
  */
 const sendEmail = async (to, subject, html, text = '') => {
   if (!process.env.EMAIL_FROM || !process.env.EMAIL_APP_PASSWORD) {
-    console.warn('[Email] EMAIL_FROM or EMAIL_APP_PASSWORD not set — skipping email send.');
+    logger.warn('[Email] EMAIL_FROM or EMAIL_APP_PASSWORD not set — skipping email send.');
     return;
   }
 
@@ -36,10 +37,10 @@ const sendEmail = async (to, subject, html, text = '') => {
 
   try {
     const info = await transporter.sendMail(mailOptions);
-    console.log(`[Email] Sent to ${to} — MessageId: ${info.messageId}`);
+    logger.info(`[Email] Sent to ${to} — MessageId: ${info.messageId}`);
     return info;
   } catch (err) {
-    console.error(`[Email] Failed to send to ${to}:`, err.message);
+    logger.error(`[Email] Failed to send to ${to}:`, err.message);
     // Do not throw — email failure should not crash the API
   }
 };
@@ -52,7 +53,7 @@ const createInAppNotification = async (userId, title, message) => {
   try {
     await Notification.create({ userId, title, message });
   } catch (err) {
-    console.error('[Notification] Failed to create in-app notification:', err.message);
+    logger.error('[Notification] Failed to create in-app notification:', err.message);
   }
 };
 

@@ -9,6 +9,7 @@ const {
   verifyAuditLogs,
 } = require('../controllers/transactionController');
 const { approveWithdrawal, rejectWithdrawal } = require('../controllers/walletController');
+const { getPendingKyc, approveKyc, rejectKyc } = require('../controllers/kycController');
 const { protect } = require('../middleware/auth');
 const roleCheck = require('../middleware/roleCheck');
 
@@ -37,5 +38,10 @@ router.get('/audit-logs/verify', verifyAuditLogs);
 // Wallet management
 router.post('/wallet/:id/approve', approveWithdrawal);
 router.post('/wallet/:id/reject', rejectWithdrawal);
+
+// KYC management
+router.get('/kyc/pending', getPendingKyc);
+router.post('/kyc/:userId/approve', approveKyc);
+router.post('/kyc/:userId/reject', rejectKyc);
 
 module.exports = router;

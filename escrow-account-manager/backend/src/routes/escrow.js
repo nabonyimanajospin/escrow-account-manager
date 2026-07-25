@@ -42,8 +42,23 @@ router.post('/:id/cancel', protect, roleCheck('BUYER'), cancelTransaction);
 // Seller starts mutation process
 router.post('/:id/initiate-mutation', protect, roleCheck('SELLER'), initiateMutation);
 
-// Seller uploads mutation proof document/image
+// Seller uploads mutation proof document/image (URL string)
 router.post('/:id/upload-document', protect, roleCheck('SELLER'), uploadMutationDocument);
+
+// Seller uploads mutation proof via real file (multipart)
+router.post('/:id/upload-mutation-file', protect, roleCheck('SELLER'), uploadMutationDoc, async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No file uploaded.' });
+    }
+    const { description } = req.body;
+    req.body.documentUrl = `/uploads/mutations/${req.file.filename}`;
+    req.body.description = description || req.file.originalname;
+    return uploadMutationDocument(req, res, next);
+  } catch (err) {
+    next(err);
+  }
+});
 
 // Seller/Admin completes mutation
 router.post('/:id/complete-mutation', protect, roleCheck('SELLER', 'ADMIN'), completeMutation);

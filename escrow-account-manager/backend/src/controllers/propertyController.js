@@ -1,4 +1,5 @@
 const { Property, User } = require('../models');
+const logger = require('../utils/logger');
 
 const normalizePropertySpecs = ({ propertyType, bedrooms, bathrooms, area }) => {
   if (propertyType === 'LAND') {
@@ -277,7 +278,7 @@ exports.generateDescription = async (req, res, next) => {
     try {
       description = await generatePropertyDescription({ title, location, propertyType, price, area, bedrooms, bathrooms });
     } catch (aiError) {
-      console.warn('Gemini AI description generation failed or key missing.');
+      logger.warn('Gemini AI description generation failed or key missing.');
       // Fallback description if AI fails
       description = `A fantastic ${propertyType.toLowerCase()} property located in ${location}. Priced competitively at $${price}, this property represents an excellent investment opportunity in the current market.`;
       if (propertyType !== 'LAND') {

@@ -1,5 +1,6 @@
 const { User, WalletTransaction } = require('../models');
-const sequelize = require('../config/database');
+const { sequelize } = require('../config/database');
+const logger = require('../utils/logger');
 
 /**
  * GET /api/wallet
@@ -30,7 +31,7 @@ const getWallet = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[Wallet] getWallet error:', err);
+    logger.error('[Wallet] getWallet error:', err);
     res.status(500).json({ success: false, error: 'Failed to fetch wallet.' });
   }
 };
@@ -48,7 +49,7 @@ const getWalletHistory = async (req, res) => {
     });
     res.json({ success: true, transactions });
   } catch (err) {
-    console.error('[Wallet] getWalletHistory error:', err);
+    logger.error('[Wallet] getWalletHistory error:', err);
     res.status(500).json({ success: false, error: 'Failed to fetch wallet history.' });
   }
 };
@@ -96,7 +97,7 @@ const requestWithdrawal = async (req, res) => {
     });
   } catch (err) {
     if (!t.finished) await t.rollback();
-    console.error('[Wallet] requestWithdrawal error:', err);
+    logger.error('[Wallet] requestWithdrawal error:', err);
     res.status(500).json({ success: false, error: 'Failed to process withdrawal.' });
   }
 };
@@ -118,7 +119,7 @@ const approveWithdrawal = async (req, res) => {
     res.json({ success: true, message: 'Withdrawal approved.' });
   } catch (error) {
     if (!t.finished) await t.rollback();
-    console.error('[Wallet] approve error:', error);
+    logger.error('[Wallet] approve error:', error);
     res.status(500).json({ success: false, error: 'Failed to approve.' });
   }
 };
@@ -144,7 +145,7 @@ const rejectWithdrawal = async (req, res) => {
     res.json({ success: true, message: 'Withdrawal rejected and funds refunded.' });
   } catch (error) {
     if (!t.finished) await t.rollback();
-    console.error('[Wallet] reject error:', error);
+    logger.error('[Wallet] reject error:', error);
     res.status(500).json({ success: false, error: 'Failed to reject.' });
   }
 };

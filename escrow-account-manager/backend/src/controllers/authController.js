@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { User } = require('../models');
+const logger = require('../utils/logger');
 
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -142,8 +143,8 @@ exports.updateMe = async (req, res, next) => {
       if (!isMatch) {
         return res.status(401).json({ success: false, message: 'Current password is incorrect.' });
       }
-      if (newPassword.length < 6) {
-        return res.status(400).json({ success: false, message: 'New password must be at least 6 characters.' });
+      if (newPassword.length < 8) {
+        return res.status(400).json({ success: false, message: 'New password must be at least 8 characters.' });
       }
       user.password = newPassword; // beforeUpdate hook will hash it
     }

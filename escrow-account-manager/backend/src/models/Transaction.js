@@ -164,6 +164,10 @@ const Transaction = sequelize.define('Transaction', {
     allowNull: true,
     defaultValue: null,
   },
+  contractDocumentUrl: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
 }, {
   timestamps: true,
   defaultScope: {

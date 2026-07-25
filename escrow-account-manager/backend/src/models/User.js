@@ -28,7 +28,7 @@ const User = sequelize.define('User', {
     type: DataTypes.STRING,
     allowNull: false,
     validate: {
-      len: { args: [6, 100], msg: 'Password must be at least 6 characters' },
+      len: { args: [8, 100], msg: 'Password must be at least 8 characters' },
     },
   },
   role: {
@@ -62,6 +62,10 @@ const User = sequelize.define('User', {
   },
   bio: {
     type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  kycDocumentUrl: {
+    type: DataTypes.STRING,
     allowNull: true,
   },
 }, {

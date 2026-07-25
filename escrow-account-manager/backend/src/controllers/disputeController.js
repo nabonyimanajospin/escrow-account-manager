@@ -2,6 +2,7 @@ const { Dispute, DisputeEvidence, Transaction, Escrow, Property, User, LedgerEnt
 const { sequelize } = require('../config/database');
 const ledgerService = require('../services/ledgerService');
 const notificationService = require('../services/notificationService');
+const logger = require('../utils/logger');
 
 const { transactionIncludes, logAction } = require('../utils/transactionHelpers');
 

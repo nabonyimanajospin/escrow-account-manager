@@ -1,5 +1,6 @@
 const { Transaction, Property, User, Escrow } = require('../models');
 const registryService = require('../services/registryService');
+const logger = require('../utils/logger');
 
 // Contextual rules matching query terms to return highly detailed responses
 const getAIResponse = async (message, transaction, role) => {
@@ -129,7 +130,19 @@ The seller is responsible for uploading the ownership mutation certificates.
     }
   }
 
-  // 4. Next Step / Help
+  // 4. Flow/Process Inquiry
+  if (query.includes('flow') || query.includes('process') || query.includes('how it works') || query.includes('how does')) {
+    return `### 🔄 Transaction Flow
+The escrow process ensures safety for both parties:
+1. **Fund**: The Buyer deposits the money into Escrow (plus a 1% platform fee).
+2. **Transfer**: The Seller uploads the official deed transfer document (Mutation Document).
+3. **Verification**: A platform Administrator verifies the documents against the Land Registry.
+4. **Release**: Once verified, the Admin releases the funds to the Seller (minus a 1.5% fee), completing the transaction safely!
+
+*Note: If there are any issues, either party can file a dispute for the Admin to mediate.*`;
+  }
+
+  // 5. Next Step / Help
   if (query.includes('next') || query.includes('help') || query.includes('what to do') || query.includes('todo') || query.includes('status')) {
     switch (status) {
       case 'PENDING':
@@ -149,43 +162,41 @@ The buyer has successfully deposited $${price.toLocaleString()} into the escrow 
         return `### 🔨 Current Step: Upload Deed Proofs
 Ownership transfer (mutation) has been initiated.
 - **Next Action**:
-  - **Seller**: Upload your deed mutation documents, submit consensus code, and click **"Complete Mutation"**.
-  - **Buyer**: Verify the uploaded documents and enter your consensus code to proceed to review.`;
+  - **Seller**: Upload your deed mutation documents, submit your consensus code, and click **"Complete Mutation"**.
+  - **Buyer**: Await the seller's document uploads. You will be notified when they are ready for review.`;
       case 'UNDER_REVIEW':
         return `### 🔍 Current Step: Admin Verification
 The deed transfer has been completed and submitted for official audit.
 - **Next Action**:
+  - **Buyer**: Confirm receipt of the property deed using the **"Confirm Property Receipt"** button.
   - **Administrator**: Inspect the uploaded deeds and click **"Release Funds"** to complete the deal or **"Refund Buyer"** if documentation is invalid.
-  - **Buyer/Seller**: Await review completion. Funds remain locked in escrow.`;
+  - **Seller**: Await review completion. Funds remain locked in escrow.`;
       case 'DISPUTED':
         return `### 🔒 Current Step: Mediation
 The deal is frozen due to an active dispute.
 - **Next Action**:
-  - **Buyer/Seller**: Discuss terms or upload additional supporting files.
+  - **Buyer/Seller**: Upload additional supporting evidence files.
   - **Administrator**: Review the audit log signature chain and issue a final settlement or refund.`;
+      case 'AWAITING_RECEIPT':
+        return `### 📬 Current Step: Awaiting Seller Confirmation
+Funds have been released by the Admin and are now in the seller's wallet.
+- **Next Action**:
+  - **Seller**: Click **"Confirm Receipt of Funds"** to officially close the transaction.`;
       case 'COMPLETED':
         return `### 🎉 Deal Completed!
 The transaction has successfully closed.
-- **Result**: Funds net of the 2.5% platform fee have been released to the seller, and property ownership is transferred.
-- **Receipt**: You can now download or print your official **Deed of Sale & Settlement Agreement** using the print button.`;
+- **Result**: Funds net of the 1.5% seller fee have been released to the seller, and property ownership is transferred.
+- **Buyer Fee**: A 1.0% platform security charge was collected at deposit.`;
       case 'REFUNDED':
         return `### ↩️ Transaction Voided / Refunded
 The transaction has been cancelled or rejected.
-- **Result**: Any deposited funds have been returned to the buyer, and the property listing \`${propTitle}\` is back on the market.`;
-    // 4. Flow/Process Inquiry
-  if (query.includes('flow') || query.includes('process') || query.includes('how it works') || query.includes('next step')) {
-    return `### 🔄 Transaction Flow
-The escrow process ensures safety for both parties:
-1. **Fund**: The Buyer deposits the money into Escrow.
-2. **Transfer**: The Seller uploads the official deed transfer document (Mutation Document).
-3. **Verification**: A platform Administrator verifies the documents against the Land Registry.
-4. **Release**: Once verified, the Admin releases the funds to the Seller, completing the transaction safely!
-
-*Note: If there are any issues, either party can file a dispute for the Admin to mediate.*`;
-  }
-
-  // 5. Default fallback
-  return `I am currently tracking this transaction. The status is **${status}**. Please let me know if you need help with fees, the transaction flow, or if you need to raise a dispute.`;
+- **Result**: Any deposited funds have been returned to the buyer's wallet, and the property listing \`${propTitle}\` is back on the market.`;
+      case 'CANCELLED':
+        return `### ❌ Transaction Cancelled
+This transaction was cancelled before funding was completed.
+- **Result**: The property listing \`${propTitle}\` is back on the market.`;
+      default:
+        return `The current transaction status is **${status}**. Please let me know what specific step you need guidance with!`;
     }
   }
 
@@ -253,7 +264,7 @@ exports.chatWithAI = async (req, res, next) => {
       responseText = await generateChatResponse(message, context);
     } catch (aiError) {
       // Fallback to hardcoded rules if Gemini fails or key is missing
-      console.warn('Gemini AI chat failed or key missing, falling back to rule-based engine.');
+      logger.warn('Gemini AI chat failed, falling back to rule-based engine.');
       responseText = await getAIResponse(message, transaction, req.user.role);
     }
 
@@ -289,15 +300,16 @@ exports.chatWithGlobalAI = async (req, res, next) => {
       };
       responseText = await generateChatResponse(message, context);
     } catch (aiError) {
-      // Fallback
-      if (query.includes('fee') || query.includes('charge')) {
+      // Fallback — fix: use message variable not undefined query
+      const q = message.toLowerCase();
+      if (q.includes('fee') || q.includes('charge')) {
         responseText = `### 💸 Platform Fees\nThe platform charges a total **2.5% service fee** per transaction. The buyer pays **1.0%** upfront upon funding the escrow, and the seller pays **1.5%** which is deducted from their final payout.`;
-      } else if (query.includes('dispute') || query.includes('problem')) {
+      } else if (q.includes('dispute') || q.includes('problem')) {
         responseText = `### ⚖️ Disputes\nIf there is a conflict, you can file a dispute in your transaction workspace. An administrator will review evidence as a neutral mediator.`;
-      } else if (query.includes('flow') || query.includes('process') || query.includes('how it works') || query.includes('how does')) {
-        responseText = `### 🔄 How Escrow Works\nHere is our simple and secure flow:\n1. **Initiate & Fund**: The Buyer agrees to a deal and securely deposits funds into Escrow (plus a 1% fee).\n2. **Transfer Ownership**: The Seller uploads the official deed transfer document (Mutation Document).\n3. **Verification**: A platform Administrator verifies the documents against the Land Registry.\n4. **Release**: Once verified, the Admin releases the funds to the Seller (minus a 1.5% fee), completing the transaction safely!`;
+      } else if (q.includes('flow') || q.includes('process') || q.includes('how it works')) {
+        responseText = `### 🔄 How Escrow Works\n1. **Fund**: Buyer deposits into Escrow (+ 1% fee).\n2. **Transfer**: Seller uploads deed transfer document.\n3. **Verification**: Admin verifies documents.\n4. **Release**: Funds released to Seller (- 1.5% fee).`;
       } else {
-        responseText = `Hello! I am your AI Assistant. I can help you understand how escrow transactions work, explain platform fees, or guide you through filing a dispute. How can I help?`;
+        responseText = `Hello! I am your AI Assistant. I can help you understand how escrow transactions work, explain platform fees, or guide you through filing a dispute.`;
       }
     }
 

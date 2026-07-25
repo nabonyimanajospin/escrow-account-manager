@@ -3,8 +3,19 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
+const hpp = require('hpp');
 const errorHandler = require('./middleware/errorHandler');
+const logger = require('./utils/logger');
 require('dotenv').config();
+
+// ─── Startup Environment Validation ──────────────────────────────────────────
+const REQUIRED_ENV = ['DB_NAME', 'DB_USER', 'DB_PASSWORD', 'DB_HOST', 'JWT_SECRET'];
+const missingEnv = REQUIRED_ENV.filter((key) => !process.env[key]);
+if (missingEnv.length > 0) {
+  logger.error(`[FATAL] Missing required environment variables: ${missingEnv.join(', ')}`);
+  logger.error('[FATAL] Server cannot start. Please check your .env file.');
+  process.exit(1);
+}
 
 require('./models');
 
@@ -77,6 +88,9 @@ app.use('/api/escrow/verify-otp', otpLimiter);
 app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
+// ─── Input Sanitization (HPP + Helmet CSP) ────────────────────────────────────────
+app.use(hpp());
+
 // ─── Static File Serving (uploaded files) ────────────────────────────────────
 const { protect } = require('./middleware/auth');
 app.use('/uploads', protect, express.static(path.join(__dirname, '..', 'uploads')));
@@ -90,6 +104,7 @@ app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/currency',   require('./routes/currency'));
 app.use('/api/wallet',     require('./routes/wallet'));
 app.use('/api/ai',         require('./routes/ai'));
+app.use('/api/kyc',        require('./routes/kyc'));
 
 app.get('/health', (req, res) => res.json({ status: 'OK', version: '2.0.0' }));
 
