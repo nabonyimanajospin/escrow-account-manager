@@ -19,7 +19,7 @@ exports.generateChatResponse = async (message, context) => {
     throw new Error('GEMINI_API_KEY not configured');
   }
 
-  const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  const model = ai.getGenerativeModel({ model: 'gemini-flash-latest' });
   
   const systemPrompt = `You are the EscrowTrust AI Co-Pilot, an intelligent assistant built into a secure property escrow platform.
 Your job is to assist users with their transaction, explain the escrow process, and provide guidance based on the current transaction state.
@@ -67,7 +67,7 @@ exports.generatePropertyDescription = async (details) => {
     throw new Error('GEMINI_API_KEY not configured');
   }
 
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  const model = ai.getGenerativeModel({ model: 'gemini-flash-latest' });
 
   const prompt = `Write a highly compelling, professional, and engaging real estate listing description for the following property. 
 Do not include any intro or outro text (like "Here is the description:"), just output the description itself. Make it 2-3 paragraphs.
