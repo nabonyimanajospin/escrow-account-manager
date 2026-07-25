@@ -88,6 +88,7 @@ app.use('/api/admin',      require('./routes/admin'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/currency',   require('./routes/currency'));
 app.use('/api/wallet',     require('./routes/wallet'));
+app.use('/api/ai',         require('./routes/ai'));
 
 app.get('/health', (req, res) => res.json({ status: 'OK', version: '2.0.0' }));
 

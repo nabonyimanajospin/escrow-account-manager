@@ -252,3 +252,48 @@ exports.chatWithAI = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Global chat with contextual AI Co-Pilot
+// @route   POST /api/ai/global-chat
+// @access  Public or Private
+exports.chatWithGlobalAI = async (req, res, next) => {
+  try {
+    const { message } = req.body;
+    if (!message) {
+      return res.status(400).json({ success: false, message: 'Message query is required' });
+    }
+
+    let responseText;
+    try {
+      // Try Gemini AI first
+      const context = {
+        propTitle: 'General Platform Query',
+        price: 0,
+        status: 'N/A',
+        role: req.user ? req.user.role : 'GUEST',
+        contractAddress: 'N/A'
+      };
+      responseText = await generateChatResponse(message, context);
+    } catch (aiError) {
+      // Fallback
+      console.warn('Gemini AI global chat failed or key missing.');
+      
+      const query = message.toLowerCase();
+      if (query.includes('fee') || query.includes('charge')) {
+        responseText = `### 💸 Platform Fees\nThe platform charges a **2.5% service fee** upon successful completion of the transaction.`;
+      } else if (query.includes('dispute') || query.includes('problem')) {
+        responseText = `### ⚖️ Disputes\nIf there is a conflict, you can file a dispute in your transaction workspace. An administrator will review evidence as a neutral mediator.`;
+      } else {
+        responseText = `Hello! I am your AI Assistant. I can help you understand how escrow transactions work, explain platform fees, or guide you through filing a dispute. How can I help?`;
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      response: responseText,
+      timestamp: new Date()
+    });
+  } catch (error) {
+    next(error);
+  }
+};
