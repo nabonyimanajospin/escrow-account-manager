@@ -71,7 +71,7 @@ describe('POST /api/properties', () => {
     bathrooms: 2,
     area: 100,
     propertyType: 'HOUSE',
-    upiCode: 'UPI-12-34-5678',
+    upiCode: '1/03/01/04/1000',
   };
 
   it('allows SELLER to create a listing', async () => {

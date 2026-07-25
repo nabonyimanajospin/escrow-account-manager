@@ -85,8 +85,8 @@ exports.createProperty = async (req, res, next) => {
 
     const finalListingType = listingType === 'AUCTION' ? 'AUCTION' : 'FIXED_PRICE';
 
-    if (!upiCode || !/^UPI-\d{2}-\d{2}-\d{4}$/i.test(upiCode)) {
-      return res.status(400).json({ success: false, message: 'A valid Land Registry UPI code is required (example: UPI-12-34-5678)' });
+    if (!upiCode || !/^\d{1,2}\/\d{2}\/\d{2}\/\d{2}\/\d{1,5}$/i.test(upiCode)) {
+      return res.status(400).json({ success: false, message: 'A valid Rwandan Land Registry UPI code is required (example: 1/03/01/04/3000)' });
     }
 
     if (finalListingType === 'AUCTION') {
@@ -154,8 +154,8 @@ exports.updateProperty = async (req, res, next) => {
     const { title, description, price, location, bedrooms, bathrooms, area, propertyType, images, listingType, biddingDeadline, upiCode } = req.body;
 
     const finalUpiCode = upiCode !== undefined ? upiCode : property.upiCode;
-    if (!finalUpiCode || !/^UPI-\d{2}-\d{2}-\d{4}$/i.test(finalUpiCode)) {
-      return res.status(400).json({ success: false, message: 'A valid Land Registry UPI code is required (example: UPI-12-34-5678)' });
+    if (!finalUpiCode || !/^\d{1,2}\/\d{2}\/\d{2}\/\d{2}\/\d{1,5}$/i.test(finalUpiCode)) {
+      return res.status(400).json({ success: false, message: 'A valid Rwandan Land Registry UPI code is required (example: 1/03/01/04/3000)' });
     }
 
     const finalListingType = listingType !== undefined ? (listingType === 'AUCTION' ? 'AUCTION' : 'FIXED_PRICE') : property.listingType;

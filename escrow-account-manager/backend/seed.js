@@ -76,7 +76,7 @@ const seed = async () => {
       status: 'AVAILABLE',
       listingType: 'AUCTION',
       biddingDeadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
-      upiCode: 'UPI-55-66-7788',
+      upiCode: '1/03/01/04/1000',
     });
 
     const prop2 = await Property.create({
@@ -92,7 +92,7 @@ const seed = async () => {
       images: ['https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80'],
       status: 'AVAILABLE',
       listingType: 'FIXED_PRICE',
-      upiCode: 'UPI-12-34-5678',
+      upiCode: '1/03/01/04/2000',
     });
 
     const prop3 = await Property.create({
@@ -108,7 +108,7 @@ const seed = async () => {
       images: ['https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=800&q=80'],
       status: 'PENDING', // Set pending because it has an active transaction below
       listingType: 'FIXED_PRICE',
-      upiCode: 'UPI-88-23-4019',
+      upiCode: '1/03/01/04/3000',
     });
 
     console.log('✅ Real estate listings seeded successfully.');

@@ -969,8 +969,8 @@ const verifyRegistryDeed = async (req, res, next) => {
     const hasBuyer = combinedContent.includes(transaction.buyer.name.toUpperCase());
     const hasProperty = combinedContent.includes(transaction.property.title.toUpperCase()) || combinedContent.includes(`PROPERTY ID: ${transaction.propertyId}`) || combinedContent.includes(`PROP-${transaction.propertyId}`);
     
-    // We expect a valid Unique Parcel Identifier (UPI) format in a real deed: UPI-[0-9]{2}-[0-9]{2}-[0-9]{4}
-    const upiRegex = /UPI-\d{2}-\d{2}-\d{4}/i;
+    // We expect a valid Unique Parcel Identifier (UPI) format in a real deed: 1/03/01/04/3000
+    const upiRegex = /\d{1,2}\/\d{2}\/\d{2}\/\d{2}\/\d{1,5}/;
     const upiMatch = combinedContent.match(upiRegex);
     const matchedUpi = upiMatch ? upiMatch[0].toUpperCase() : null;
 

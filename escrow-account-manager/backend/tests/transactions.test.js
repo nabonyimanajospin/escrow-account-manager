@@ -513,14 +513,14 @@ describe('POST /api/escrow/:id/verify-registry', () => {
     // Configure mock to match Land Registry database lookup coordinates
     txn.seller.name = 'Alice Ishimwe';
     txn.property.title = 'Kimihurura Heights Apartment';
-    txn.property.upiCode = 'UPI-12-34-5678';
+    txn.property.upiCode = '1/03/01/04/1000';
     
     const deedText = `DEED OF MUTATION TRANSFER
 PROPERTY ID: ${txn.propertyId}
 PROPERTY TITLE: ${txn.property.title.toUpperCase()}
 SELLER: ${txn.seller.name.toUpperCase()}
 BUYER: ${txn.buyer.name.toUpperCase()}
-UNIQUE PARCEL IDENTIFIER: UPI-12-34-5678`;
+UNIQUE PARCEL IDENTIFIER: 1/03/01/04/1000`;
     
     const base64Deed = 'data:text/plain;base64,' + Buffer.from(deedText).toString('base64');
     txn.mutationDocuments = [{

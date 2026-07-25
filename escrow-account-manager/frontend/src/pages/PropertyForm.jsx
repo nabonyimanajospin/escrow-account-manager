@@ -31,6 +31,28 @@ const PropertyForm = () => {
   const [imagePreview, setImagePreview] = useState(''); // preview URL
   const [error, setError] = useState('');
   const [isGeneratingDesc, setIsGeneratingDesc] = useState(false);
+  
+  // Currency States
+  const [rwfPrice, setRwfPrice] = useState('');
+  const [usdExchangeRate, setUsdExchangeRate] = useState(null);
+  const [fetchingRate, setFetchingRate] = useState(true);
+
+  // Fetch Live Exchange Rate on Mount
+  useEffect(() => {
+    const fetchRate = async () => {
+      try {
+        const res = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
+        const data = await res.json();
+        setUsdExchangeRate(data.rates.RWF || 1350); // Fallback to 1350 if not found
+      } catch (err) {
+        console.error('Failed to fetch exchange rate', err);
+        setUsdExchangeRate(1350); // Safe fallback
+      } finally {
+        setFetchingRate(false);
+      }
+    };
+    fetchRate();
+  }, []);
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -68,6 +90,10 @@ const PropertyForm = () => {
            setTitle(p.title);
           setDescription(p.description);
           setPrice(p.price);
+          // If exchange rate is fetched, calculate RWF. If not, we'll just use a fallback or it will update later.
+          // Note: usdExchangeRate might be null initially if fetch is slow, so we fallback to 1350
+          setRwfPrice(p.price ? (Number(p.price) * (usdExchangeRate || 1350)).toFixed(0) : '');
+          
           setLocation(p.location);
           setPropertyType(p.propertyType);
           setBedrooms(p.bedrooms);
@@ -267,7 +293,7 @@ const PropertyForm = () => {
                 type="text"
                 required
                 className="input-field font-mono"
-                placeholder="UPI-12-34-5678"
+                placeholder="1/03/01/04/3000"
                 value={upiCode}
                 onChange={(e) => setUpiCode(e.target.value.toUpperCase())}
                 disabled={loading}
@@ -281,6 +307,7 @@ const PropertyForm = () => {
                   id="biddingDeadline"
                   type="datetime-local"
                   required
+                  min={new Date().toISOString().slice(0, 16)}
                   className="input-field"
                   value={biddingDeadline}
                   onChange={(e) => setBiddingDeadline(e.target.value)}
@@ -324,17 +351,40 @@ const PropertyForm = () => {
           {/* Price and Area */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="input-label" htmlFor="price">Listing Price (USD Equivalent)</label>
-              <input
-                id="price"
-                type="number"
-                required
-                className="input-field font-mono"
-                placeholder="150000"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                disabled={loading}
-              />
+              <label className="input-label" htmlFor="rwfPrice">Listing Price (Rwandan Francs - RWF)</label>
+              <div className="relative">
+                <input
+                  id="rwfPrice"
+                  type="number"
+                  min="1"
+                  required
+                  className="input-field font-mono"
+                  placeholder="150000000"
+                  value={rwfPrice}
+                  onChange={(e) => {
+                    setRwfPrice(e.target.value);
+                    const rate = usdExchangeRate || 1350;
+                    setPrice(e.target.value ? (Number(e.target.value) / rate).toFixed(2) : '');
+                  }}
+                  disabled={loading || fetchingRate}
+                />
+                {fetchingRate && <span className="absolute right-3 top-2.5 text-[10px] text-slate-400">Loading rates...</span>}
+              </div>
+            </div>
+
+            <div>
+              <label className="input-label" htmlFor="price">Equivalent in USD (Live Market Rate)</label>
+              <div className="relative">
+                <span className="absolute left-3 top-2.5 text-slate-400 font-bold">$</span>
+                <input
+                  id="price"
+                  type="text"
+                  readOnly
+                  className="input-field font-mono bg-slate-50 pl-7 text-slate-500"
+                  placeholder="0.00"
+                  value={price}
+                />
+              </div>
             </div>
 
             <div>
@@ -342,6 +392,7 @@ const PropertyForm = () => {
               <input
                 id="area"
                 type="number"
+                min="1"
                 required
                 className="input-field font-mono"
                 placeholder="250"
@@ -360,6 +411,7 @@ const PropertyForm = () => {
                 <input
                   id="bedrooms"
                   type="number"
+                  min="0"
                   required
                   className="input-field"
                   value={bedrooms}
@@ -373,6 +425,7 @@ const PropertyForm = () => {
                 <input
                   id="bathrooms"
                   type="number"
+                  min="0"
                   required
                   className="input-field"
                   value={bathrooms}

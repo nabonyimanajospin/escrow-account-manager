@@ -306,7 +306,7 @@ PROPERTY LOCATION: ${transaction.property?.location}
 SELLER: ${transaction.seller?.name}
 BUYER: ${transaction.buyer?.name}
 MUTATION PRICE: $${Number(transaction.amount).toLocaleString()} USD
-UNIQUE PARCEL IDENTIFIER: ${transaction.property?.upiCode || 'UPI-12-34-5678'}
+UNIQUE PARCEL IDENTIFIER: ${transaction.property?.upiCode || '1/03/01/04/1000'}
 DATE: ${new Date().toLocaleDateString()}
 STATUS: COMPLETED MUTATION`;
 

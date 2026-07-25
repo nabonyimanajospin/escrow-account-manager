@@ -75,12 +75,12 @@ describe('Sprint 2 Hardening - Real-Estate Escrow Upgrades', () => {
         propertyType: 'VILLA',
         listingType: 'AUCTION',
         biddingDeadline: new Date(Date.now() + 1000000),
-        upiCode: 'UPI-55-66-7788',
+        upiCode: '1/03/01/04/1000',
       });
 
     expect(res.status).toBe(201);
     expect(res.body.data.listingType).toBe('AUCTION');
-    expect(res.body.data.upiCode).toBe('UPI-55-66-7788');
+    expect(res.body.data.upiCode).toBe('1/03/01/04/1000');
     expect(Property.create).toHaveBeenCalled();
   });
 
