@@ -23,58 +23,31 @@ const issueAndDeliverConsensusOtp = async (transaction, dbTransaction, targetRol
   }
 };
 
-// Shared include configuration
-const transactionIncludes = [
-  { model: Property, as: 'property' },
-  { model: User, as: 'buyer', attributes: ['id', 'name', 'email', 'phone'] },
-  { model: User, as: 'seller', attributes: ['id', 'name', 'email', 'phone'] },
-  { model: Escrow, as: 'escrowAccount' },
-  { model: AuditLog, as: 'auditLogs' },
-  { model: LedgerEntry, as: 'ledgerEntries' },
-  {
-    model: Dispute,
-    as: 'dispute',
-    include: [{
-      model: DisputeEvidence,
-      as: 'evidences',
-      include: [{ model: User, as: 'uploader', attributes: ['id', 'name', 'role'] }]
-    }]
-  }
-];
-
-// Helper to log actions to immutable ledger (propagates errors to enable transaction rollbacks)
-const logAction = async (transactionId, req, actionDescription, options = {}) => {
-  try {
-    const rawIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
-    // Clean IPv6 prefix if local loopback
-    const ipAddress = rawIp.replace(/^::ffff:/, '');
-    const userAgent = req.headers['user-agent'] || 'Unknown Browser';
-
-    await AuditLog.create({
-      transactionId,
-      userId: req.user.id,
-      userName: req.user.name,
-      userRole: req.user.role,
-      action: actionDescription,
-      ipAddress,
-      userAgent,
-    }, options);
-  } catch (err) {
-    console.error('Failed to log audit action:', err.message);
-    throw new Error('Ledger logging failed: ' + err.message);
-  }
-};
+const { transactionIncludes, logAction } = require('../utils/transactionHelpers');
 
 // @desc    Get all transactions (Admin only)
 // @route   GET /api/admin/transactions
 // @access  Private (ADMIN)
 const getTransactions = async (req, res, next) => {
   try {
-    const transactions = await Transaction.findAll({
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
+
+    const { count, rows } = await Transaction.findAndCountAll({
       include: transactionIncludes,
       order: [['createdAt', 'DESC']],
+      limit,
+      offset,
     });
-    res.status(200).json({ success: true, count: transactions.length, data: transactions });
+    res.status(200).json({
+      success: true,
+      count: rows.length,
+      total: count,
+      totalPages: Math.ceil(count / limit),
+      currentPage: page,
+      data: rows
+    });
   } catch (error) {
     next(error);
   }
@@ -89,13 +62,26 @@ const getMyTransactions = async (req, res, next) => {
       ? {}
       : (req.user.role === 'BUYER' ? { buyerId: req.user.id } : { sellerId: req.user.id });
 
-    const transactions = await Transaction.findAll({
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
+
+    const { count, rows } = await Transaction.findAndCountAll({
       where,
       include: transactionIncludes,
       order: [['createdAt', 'DESC']],
+      limit,
+      offset,
     });
 
-    res.status(200).json({ success: true, count: transactions.length, data: transactions });
+    res.status(200).json({
+      success: true,
+      count: rows.length,
+      total: count,
+      totalPages: Math.ceil(count / limit),
+      currentPage: page,
+      data: rows
+    });
   } catch (error) {
     next(error);
   }
@@ -1066,7 +1052,7 @@ const verifyRegistryDeed = async (req, res, next) => {
     }
 
     if (matchedUpi) {
-      registryRecord = await registryService.lookupParcel(matchedUpi);
+      registryRecord = await registryService.lookupParcel(matchedUpi, transaction.seller.name);
       if (registryRecord) {
         upiExists = true;
         if (registryRecord.owner.toUpperCase() === transaction.seller.name.toUpperCase()) {

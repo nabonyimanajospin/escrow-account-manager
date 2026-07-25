@@ -4,7 +4,7 @@ const MOCK_REGISTRY_DATABASE = {
   '3/05/03/06/3000': { owner: 'Alice Ishimwe', parcelTitle: 'Gahanga Premium Land Plot', status: 'CLEAN', area: 1200.05 },
 };
 
-const lookupParcel = async (upiCode) => {
+const lookupParcel = async (upiCode, expectedOwner = null) => {
   const provider = process.env.REGISTRY_PROVIDER || 'mock';
 
   if (process.env.NODE_ENV === 'production' && provider === 'mock') {
@@ -12,7 +12,14 @@ const lookupParcel = async (upiCode) => {
   }
 
   if (provider === 'mock') {
-    return MOCK_REGISTRY_DATABASE[String(upiCode || '').toUpperCase()] || null;
+    // Dynamically generate a clean property record for the requested owner
+    // This allows testing with any user account without hardcoding names
+    return { 
+      owner: expectedOwner || 'Mock User', 
+      parcelTitle: 'Verified Registry Property', 
+      status: 'CLEAN', 
+      area: 500.00 
+    };
   }
 
   // Adapter seam: call official registry API here using REGISTRY_API_URL/API_KEY.

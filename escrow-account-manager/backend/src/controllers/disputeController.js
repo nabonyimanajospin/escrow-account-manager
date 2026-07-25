@@ -3,37 +3,7 @@ const { sequelize } = require('../config/database');
 const ledgerService = require('../services/ledgerService');
 const notificationService = require('../services/notificationService');
 
-const transactionIncludes = [
-  { model: Property, as: 'property' },
-  { model: User, as: 'buyer', attributes: ['id', 'name', 'email', 'phone'] },
-  { model: User, as: 'seller', attributes: ['id', 'name', 'email', 'phone'] },
-  { model: Escrow, as: 'escrowAccount' },
-  { model: AuditLog, as: 'auditLogs' },
-  { model: LedgerEntry, as: 'ledgerEntries' },
-  {
-    model: Dispute,
-    as: 'dispute',
-    include: [{
-      model: DisputeEvidence,
-      as: 'evidences',
-      include: [{ model: User, as: 'uploader', attributes: ['id', 'name', 'role'] }]
-    }]
-  }
-];
-
-const logAction = async (transactionId, req, actionDescription, options = {}) => {
-  const rawIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
-  const cleanIp = rawIp.replace('::ffff:', '');
-  await AuditLog.create({
-    transactionId,
-    userId: req.user.id,
-    userName: req.user.name,
-    userRole: req.user.role,
-    action: actionDescription,
-    ipAddress: cleanIp,
-    userAgent: req.headers['user-agent'] || 'Unknown Browser',
-  }, options);
-};
+const { transactionIncludes, logAction } = require('../utils/transactionHelpers');
 
 // @desc    Raise a dispute (Locks funds)
 // @route   POST /api/escrow/:id/dispute

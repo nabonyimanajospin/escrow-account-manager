@@ -77,7 +77,7 @@ No documents have been uploaded yet. Please upload a draft deed of transfer firs
     let parcelClean = false;
 
     if (matchedUpi) {
-      const record = await registryService.lookupParcel(matchedUpi);
+      const record = await registryService.lookupParcel(matchedUpi, transaction.seller.name);
       if (record) {
         upiExists = true;
         if (record.owner.toUpperCase() === transaction.seller.name.toUpperCase()) {

@@ -40,7 +40,7 @@ const User = sequelize.define('User', {
     type: DataTypes.STRING,
     allowNull: true,
     validate: {
-      is: { args: /^[0-9]{10}$/, msg: 'Phone number must be exactly 10 digits' },
+      is: { args: /^\+?[0-9]{10,15}$/, msg: 'Phone number must be between 10 and 15 digits, optionally starting with +' },
     },
   },
   address: {

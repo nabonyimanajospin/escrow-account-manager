@@ -24,13 +24,26 @@ exports.getProperties = async (req, res, next) => {
     const where = {};
     if (req.query.status) where.status = req.query.status;
 
-    const properties = await Property.findAll({
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
+
+    const { count, rows } = await Property.findAndCountAll({
       where,
       include: [{ model: User, as: 'seller', attributes: ['id', 'name'] }],
       order: [['createdAt', 'DESC']],
+      limit,
+      offset,
     });
 
-    res.status(200).json({ success: true, count: properties.length, data: properties });
+    res.status(200).json({
+      success: true,
+      count: rows.length,
+      total: count,
+      totalPages: Math.ceil(count / limit),
+      currentPage: page,
+      data: rows
+    });
   } catch (error) {
     next(error);
   }
