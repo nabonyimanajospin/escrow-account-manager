@@ -172,8 +172,20 @@ The transaction has successfully closed.
         return `### ↩️ Transaction Voided / Refunded
 The transaction has been cancelled or rejected.
 - **Result**: Any deposited funds have been returned to the buyer, and the property listing \`${propTitle}\` is back on the market.`;
-      default:
-        return `The current transaction status is **${status}**. Please let me know what specific step you need guidance with!`;
+    // 4. Flow/Process Inquiry
+  if (query.includes('flow') || query.includes('process') || query.includes('how it works') || query.includes('next step')) {
+    return `### 🔄 Transaction Flow
+The escrow process ensures safety for both parties:
+1. **Fund**: The Buyer deposits the money into Escrow.
+2. **Transfer**: The Seller uploads the official deed transfer document (Mutation Document).
+3. **Verification**: A platform Administrator verifies the documents against the Land Registry.
+4. **Release**: Once verified, the Admin releases the funds to the Seller, completing the transaction safely!
+
+*Note: If there are any issues, either party can file a dispute for the Admin to mediate.*`;
+  }
+
+  // 5. Default fallback
+  return `I am currently tracking this transaction. The status is **${status}**. Please let me know if you need help with fees, the transaction flow, or if you need to raise a dispute.`;
     }
   }
 
@@ -278,13 +290,12 @@ exports.chatWithGlobalAI = async (req, res, next) => {
       responseText = await generateChatResponse(message, context);
     } catch (aiError) {
       // Fallback
-      console.warn('Gemini AI global chat failed or key missing.');
-      
-      const query = message.toLowerCase();
       if (query.includes('fee') || query.includes('charge')) {
         responseText = `### 💸 Platform Fees\nThe platform charges a total **2.5% service fee** per transaction. The buyer pays **1.0%** upfront upon funding the escrow, and the seller pays **1.5%** which is deducted from their final payout.`;
       } else if (query.includes('dispute') || query.includes('problem')) {
         responseText = `### ⚖️ Disputes\nIf there is a conflict, you can file a dispute in your transaction workspace. An administrator will review evidence as a neutral mediator.`;
+      } else if (query.includes('flow') || query.includes('process') || query.includes('how it works') || query.includes('how does')) {
+        responseText = `### 🔄 How Escrow Works\nHere is our simple and secure flow:\n1. **Initiate & Fund**: The Buyer agrees to a deal and securely deposits funds into Escrow (plus a 1% fee).\n2. **Transfer Ownership**: The Seller uploads the official deed transfer document (Mutation Document).\n3. **Verification**: A platform Administrator verifies the documents against the Land Registry.\n4. **Release**: Once verified, the Admin releases the funds to the Seller (minus a 1.5% fee), completing the transaction safely!`;
       } else {
         responseText = `Hello! I am your AI Assistant. I can help you understand how escrow transactions work, explain platform fees, or guide you through filing a dispute. How can I help?`;
       }
