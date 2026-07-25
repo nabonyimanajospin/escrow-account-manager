@@ -8,17 +8,19 @@ const getAIResponse = async (message, transaction, role) => {
   const propTitle = transaction.property?.title || 'the property';
   const price = parseFloat(transaction.amount);
 
-  // 1. Fee Inquiry
   if (query.includes('fee') || query.includes('charge') || query.includes('split') || query.includes('cost')) {
-    const platformFee = (price * 0.025).toFixed(2);
-    const sellerPayout = (price - platformFee).toFixed(2);
+    const buyerFee = (price * 0.010).toFixed(2);
+    const sellerFee = (price * 0.015).toFixed(2);
+    const sellerPayout = (price - sellerFee).toFixed(2);
+    const buyerTotal = (price + parseFloat(buyerFee)).toFixed(2);
     return `### 💸 Platform Fee & Split Breakdown
-The platform charges a **2.5% service fee** upon successful completion of the transaction.
-- **Total Escrow Balance**: $${price.toLocaleString()}
-- **Platform Fee (2.5%)**: $${parseFloat(platformFee).toLocaleString()} (deducted automatically)
+The platform charges a total **2.5% service fee** which is split between the buyer and seller.
+- **Buyer Fee (1.0%)**: $${parseFloat(buyerFee).toLocaleString()} (charged upfront during funding)
+- **Total Required from Buyer**: $${parseFloat(buyerTotal).toLocaleString()}
+- **Seller Fee (1.5%)**: $${parseFloat(sellerFee).toLocaleString()} (deducted upon completion)
 - **Net Payout to Seller**: $${parseFloat(sellerPayout).toLocaleString()}
 
-*Note: Fees are only deducted when the Administrator formally releases the funds (after ownership mutation checks complete).*`;
+*Note: Seller fees are only deducted when the Administrator formally releases the funds.*`;
   }
 
   // 2. Dispute Inquiry
@@ -280,7 +282,7 @@ exports.chatWithGlobalAI = async (req, res, next) => {
       
       const query = message.toLowerCase();
       if (query.includes('fee') || query.includes('charge')) {
-        responseText = `### 💸 Platform Fees\nThe platform charges a **2.5% service fee** upon successful completion of the transaction.`;
+        responseText = `### 💸 Platform Fees\nThe platform charges a total **2.5% service fee** per transaction. The buyer pays **1.0%** upfront upon funding the escrow, and the seller pays **1.5%** which is deducted from their final payout.`;
       } else if (query.includes('dispute') || query.includes('problem')) {
         responseText = `### ⚖️ Disputes\nIf there is a conflict, you can file a dispute in your transaction workspace. An administrator will review evidence as a neutral mediator.`;
       } else {
