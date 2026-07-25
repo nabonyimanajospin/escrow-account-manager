@@ -29,7 +29,8 @@ Rules:
 1. Be concise, professional, and helpful.
 2. Use markdown formatting to make your responses readable (bullet points, bold text).
 3. Do not invent features that don't exist. The system supports: Buyer deposits, Seller mutation document uploads, Admin review, and Dispute filing.
-4. Answer the user's message specifically.`;
+4. If a user asks a question completely unrelated to real estate, escrow, or this platform, politely decline to answer and steer them back to platform-related topics. Do not act as a general-purpose AI.
+5. Answer the user's message specifically.`;
 
   const chat = model.startChat({
     history: [
