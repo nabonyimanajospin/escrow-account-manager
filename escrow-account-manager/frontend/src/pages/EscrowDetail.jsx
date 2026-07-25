@@ -747,7 +747,7 @@ STATUS: COMPLETED MUTATION`;
             {/* Waiting for other party indicator */}
             {userHasSigned && ['PENDING', 'FUNDED', 'MUTATION_STARTED'].includes(status) && (
               <div className="mt-5 p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-center text-xs font-semibold leading-relaxed">
-                You have signed. Awaiting counterparty cryptographic signature for code {verificationCode}...
+                You have signed. Awaiting counterparty cryptographic signature for code {transaction.verificationCode}...
               </div>
             )}
 
@@ -839,7 +839,7 @@ STATUS: COMPLETED MUTATION`;
                 </div>
                 {(!buyerAuthorized || !sellerAuthorized) && (
                   <p className="text-[10px] text-slate-400 font-bold leading-tight">
-                    * Action locks until both parties sign verification code {verificationCode} for mutation start consensus.
+                    * Action locks until both parties sign verification code {transaction.verificationCode} for mutation start consensus.
                   </p>
                 )}
               </div>

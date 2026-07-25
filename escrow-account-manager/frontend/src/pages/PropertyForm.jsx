@@ -80,7 +80,7 @@ const PropertyForm = () => {
           const firstImage = p.images?.[0] || '';
           if (firstImage.startsWith('data:image')) {
             setUploadMode('file');
-            setUploadedBase64(firstImage);
+            setImagePreview(firstImage);
           } else {
             setUploadMode('link');
             setImageInput(p.images?.join(', ') || '');
@@ -465,11 +465,11 @@ const PropertyForm = () => {
                     file:bg-slate-200 file:text-slate-700
                     hover:file:bg-slate-300 cursor-pointer"
                 />
-                {uploadedBase64 ? (
+                {imagePreview ? (
                   <div className="mt-2">
                     <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Uploaded Preview</p>
                     <img
-                      src={uploadedBase64}
+                      src={imagePreview}
                       alt="Property upload preview"
                       className="w-40 h-28 object-cover rounded-xl border border-slate-200 shadow-sm"
                     />
