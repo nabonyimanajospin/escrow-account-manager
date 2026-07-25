@@ -13,10 +13,12 @@ const UPLOAD_BASE = path.join(__dirname, '../../uploads');
 
 // ── Helper: resolve absolute path from stored relative path ──────────────────
 const resolveFilePath = (storedPath) => {
-  // storedPath might be: "/uploads/mutation/filename.pdf" or a full path
-  if (path.isAbsolute(storedPath)) return storedPath;
-  // Strip leading slash and join with upload root
-  const relative = storedPath.replace(/^\/uploads\//, '');
+  if (!storedPath) return '';
+  if (storedPath.startsWith('http://') || storedPath.startsWith('https://')) {
+    return storedPath;
+  }
+  // Strip leading slash and 'uploads' to map to local dir safely on Windows
+  const relative = storedPath.replace(/^\/?uploads\//, '');
   return path.join(UPLOAD_BASE, relative);
 };
 
