@@ -1,3 +1,4 @@
+const { sequelize } = require('../config/database');
 const User = require('./User');
 const Property = require('./Property');
 const Transaction = require('./Transaction');
@@ -71,4 +72,4 @@ Notification.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 User.hasMany(WalletTransaction, { foreignKey: 'userId', as: 'walletTransactions' });
 WalletTransaction.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 
-module.exports = { User, Property, Transaction, Escrow, AuditLog, Offer, LedgerEntry, Dispute, DisputeEvidence, Notification, WalletTransaction };
+module.exports = { sequelize, User, Property, Transaction, Escrow, AuditLog, Offer, LedgerEntry, Dispute, DisputeEvidence, Notification, WalletTransaction };

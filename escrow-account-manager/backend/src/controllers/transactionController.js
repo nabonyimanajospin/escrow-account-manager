@@ -443,6 +443,12 @@ const initiateMutation = async (req, res, next) => {
       await issueAndDeliverConsensusOtp(transaction, t);
 
       await logAction(transaction.id, req, `Seller initiated ownership mutation (legal transfer)`, { transaction: t });
+      
+      // Notify buyer that mutation has started
+      if (transaction.buyer && transaction.buyer.email) {
+        await notificationService.sendTransactionStatusEmail(transaction.buyer.email, transaction.buyer.name, 'MUTATION_STARTED', transaction.id, transaction.amount);
+        await notificationService.createInAppNotification(transaction.buyerId, 'Mutation Started', 'The seller has initiated the legal property transfer process.');
+      }
     });
 
     const result = await Transaction.findByPk(transaction.id, { include: transactionIncludes });
@@ -536,6 +542,16 @@ const completeMutation = async (req, res, next) => {
       await issueAndDeliverConsensusOtp(transaction, t);
 
       await logAction(transaction.id, req, `Mutation completed and submitted under review for Admin verification`, { transaction: t });
+      
+      // Notify both parties that mutation is under review
+      if (transaction.buyer && transaction.buyer.email) {
+        await notificationService.sendTransactionStatusEmail(transaction.buyer.email, transaction.buyer.name, 'UNDER_REVIEW', transaction.id, transaction.amount);
+        await notificationService.createInAppNotification(transaction.buyerId, 'Mutation Under Review', 'The property transfer has been submitted to Admin for verification.');
+      }
+      if (transaction.seller && transaction.seller.email) {
+        await notificationService.sendTransactionStatusEmail(transaction.seller.email, transaction.seller.name, 'UNDER_REVIEW', transaction.id, transaction.amount);
+        await notificationService.createInAppNotification(transaction.sellerId, 'Mutation Under Review', 'Your property transfer submission is now under admin review.');
+      }
     });
 
     const result = await Transaction.findByPk(transaction.id, { include: transactionIncludes });
@@ -669,6 +685,10 @@ const releaseFunds = async (req, res, next) => {
 const refundBuyer = async (req, res, next) => {
   try {
     const { adminNotes } = req.body;
+    if (!adminNotes || adminNotes.trim() === '') {
+      return res.status(400).json({ success: false, message: 'adminNotes is required to refund a buyer' });
+    }
+    
     const transaction = await Transaction.findByPk(req.params.id);
     if (!transaction) {
       return res.status(404).json({ success: false, message: 'Transaction not found' });
@@ -710,8 +730,27 @@ const refundBuyer = async (req, res, next) => {
         description: 'Credit return of deposit to buyer account',
       }, t);
 
+      // Actually credit the buyer's wallet!
+      const buyerUser = await User.findByPk(transaction.buyerId, { transaction: t, lock: t.LOCK.UPDATE });
+      if (buyerUser) {
+        await buyerUser.update({ walletBalance: parseFloat(buyerUser.walletBalance || 0) + amount }, { transaction: t });
+        await WalletTransaction.create({
+          userId: buyerUser.id,
+          type: 'CREDIT',
+          amount,
+          notes: 'Refund from admin on transaction ' + transaction.id,
+          status: 'COMPLETED',
+        }, { transaction: t });
+      }
+
       const logMsg = `Admin rejected mutation/resolved dispute and refunded escrow balance of $${amount} to Buyer.` + (adminNotes ? ` Notes: ${adminNotes}` : '');
       await logAction(transaction.id, req, logMsg, { transaction: t });
+
+      // Notify buyer
+      if (transaction.buyer && transaction.buyer.email) {
+        await notificationService.sendTransactionStatusEmail(transaction.buyer.email, transaction.buyer.name, 'REFUNDED', transaction.id, amount);
+        await notificationService.createInAppNotification(transaction.buyerId, 'Refund Initiated', `A refund of $${amount} has been initiated back to your wallet.`);
+      }
     });
 
     const result = await Transaction.findByPk(transaction.id, { include: transactionIncludes });

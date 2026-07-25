@@ -90,8 +90,14 @@ exports.raiseDispute = async (req, res, next) => {
       User.findByPk(transaction.sellerId),
     ]);
     const txRef = transaction.reference || `TXN-${transaction.id}`;
-    if (buyer) notificationService.sendDisputeNotificationEmail(buyer.email, buyer.name, txRef, 'BUYER').catch(() => {});
-    if (seller) notificationService.sendDisputeNotificationEmail(seller.email, seller.name, txRef, 'SELLER').catch(() => {});
+    if (buyer) {
+      notificationService.sendDisputeNotificationEmail(buyer.email, buyer.name, txRef, 'BUYER').catch(() => {});
+      notificationService.createInAppNotification(buyer.id, 'Dispute Filed', `A dispute has been opened on transaction ${txRef}.`).catch(() => {});
+    }
+    if (seller) {
+      notificationService.sendDisputeNotificationEmail(seller.email, seller.name, txRef, 'SELLER').catch(() => {});
+      notificationService.createInAppNotification(seller.id, 'Dispute Filed', `A dispute has been opened on transaction ${txRef}.`).catch(() => {});
+    }
 
     const updatedTx = await Transaction.findByPk(transaction.id, { include: transactionIncludes });
     res.status(200).json({ success: true, message: 'Dispute successfully filed. Escrow locked. Resolution deadline set to 7 days.', dispute: result, data: updatedTx });
