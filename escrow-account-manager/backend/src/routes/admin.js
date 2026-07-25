@@ -8,6 +8,7 @@ const {
   getAuditLogs,
   verifyAuditLogs,
 } = require('../controllers/transactionController');
+const { approveWithdrawal, rejectWithdrawal } = require('../controllers/walletController');
 const { protect } = require('../middleware/auth');
 const roleCheck = require('../middleware/roleCheck');
 
@@ -32,5 +33,9 @@ router.get('/audit-logs', getAuditLogs);
 
 // Verify audit logs integrity chain
 router.get('/audit-logs/verify', verifyAuditLogs);
+
+// Wallet management
+router.post('/wallet/:id/approve', approveWithdrawal);
+router.post('/wallet/:id/reject', rejectWithdrawal);
 
 module.exports = router;

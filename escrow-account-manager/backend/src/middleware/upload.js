@@ -3,11 +3,12 @@ const path = require('path');
 const fs = require('fs');
 
 // ─── Ensure upload directories exist ─────────────────────────────────────────
+const baseUploadDir = path.join(__dirname, '..', 'uploads');
 const dirs = [
-  'uploads/properties',
-  'uploads/mutations',
-  'uploads/evidence',
-  'uploads/kyc',
+  path.join(baseUploadDir, 'properties'),
+  path.join(baseUploadDir, 'mutations'),
+  path.join(baseUploadDir, 'evidence'),
+  path.join(baseUploadDir, 'kyc'),
 ];
 dirs.forEach((d) => {
   if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
@@ -17,12 +18,12 @@ dirs.forEach((d) => {
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const typeMap = {
-      property: 'uploads/properties',
-      mutation: 'uploads/mutations',
-      evidence: 'uploads/evidence',
-      kyc:      'uploads/kyc',
+      property: path.join(baseUploadDir, 'properties'),
+      mutation: path.join(baseUploadDir, 'mutations'),
+      evidence: path.join(baseUploadDir, 'evidence'),
+      kyc:      path.join(baseUploadDir, 'kyc'),
     };
-    const folder = typeMap[req.uploadType] || 'uploads/misc';
+    const folder = typeMap[req.uploadType] || path.join(baseUploadDir, 'misc');
     if (!fs.existsSync(folder)) fs.mkdirSync(folder, { recursive: true });
     cb(null, folder);
   },
@@ -40,7 +41,7 @@ const fileFilter = (req, file, cb) => {
   const mimeOk = allowed.test(file.mimetype) || file.mimetype === 'application/pdf' ||
     file.mimetype === 'application/msword' ||
     file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-  if (extOk || mimeOk) {
+  if (extOk && mimeOk) {
     cb(null, true);
   } else {
     cb(new Error('Only images (jpg, png, webp, gif) and documents (pdf, doc, docx) are allowed.'), false);

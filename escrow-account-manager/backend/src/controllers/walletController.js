@@ -1,4 +1,5 @@
 const { User, WalletTransaction } = require('../models');
+const sequelize = require('../config/database');
 
 /**
  * GET /api/wallet
@@ -58,37 +59,94 @@ const getWalletHistory = async (req, res) => {
  * Creates a pending withdrawal request; admin approves manually.
  */
 const requestWithdrawal = async (req, res) => {
+  const t = await sequelize.transaction();
   try {
     const { amount, notes } = req.body;
     if (!amount || isNaN(amount) || parseFloat(amount) <= 0) {
+      await t.rollback();
       return res.status(400).json({ success: false, error: 'Valid withdrawal amount is required.' });
     }
-    const user = await User.findByPk(req.user.id);
+    
+    // Fetch user with lock to prevent race conditions
+    const user = await User.findByPk(req.user.id, { transaction: t, lock: t.LOCK.UPDATE });
     const requestAmount = parseFloat(amount);
     if (requestAmount > parseFloat(user.walletBalance || 0)) {
+      await t.rollback();
       return res.status(400).json({ success: false, error: 'Insufficient wallet balance.' });
     }
 
-    // Deduct from balance immediately and create pending record
-    await user.update({ walletBalance: parseFloat(user.walletBalance) - requestAmount });
+    const newBalance = parseFloat(user.walletBalance) - requestAmount;
+    await user.update({ walletBalance: newBalance }, { transaction: t });
+    
     const walletTx = await WalletTransaction.create({
       userId: req.user.id,
       type: 'WITHDRAWAL_REQUEST',
       amount: requestAmount,
       notes: notes || '',
       status: 'PENDING',
-    });
+    }, { transaction: t });
+
+    await t.commit();
 
     res.json({
       success: true,
       message: 'Withdrawal request submitted. Admin will process within 2–3 business days.',
       transaction: walletTx,
-      newBalance: parseFloat(user.walletBalance) - requestAmount,
+      newBalance,
     });
   } catch (err) {
+    if (!t.finished) await t.rollback();
     console.error('[Wallet] requestWithdrawal error:', err);
     res.status(500).json({ success: false, error: 'Failed to process withdrawal.' });
   }
 };
 
-module.exports = { getWallet, getWalletHistory, requestWithdrawal };
+/**
+ * POST /api/wallet/:id/approve (Admin)
+ */
+const approveWithdrawal = async (req, res) => {
+  const t = await sequelize.transaction();
+  try {
+    const walletTx = await WalletTransaction.findByPk(req.params.id, { transaction: t, lock: t.LOCK.UPDATE });
+    if (!walletTx || walletTx.type !== 'WITHDRAWAL_REQUEST' || walletTx.status !== 'PENDING') {
+      await t.rollback();
+      return res.status(400).json({ success: false, error: 'Invalid or already processed withdrawal request.' });
+    }
+
+    await walletTx.update({ status: 'COMPLETED', type: 'WITHDRAWAL_PAID' }, { transaction: t });
+    await t.commit();
+    res.json({ success: true, message: 'Withdrawal approved.' });
+  } catch (error) {
+    if (!t.finished) await t.rollback();
+    console.error('[Wallet] approve error:', error);
+    res.status(500).json({ success: false, error: 'Failed to approve.' });
+  }
+};
+
+/**
+ * POST /api/wallet/:id/reject (Admin)
+ */
+const rejectWithdrawal = async (req, res) => {
+  const t = await sequelize.transaction();
+  try {
+    const walletTx = await WalletTransaction.findByPk(req.params.id, { transaction: t, lock: t.LOCK.UPDATE });
+    if (!walletTx || walletTx.type !== 'WITHDRAWAL_REQUEST' || walletTx.status !== 'PENDING') {
+      await t.rollback();
+      return res.status(400).json({ success: false, error: 'Invalid or already processed withdrawal request.' });
+    }
+
+    // Refund the user
+    const user = await User.findByPk(walletTx.userId, { transaction: t, lock: t.LOCK.UPDATE });
+    await user.update({ walletBalance: parseFloat(user.walletBalance || 0) + parseFloat(walletTx.amount) }, { transaction: t });
+    
+    await walletTx.update({ status: 'FAILED' }, { transaction: t });
+    await t.commit();
+    res.json({ success: true, message: 'Withdrawal rejected and funds refunded.' });
+  } catch (error) {
+    if (!t.finished) await t.rollback();
+    console.error('[Wallet] reject error:', error);
+    res.status(500).json({ success: false, error: 'Failed to reject.' });
+  }
+};
+
+module.exports = { getWallet, getWalletHistory, requestWithdrawal, approveWithdrawal, rejectWithdrawal };

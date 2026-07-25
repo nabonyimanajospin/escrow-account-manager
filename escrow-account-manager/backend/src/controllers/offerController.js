@@ -1,5 +1,7 @@
 const { Offer, Property, User, Transaction, Escrow, AuditLog } = require('../models');
 const { sequelize } = require('../config/database');
+const otpService = require('../services/otpService');
+const notificationService = require('../services/notificationService');
 
 // @desc    Place a bid/offer on a property
 // @route   POST /api/properties/:id/offers
@@ -209,6 +211,13 @@ exports.acceptOffer = async (req, res, next) => {
 
       // 8. Set Property status to PENDING
       await property.update({ status: 'PENDING' }, { transaction: t });
+
+      // 8.5. Issue OTP to buyer to proceed
+      const otp = await otpService.issueConsensusCode(transaction, t);
+      const buyerUser = await User.findByPk(activeOffer.buyerId, { transaction: t });
+      if (buyerUser) {
+        await notificationService.sendConsensusCode({ user: buyerUser, transaction, ...otp });
+      }
 
       // 9. Log to audit trail
       await AuditLog.create({

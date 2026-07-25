@@ -23,7 +23,7 @@ const startCronJobs = () => {
 
         for (const transaction of pendingTransactions) {
           await sequelize.transaction(async (t) => {
-            transaction.status = 'REFUNDED';
+            transaction.status = 'CANCELLED';
             await transaction.save({ transaction: t });
 
             // Unlock property back to AVAILABLE

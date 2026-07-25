@@ -53,7 +53,8 @@ const Transaction = sequelize.define('Transaction', {
       'DISPUTED',
       'AWAITING_RECEIPT',
       'COMPLETED',
-      'REFUNDED'
+      'REFUNDED',
+      'CANCELLED'
     ),
     defaultValue: 'PENDING',
   },

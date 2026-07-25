@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+const { Notification } = require('../models');
 
 /**
  * Nodemailer transporter configured for Gmail SMTP.
@@ -46,6 +47,14 @@ const sendEmail = async (to, subject, html, text = '') => {
 // ─────────────────────────────────────────────────────────────────────────────
 // Notification helpers
 // ─────────────────────────────────────────────────────────────────────────────
+
+const createInAppNotification = async (userId, title, message) => {
+  try {
+    await Notification.create({ userId, title, message });
+  } catch (err) {
+    console.error('[Notification] Failed to create in-app notification:', err.message);
+  }
+};
 
 const sendOtpEmail = async (toEmail, toName, otpCode, transactionRef) => {
   const subject = `Your EscrowTrust OTP Code — ${transactionRef}`;
@@ -159,4 +168,5 @@ module.exports = {
   sendDisputeNotificationEmail,
   sendWalletCreditEmail,
   sendConsensusCode,
+  createInAppNotification,
 };

@@ -10,7 +10,7 @@ const AuditLog = sequelize.define('AuditLog', {
   },
   transactionId: {
     type: DataTypes.INTEGER,
-    allowNull: false,
+    allowNull: true,
   },
   userId: {
     type: DataTypes.INTEGER,
@@ -56,7 +56,7 @@ const AuditLog = sequelize.define('AuditLog', {
 }, {
   timestamps: true,
   hooks: {
-    beforeValidate: async (log) => {
+    beforeValidate: async (log, options) => {
       const timeStr = log.timestamp ? new Date(log.timestamp).toISOString() : new Date().toISOString();
       
       // Generate Signature: SHA256 of (userId + action + timestamp + ipAddress + userAgent)
@@ -67,7 +67,9 @@ const AuditLog = sequelize.define('AuditLog', {
       let prevHash = '0000000000000000000000000000000000000000000000000000000000000000'; // Genesis block hash
       try {
         const lastEntry = await AuditLog.findOne({
-          order: [['id', 'DESC']]
+          order: [['id', 'DESC']],
+          transaction: options.transaction,
+          lock: options.transaction ? options.transaction.LOCK.UPDATE : undefined,
         });
         if (lastEntry) {
           prevHash = lastEntry.hash;

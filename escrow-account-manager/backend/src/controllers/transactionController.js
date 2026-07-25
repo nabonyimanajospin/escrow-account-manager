@@ -273,7 +273,7 @@ const verifyConsensusCode = async (req, res, next) => {
       const timeStr = new Date().toISOString();
       if (req.user.role === 'BUYER') {
         const payload = `BUYER-SIGNATURE:${req.user.id}:${transaction.id}:${timeStr}:${transaction.amount}`;
-        const sig = 'SIG-BUYER-' + crypto.createHmac('sha256', process.env.JWT_SECRET || 'test_secret').update(payload).digest('hex').toUpperCase().slice(0, 32);
+        const sig = 'SIG-BUYER-' + crypto.createHmac('sha256', process.env.JWT_SECRET).update(payload).digest('hex').toUpperCase().slice(0, 32);
         await transaction.update({
           buyerAuthorized: true,
           buyerSignature: sig,
@@ -284,7 +284,7 @@ const verifyConsensusCode = async (req, res, next) => {
         await logAction(transaction.id, req, `Buyer ${req.user.name} approved state verification. Cryptographic signature generated: ${sig}`, { transaction: t });
       } else if (req.user.role === 'SELLER') {
         const payload = `SELLER-SIGNATURE:${req.user.id}:${transaction.id}:${timeStr}:${transaction.amount}`;
-        const sig = 'SIG-SELLER-' + crypto.createHmac('sha256', process.env.JWT_SECRET || 'test_secret').update(payload).digest('hex').toUpperCase().slice(0, 32);
+        const sig = 'SIG-SELLER-' + crypto.createHmac('sha256', process.env.JWT_SECRET).update(payload).digest('hex').toUpperCase().slice(0, 32);
         await transaction.update({
           sellerAuthorized: true,
           sellerSignature: sig,
@@ -391,6 +391,16 @@ const depositFunds = async (req, res, next) => {
       }, t);
 
       await logAction(transaction.id, req, `Funds deposited: $${amount} locked in escrow address ${escrow.contractAddress}`, { transaction: t });
+      
+      // Notify users
+      if (transaction.buyer && transaction.buyer.email) {
+        await notificationService.sendTransactionStatusEmail(transaction.buyer.email, transaction.buyer.name, 'FUNDED', transaction.id, amount);
+        await notificationService.createInAppNotification(transaction.buyerId, 'Funds Deposited', `Your deposit of $${amount} has been received.`);
+      }
+      if (transaction.seller && transaction.seller.email) {
+        await notificationService.sendTransactionStatusEmail(transaction.seller.email, transaction.seller.name, 'FUNDED', transaction.id, amount);
+        await notificationService.createInAppNotification(transaction.sellerId, 'Funds Deposited', `Buyer has deposited $${amount} into escrow.`);
+      }
     });
 
     const result = await Transaction.findByPk(transaction.id, { include: transactionIncludes });
@@ -736,6 +746,18 @@ const cancelTransaction = async (req, res, next) => {
         const amount = parseFloat(escrow.balance);
         await escrow.update({ balance: 0.00, status: 'REFUNDED' }, { transaction: t });
 
+        // Credit the buyer's wallet with the refunded amount (including fee)
+        const buyer = await User.findByPk(transaction.buyerId, { transaction: t, lock: t.LOCK.UPDATE });
+        await buyer.update({ walletBalance: parseFloat(buyer.walletBalance || 0) + amount }, { transaction: t });
+        
+        await WalletTransaction.create({
+          userId: buyer.id,
+          type: 'CREDIT',
+          amount,
+          notes: `Refund for cancelled transaction ${transaction.id}`,
+          status: 'COMPLETED',
+        }, { transaction: t });
+
         await ledgerService.recordEntry({
           transactionId: transaction.id,
           escrowAccountId: escrow.id,
@@ -755,10 +777,16 @@ const cancelTransaction = async (req, res, next) => {
         }, t);
       }
 
-      await transaction.update({ status: 'REFUNDED', refundDate: new Date() }, { transaction: t });
+      await transaction.update({ status: 'CANCELLED', refundDate: new Date() }, { transaction: t });
       await Property.update({ status: 'AVAILABLE' }, { where: { id: transaction.propertyId }, transaction: t });
 
       await logAction(transaction.id, req, `Transaction cancelled by Buyer. Escrow returned to AVAILABLE.`, { transaction: t });
+
+      // Notify seller
+      if (transaction.seller && transaction.seller.email) {
+        await notificationService.sendTransactionStatusEmail(transaction.seller.email, transaction.seller.name, 'CANCELLED', transaction.id, transaction.amount);
+        await notificationService.createInAppNotification(transaction.sellerId, 'Transaction Cancelled', 'The buyer has cancelled the transaction.');
+      }
     });
 
     const result = await Transaction.findByPk(transaction.id, { include: transactionIncludes });
@@ -783,10 +811,28 @@ const deleteTransaction = async (req, res, next) => {
       await Property.update({ status: nextPropertyStatus }, { where: { id: transaction.propertyId }, transaction: t });
 
       if (transaction.escrowAccountId) {
+        if (transaction.status === 'FUNDED') {
+          // Admin deleted a funded transaction, refund the buyer!
+          const escrow = await Escrow.findByPk(transaction.escrowAccountId, { transaction: t });
+          const amount = parseFloat(escrow.balance);
+          const buyer = await User.findByPk(transaction.buyerId, { transaction: t, lock: t.LOCK.UPDATE });
+          await buyer.update({ walletBalance: parseFloat(buyer.walletBalance || 0) + amount }, { transaction: t });
+          
+          await WalletTransaction.create({
+            userId: buyer.id,
+            type: 'CREDIT',
+            amount,
+            notes: `Refund for deleted transaction ${transaction.id}`,
+            status: 'COMPLETED',
+          }, { transaction: t });
+        }
         await Escrow.destroy({ where: { id: transaction.escrowAccountId }, transaction: t });
       }
 
       // We preserve the AuditLog records to satisfy immutable logging regulations
+      // Nullify the foreign key so we don't hit DB constraint violations
+      await AuditLog.update({ transactionId: null }, { where: { transactionId: transaction.id }, transaction: t });
+      
       await transaction.destroy({ transaction: t });
     });
 
@@ -843,8 +889,7 @@ const confirmReceipt = async (req, res, next) => {
     await sequelize.transaction(async (t) => {
       await transaction.update({
         status: 'COMPLETED',
-        sellerConfirmedFundsReceivedAt: new Date(),
-        releaseDate: new Date()
+        sellerConfirmedFundsReceivedAt: new Date()
       }, { transaction: t });
 
       await Property.update(
@@ -853,6 +898,12 @@ const confirmReceipt = async (req, res, next) => {
       );
 
       await logAction(transaction.id, req, `Seller confirmed receipt of funds. Escrow transaction officially COMPLETED. Listing set to SOLD.`, { transaction: t });
+
+      // Notify buyer
+      if (transaction.buyer && transaction.buyer.email) {
+        await notificationService.sendTransactionStatusEmail(transaction.buyer.email, transaction.buyer.name, 'COMPLETED', transaction.id, transaction.amount);
+        await notificationService.createInAppNotification(transaction.buyerId, 'Transaction Completed', 'The escrow transaction has been completed successfully.');
+      }
     });
 
     const result = await Transaction.findByPk(transaction.id, { include: transactionIncludes });
@@ -916,40 +967,54 @@ const verifyRegistryDeed = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Please upload at least one mutation document proof first' });
     }
 
-    // Inspect the first document content
-    const primaryDoc = transaction.mutationDocuments[0];
-    let docText = "";
-    
-    if (primaryDoc.documentUrl.startsWith('data:')) {
-      try {
-        const base64Parts = primaryDoc.documentUrl.split(',');
-        const base64Content = base64Parts[1];
-        docText = Buffer.from(base64Content, 'base64').toString('utf8');
-      } catch (err) {
-        docText = "";
-      }
-    } else {
-      docText = primaryDoc.documentUrl;
-    }
-
-    // Combine docText with description for keyword searching
-    const combinedContent = (docText + " " + primaryDoc.description).toUpperCase();
-
-    // Check structural fields
-    const hasDeedType = combinedContent.includes('DEED') || combinedContent.includes('MUTATION') || combinedContent.includes('TRANSFER');
-    const hasSeller = combinedContent.includes(transaction.seller.name.toUpperCase());
-    const hasBuyer = combinedContent.includes(transaction.buyer.name.toUpperCase());
-    const hasProperty = combinedContent.includes(transaction.property.title.toUpperCase()) || combinedContent.includes(`PROPERTY ID: ${transaction.propertyId}`) || combinedContent.includes(`PROP-${transaction.propertyId}`);
-    
-    // We expect a valid Unique Parcel Identifier (UPI) format in a real deed: 1/03/01/04/3000
-    const upiRegex = /\d{1,2}\/\d{2}\/\d{2}\/\d{2}\/\d{1,5}/;
-    const upiMatch = combinedContent.match(upiRegex);
-    const matchedUpi = upiMatch ? upiMatch[0].toUpperCase() : null;
-
+    // Loop over all documents to find one that passes structural checks
+    let validDocFound = false;
+    let matchedUpi = null;
     let registryRecord = null;
     let upiExists = false;
     let ownerMatches = false;
     let parcelClean = false;
+
+    for (const doc of transaction.mutationDocuments) {
+      let docText = "";
+      if (doc.documentUrl.startsWith('data:')) {
+        try {
+          const base64Parts = doc.documentUrl.split(',');
+          docText = Buffer.from(base64Parts[1], 'base64').toString('utf8');
+        } catch (err) {
+          docText = "";
+        }
+      } else {
+        docText = doc.documentUrl;
+      }
+
+      const combinedContent = (docText + " " + doc.description).toUpperCase();
+      
+      const hasDeedType = combinedContent.includes('DEED') || combinedContent.includes('MUTATION') || combinedContent.includes('TRANSFER');
+      const hasSeller = combinedContent.includes(transaction.seller.name.toUpperCase());
+      const hasBuyer = combinedContent.includes(transaction.buyer.name.toUpperCase());
+      
+      const upiRegex = /\d{1,2}\/\d{2}\/\d{2}\/\d{2}\/\d{1,5}/;
+      const upiMatch = combinedContent.match(upiRegex);
+      const localMatchedUpi = upiMatch ? upiMatch[0].toUpperCase() : null;
+
+      if (hasDeedType && hasSeller && hasBuyer && localMatchedUpi) {
+        // structural check passed for this document
+        validDocFound = true;
+        matchedUpi = localMatchedUpi;
+        break; // found a valid document, stop searching
+      }
+    }
+
+    if (!validDocFound) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Registry verification failed. None of the uploaded documents structurally represent a valid transfer deed for this transaction.',
+        details: {
+          error: 'Missing required buyer, seller, or deed keywords in documents.'
+        }
+      });
+    }
 
     if (matchedUpi) {
       registryRecord = await registryService.lookupParcel(matchedUpi);
