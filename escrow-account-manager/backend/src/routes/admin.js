@@ -6,6 +6,7 @@ const {
   refundBuyer,
   deleteTransaction,
   getAuditLogs,
+  verifyAuditLogs,
 } = require('../controllers/transactionController');
 const { protect } = require('../middleware/auth');
 const roleCheck = require('../middleware/roleCheck');
@@ -28,5 +29,8 @@ router.delete('/transactions/:id', deleteTransaction);
 
 // Get immutable ledger logs
 router.get('/audit-logs', getAuditLogs);
+
+// Verify audit logs integrity chain
+router.get('/audit-logs/verify', verifyAuditLogs);
 
 module.exports = router;

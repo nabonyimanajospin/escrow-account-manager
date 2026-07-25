@@ -86,9 +86,25 @@ const LandingPage = () => {
       {/* Hero Section */}
       <section className="gradient-hero py-20 border-b border-slate-100 relative overflow-hidden hero-mesh">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-6 relative z-10">
-          <span className="text-xs font-bold text-primary-600 uppercase tracking-widest bg-primary-100 border border-primary-200 px-3 py-1 rounded-full">
-            Real Estate Security Protocol
-          </span>
+          <div className="flex flex-col items-center gap-3.5 mb-2 select-none">
+            {/* Minimalist Geometric Trust Seal */}
+            <svg className="w-12 h-12 text-slate-800" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="24" cy="24" r="22" stroke="currentColor" strokeWidth="1.5" strokeOpacity="0.12" />
+              {/* Overlapping/Interlocking consensus paths */}
+              <path d="M17 24C17 20.134 20.134 17 24 17C27.866 17 31 20.134 31 24" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              <path d="M31 24C31 27.866 27.866 31 24 31C20.134 31 17 27.866 17 24" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              {/* Secure lock node in the middle */}
+              <circle cx="24" cy="24" r="2.5" fill="#10b981" />
+            </svg>
+            <div className="text-center">
+              <span className="text-xs font-black tracking-[0.25em] text-slate-800 uppercase block font-sans">
+                ESCROW <span className="text-primary-600">TRUST</span>
+              </span>
+              <span className="text-[9px] font-bold text-slate-400 tracking-wider uppercase block mt-1">
+                Property Transaction Edition
+              </span>
+            </div>
+          </div>
           <h1 className="text-4xl sm:text-5xl font-extrabold text-slate-900 tracking-tight max-w-3xl mx-auto font-sans leading-tight">
             Online Escrow & Ownership mutation{' '}
             <span className="gradient-text">Verified by Consensus</span>

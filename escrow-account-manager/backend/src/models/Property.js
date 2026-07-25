@@ -73,6 +73,18 @@ const Property = sequelize.define('Property', {
     type: DataTypes.ENUM('AVAILABLE', 'PENDING', 'SOLD'),
     defaultValue: 'AVAILABLE',
   },
+  listingType: {
+    type: DataTypes.ENUM('FIXED_PRICE', 'AUCTION'),
+    defaultValue: 'FIXED_PRICE',
+  },
+  biddingDeadline: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  },
+  upiCode: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
 }, {
   timestamps: true,
 });

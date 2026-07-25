@@ -69,10 +69,15 @@ const AdminPanel = () => {
   };
 
   const handleRelease = async (id, code) => {
-    if (!window.confirm(`Confirm: Release funds for deal ${code}? This transfers escrow balance to the seller and marks the property as SOLD.`)) return;
+    const adminNotes = window.prompt(`Confirm Release: Please enter your administrative audit review notes for deal ${code}:`);
+    if (adminNotes === null) return;
+    if (!adminNotes.trim()) {
+      toast.error('Audit notes are required to approve and release escrow funds');
+      return;
+    }
     try {
       setActionLoading(true);
-      await axios.post(`/admin/transactions/${id}/release`);
+      await axios.post(`/admin/transactions/${id}/release`, { adminNotes });
       toast.success('Escrow funds successfully released to seller');
       fetchData();
     } catch (err) {
@@ -112,6 +117,16 @@ const AdminPanel = () => {
 
   // Filter deals requiring attention
   const pendingReviewsCount = txnsList.filter(t => t.status === 'UNDER_REVIEW').length;
+  
+  const totalLockedValue = txnsList
+    .filter(t => ['PENDING', 'FUNDED', 'MUTATION_STARTED', 'UNDER_REVIEW', 'DISPUTED'].includes(t.status))
+    .reduce((sum, t) => sum + Number(t.amount), 0);
+
+  const activeDisputes = txnsList.filter(t => t.status === 'DISPUTED').length;
+  
+  const platformRevenue = txnsList
+    .filter(t => ['AWAITING_RECEIPT', 'COMPLETED'].includes(t.status))
+    .reduce((sum, t) => sum + Number(t.buyerFee || 0) + Number(t.sellerFee || 0), 0);
 
   return (
     <div className="page-wrapper dashboard-wrapper space-y-7 animate-fade-in">
@@ -129,6 +144,33 @@ const AdminPanel = () => {
             Attention Required: {pendingReviewsCount} deal{pendingReviewsCount > 1 ? 's' : ''} awaiting review.
           </div>
         )}
+      </div>
+
+      {/* Operational Analytics Metrics Row */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="card p-5 bg-white border border-slate-200 flex flex-col gap-1 text-left">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Escrow Value Locked</span>
+          <span className="text-xl font-extrabold text-slate-900">${totalLockedValue.toLocaleString()} USD</span>
+          <span className="text-[9px] text-slate-400 font-semibold mt-1">Sum of active escrow holdings</span>
+        </div>
+
+        <div className="card p-5 bg-white border border-slate-200 flex flex-col gap-1 text-left">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Awaiting Review</span>
+          <span className="text-xl font-extrabold text-amber-600">{pendingReviewsCount} Deals</span>
+          <span className="text-[9px] text-slate-400 font-semibold mt-1">Pending admin release checklist</span>
+        </div>
+
+        <div className="card p-5 bg-white border border-slate-200 flex flex-col gap-1 text-left">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Active Disputes</span>
+          <span className={`text-xl font-extrabold ${activeDisputes > 0 ? 'text-amber-700' : 'text-slate-900'}`}>{activeDisputes} Cases</span>
+          <span className="text-[9px] text-slate-400 font-semibold mt-1">Requiring active arbitration rulings</span>
+        </div>
+
+        <div className="card p-5 bg-white border border-slate-200 flex flex-col gap-1 text-left">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Platform Revenue</span>
+          <span className="text-xl font-extrabold text-emerald-600">${platformRevenue.toLocaleString()} USD</span>
+          <span className="text-[9px] text-slate-400 font-semibold mt-1">Accrued service split charges</span>
+        </div>
       </div>
 
       {/* Main Console Area */}
@@ -243,7 +285,7 @@ const AdminPanel = () => {
                       <span className="block"><strong className="text-slate-700">Seller:</strong> {t.seller?.name || 'N/A'}</span>
                     </td>
                     <td className="py-4">
-                      {t.status === 'UNDER_REVIEW' ? (
+                      {t.status === 'UNDER_REVIEW' || t.status === 'DISPUTED' ? (
                         <div className="flex gap-1.5">
                           <button
                             onClick={() => handleRelease(t.id, t.transactionId)}

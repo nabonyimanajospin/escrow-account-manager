@@ -21,6 +21,13 @@ exports.register = async (req, res, next) => {
       });
     }
 
+    if (role === 'ADMIN') {
+      return res.status(400).json({
+        success: false,
+        message: 'Registration as an Admin is not permitted',
+      });
+    }
+
     const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
       return res.status(400).json({

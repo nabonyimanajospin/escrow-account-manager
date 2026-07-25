@@ -1,6 +1,27 @@
-const { Transaction, Escrow, Property, User, AuditLog } = require('../models');
+const { Transaction, Escrow, Property, User, AuditLog, LedgerEntry } = require('../models');
 const { sequelize } = require('../config/database');
-const crypto = require('crypto');
+const ledgerService = require('../services/ledgerService');
+const otpService = require('../services/otpService');
+const notificationService = require('../services/notificationService');
+const paymentProvider = require('../services/paymentProvider');
+const registryService = require('../services/registryService');
+
+const { Dispute, DisputeEvidence } = require('../models');
+
+const issueAndDeliverConsensusOtp = async (transaction, dbTransaction) => {
+  const otp = await otpService.issueConsensusCode(transaction, dbTransaction);
+  const [buyer, seller] = await Promise.all([
+    User.findByPk(transaction.buyerId),
+    User.findByPk(transaction.sellerId),
+  ]);
+
+  if (buyer) {
+    await notificationService.sendConsensusCode({ user: buyer, transaction, ...otp });
+  }
+  if (seller) {
+    await notificationService.sendConsensusCode({ user: seller, transaction, ...otp });
+  }
+};
 
 // Shared include configuration
 const transactionIncludes = [
@@ -9,17 +30,34 @@ const transactionIncludes = [
   { model: User, as: 'seller', attributes: ['id', 'name', 'email', 'phone'] },
   { model: Escrow, as: 'escrowAccount' },
   { model: AuditLog, as: 'auditLogs' },
+  { model: LedgerEntry, as: 'ledgerEntries' },
+  {
+    model: Dispute,
+    as: 'dispute',
+    include: [{
+      model: DisputeEvidence,
+      as: 'evidences',
+      include: [{ model: User, as: 'uploader', attributes: ['id', 'name', 'role'] }]
+    }]
+  }
 ];
 
 // Helper to log actions to immutable ledger (propagates errors to enable transaction rollbacks)
 const logAction = async (transactionId, req, actionDescription, options = {}) => {
   try {
+    const rawIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
+    // Clean IPv6 prefix if local loopback
+    const ipAddress = rawIp.replace(/^::ffff:/, '');
+    const userAgent = req.headers['user-agent'] || 'Unknown Browser';
+
     await AuditLog.create({
       transactionId,
       userId: req.user.id,
       userName: req.user.name,
       userRole: req.user.role,
       action: actionDescription,
+      ipAddress,
+      userAgent,
     }, options);
   } catch (err) {
     console.error('Failed to log audit action:', err.message);
@@ -76,6 +114,15 @@ const getTransaction = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Transaction not found' });
     }
 
+    const isParticipant =
+      transaction.buyerId === req.user.id ||
+      transaction.sellerId === req.user.id ||
+      req.user.role === 'ADMIN';
+
+    if (!isParticipant) {
+      return res.status(403).json({ success: false, message: 'Not authorized to view this transaction' });
+    }
+
     // Auto-expiration check for PENDING deals (10 minutes limit)
     const EXPIRATION_LIMIT = 10 * 60 * 1000;
     if (transaction.status === 'PENDING') {
@@ -95,6 +142,8 @@ const getTransaction = async (req, res, next) => {
             userName: 'SYSTEM_DAEMON',
             userRole: 'SYSTEM',
             action: 'AUTO_CANCEL_EXPIRED_PENDING',
+            ipAddress: '127.0.0.1',
+            userAgent: 'SYSTEM_DAEMON',
           }, { transaction: t });
         });
 
@@ -104,15 +153,6 @@ const getTransaction = async (req, res, next) => {
         });
         return res.status(200).json({ success: true, data: updatedTransaction });
       }
-    }
-
-    const isParticipant =
-      transaction.buyerId === req.user.id ||
-      transaction.sellerId === req.user.id ||
-      req.user.role === 'ADMIN';
-
-    if (!isParticipant) {
-      return res.status(403).json({ success: false, message: 'Not authorized to view this transaction' });
     }
 
     res.status(200).json({ success: true, data: transaction });
@@ -141,6 +181,10 @@ const initiateTransaction = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Property is not available for transaction' });
     }
 
+    if (property.listingType === 'AUCTION') {
+      return res.status(400).json({ success: false, message: 'This property listing is configured for auction bidding. Direct purchases are disabled; please place a bid.' });
+    }
+
     if (property.sellerId === req.user.id) {
       return res.status(400).json({ success: false, message: 'You cannot buy your own property' });
     }
@@ -163,12 +207,18 @@ const initiateTransaction = async (req, res, next) => {
 
     // Wrap multi-write deal creation inside an atomic Sequelize Transaction
     const transactionId = await sequelize.transaction(async (t) => {
+      const priceVal = parseFloat(property.price);
+      const buyerFee = parseFloat((priceVal * 0.010).toFixed(2));
+      const sellerFee = parseFloat((priceVal * 0.015).toFixed(2));
+
       // Create transaction (starts as PENDING)
       const transaction = await Transaction.create({
         propertyId: property.id,
         buyerId: req.user.id,
         sellerId: property.sellerId,
-        amount: property.price,
+        amount: priceVal,
+        buyerFee,
+        sellerFee,
         status: 'PENDING',
       }, { transaction: t });
 
@@ -181,6 +231,8 @@ const initiateTransaction = async (req, res, next) => {
 
       // Link Escrow back to Transaction
       await transaction.update({ escrowAccountId: escrow.id }, { transaction: t });
+
+      await issueAndDeliverConsensusOtp(transaction, t);
 
       // Set Property status to PENDING
       await property.update({ status: 'PENDING' }, { transaction: t });
@@ -210,7 +262,8 @@ const verifyConsensusCode = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Verification code is required' });
     }
 
-    const transaction = await Transaction.findByPk(req.params.id);
+    const queryModel = typeof Transaction.scope === 'function' ? Transaction.scope('withVerificationCode') : Transaction;
+    const transaction = await queryModel.findByPk(req.params.id);
     if (!transaction) {
       return res.status(404).json({ success: false, message: 'Transaction not found' });
     }
@@ -220,19 +273,56 @@ const verifyConsensusCode = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Only buyer or seller can sign consensus codes' });
     }
 
-    if (code !== transaction.verificationCode) {
-      return res.status(400).json({ success: false, message: 'Consensus code does not match. Please verify code.' });
+    // Lockout check
+    if (transaction.verificationLockedUntil && new Date(transaction.verificationLockedUntil) > new Date()) {
+      const remainingMs = new Date(transaction.verificationLockedUntil).getTime() - Date.now();
+      const remainingMins = Math.ceil(remainingMs / 1000 / 60);
+      return res.status(403).json({
+        success: false,
+        message: `Consensus verification is locked due to too many failed attempts. Try again in ${remainingMins} minute(s).`
+      });
+    }
+
+    if (!otpService.verifyConsensusCode(transaction, code)) {
+      const attempts = transaction.verificationAttempts + 1;
+      const updates = { verificationAttempts: attempts };
+      if (attempts >= 5) {
+        updates.verificationLockedUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 mins lock
+      }
+      await transaction.update(updates);
+
+      const message = attempts >= 5
+        ? 'Too many failed attempts. Consensus verification has been locked for 15 minutes.'
+        : `Consensus code does not match. Please verify code. (${5 - attempts} attempts remaining)`;
+
+      return res.status(400).json({ success: false, message });
     }
 
     await sequelize.transaction(async (t) => {
+      const crypto = require('crypto');
+      const timeStr = new Date().toISOString();
       if (req.user.role === 'BUYER') {
-        transaction.buyerAuthorized = true;
-        await transaction.save({ transaction: t });
-        await logAction(transaction.id, req, `Buyer ${req.user.name} approved state verification code ${code}`, { transaction: t });
+        const payload = `BUYER-SIGNATURE:${req.user.id}:${transaction.id}:${timeStr}:${transaction.amount}`;
+        const sig = 'SIG-BUYER-' + crypto.createHmac('sha256', process.env.JWT_SECRET || 'test_secret').update(payload).digest('hex').toUpperCase().slice(0, 32);
+        await transaction.update({
+          buyerAuthorized: true,
+          buyerSignature: sig,
+          buyerSignatureDate: new Date(),
+          verificationAttempts: 0,
+          verificationLockedUntil: null,
+        }, { transaction: t });
+        await logAction(transaction.id, req, `Buyer ${req.user.name} approved state verification. Cryptographic signature generated: ${sig}`, { transaction: t });
       } else if (req.user.role === 'SELLER') {
-        transaction.sellerAuthorized = true;
-        await transaction.save({ transaction: t });
-        await logAction(transaction.id, req, `Seller ${req.user.name} approved state verification code ${code}`, { transaction: t });
+        const payload = `SELLER-SIGNATURE:${req.user.id}:${transaction.id}:${timeStr}:${transaction.amount}`;
+        const sig = 'SIG-SELLER-' + crypto.createHmac('sha256', process.env.JWT_SECRET || 'test_secret').update(payload).digest('hex').toUpperCase().slice(0, 32);
+        await transaction.update({
+          sellerAuthorized: true,
+          sellerSignature: sig,
+          sellerSignatureDate: new Date(),
+          verificationAttempts: 0,
+          verificationLockedUntil: null,
+        }, { transaction: t });
+        await logAction(transaction.id, req, `Seller ${req.user.name} approved state verification. Cryptographic signature generated: ${sig}`, { transaction: t });
       }
     });
 
@@ -272,8 +362,15 @@ const depositFunds = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Cryptographic consensus required. Both parties must submit verification codes.' });
     }
 
-    if (parseFloat(amount) !== parseFloat(transaction.amount)) {
-      return res.status(400).json({ success: false, message: `Deposit amount must be exactly ${transaction.amount}` });
+    const totalRequired = parseFloat(transaction.amount) + parseFloat(transaction.buyerFee || 0);
+
+    if (parseFloat(amount) !== totalRequired) {
+      return res.status(400).json({ success: false, message: `Deposit amount must be exactly $${totalRequired.toLocaleString()} (including 1% Platform Security Charge)` });
+    }
+
+    const paymentVerification = await paymentProvider.verifyEscrowDeposit({ transaction, amount, reference });
+    if (!paymentVerification.verified) {
+      return res.status(400).json({ success: false, message: paymentVerification.message || 'Payment provider verification failed' });
     }
 
     const escrow = await Escrow.findByPk(transaction.escrowAccountId);
@@ -295,15 +392,33 @@ const depositFunds = async (req, res, next) => {
         depositHistory,
       }, { transaction: t });
 
-      // Update status to FUNDED and reset authorizations + generate new verification code
-      const nextCode = Math.floor(1000 + Math.random() * 9000).toString();
       await transaction.update({
         status: 'FUNDED',
         depositDate: new Date(),
         buyerAuthorized: false,
         sellerAuthorized: false,
-        verificationCode: nextCode,
       }, { transaction: t });
+
+      await issueAndDeliverConsensusOtp(transaction, t);
+
+      // Double-Entry Bookkeeping
+      await ledgerService.recordEntry({
+        transactionId: transaction.id,
+        escrowAccountId: escrow.id,
+        type: 'DEBIT',
+        amount: totalRequired,
+        accountType: 'BUYER_CASH',
+        description: 'Payment deposit including 1.0% platform security charge',
+      }, t);
+
+      await ledgerService.recordEntry({
+        transactionId: transaction.id,
+        escrowAccountId: escrow.id,
+        type: 'CREDIT',
+        amount: totalRequired,
+        accountType: 'ESCROW_CUSTODY',
+        description: 'Escrow account custody credit for transaction lock',
+      }, t);
 
       await logAction(transaction.id, req, `Funds deposited: $${amount} locked in escrow address ${escrow.contractAddress}`, { transaction: t });
     });
@@ -338,14 +453,14 @@ const initiateMutation = async (req, res, next) => {
     }
 
     await sequelize.transaction(async (t) => {
-      const nextCode = Math.floor(1000 + Math.random() * 9000).toString();
       await transaction.update({
         status: 'MUTATION_STARTED',
         mutationStartDate: new Date(),
         buyerAuthorized: false,
         sellerAuthorized: false,
-        verificationCode: nextCode,
       }, { transaction: t });
+
+      await issueAndDeliverConsensusOtp(transaction, t);
 
       await logAction(transaction.id, req, `Seller initiated ownership mutation (legal transfer)`, { transaction: t });
     });
@@ -431,14 +546,14 @@ const completeMutation = async (req, res, next) => {
     }
 
     await sequelize.transaction(async (t) => {
-      const nextCode = Math.floor(1000 + Math.random() * 9000).toString();
       await transaction.update({
         status: 'UNDER_REVIEW',
         mutationEndDate: new Date(),
         buyerAuthorized: false,
         sellerAuthorized: false,
-        verificationCode: nextCode,
       }, { transaction: t });
+
+      await issueAndDeliverConsensusOtp(transaction, t);
 
       await logAction(transaction.id, req, `Mutation completed and submitted under review for Admin verification`, { transaction: t });
     });
@@ -450,18 +565,37 @@ const completeMutation = async (req, res, next) => {
   }
 };
 
-// @desc    Admin releases funds to seller
+// @desc    Admin releases funds to seller (shifts status to AWAITING_RECEIPT, recording bookkeeping logs)
 // @route   POST /api/admin/transactions/:id/release
 // @access  Private (ADMIN)
 const releaseFunds = async (req, res, next) => {
   try {
+    const { adminNotes } = req.body;
+
     const transaction = await Transaction.findByPk(req.params.id);
     if (!transaction) {
       return res.status(404).json({ success: false, message: 'Transaction not found' });
     }
 
-    if (transaction.status !== 'UNDER_REVIEW') {
-      return res.status(400).json({ success: false, message: 'Transaction must be UNDER_REVIEW to release funds' });
+    if (transaction.status !== 'UNDER_REVIEW' && transaction.status !== 'DISPUTED') {
+      return res.status(400).json({ success: false, message: 'Transaction must be UNDER_REVIEW or DISPUTED to release funds' });
+    }
+
+    // Require audit notes for accountability log records
+    if (!adminNotes || !adminNotes.trim()) {
+      return res.status(400).json({ success: false, message: 'Please enter the admin review audit notes before releasing funds' });
+    }
+
+    // Enforce standard checklist rules for normal transactions (Disputes use resolving overrides)
+    if (transaction.status === 'UNDER_REVIEW') {
+      const report = transaction.registryValidationReport;
+      if (!report || report.registryRecordFound !== 'VERIFIED' || report.upiFormatMatch !== 'VERIFIED') {
+        return res.status(400).json({ success: false, message: 'Registry deeds verification check must be successfully completed and verified before release' });
+      }
+
+      if (!transaction.buyerConfirmedPropertyReceivedAt) {
+        return res.status(400).json({ success: false, message: 'Buyer must confirm receipt of property deed before funds can be released' });
+      }
     }
 
     const escrow = await Escrow.findByPk(transaction.escrowAccountId);
@@ -470,24 +604,54 @@ const releaseFunds = async (req, res, next) => {
     }
 
     const amount = parseFloat(escrow.balance);
+    const sellerNetPayout = parseFloat(transaction.amount) - parseFloat(transaction.sellerFee);
+    const platformFee = parseFloat(transaction.buyerFee) + parseFloat(transaction.sellerFee);
 
     await sequelize.transaction(async (t) => {
       const releaseHistory = [...escrow.releaseHistory, {
-        amount,
+        amount: sellerNetPayout,
+        platformFee,
         date: new Date(),
         reference: `REL-${Date.now()}`,
         status: 'COMPLETED',
       }];
 
       await escrow.update({ balance: 0.00, status: 'RELEASED', releaseHistory }, { transaction: t });
-      await transaction.update({ status: 'COMPLETED', releaseDate: new Date() }, { transaction: t });
-      await Property.update({ status: 'SOLD' }, { where: { id: transaction.propertyId }, transaction: t });
+      await transaction.update({ status: 'AWAITING_RECEIPT', releaseDate: new Date(), adminNotes }, { transaction: t });
 
-      await logAction(transaction.id, req, `Admin released escrow balance of $${amount} to Seller. Deal completed successfully.`, { transaction: t });
+      // Bookkeeping entries
+      await ledgerService.recordEntry({
+        transactionId: transaction.id,
+        escrowAccountId: escrow.id,
+        type: 'DEBIT',
+        amount,
+        accountType: 'ESCROW_CUSTODY',
+        description: 'Custody debit for seller payout and platform fees',
+      }, t);
+
+      await ledgerService.recordEntry({
+        transactionId: transaction.id,
+        escrowAccountId: escrow.id,
+        type: 'CREDIT',
+        amount: sellerNetPayout,
+        accountType: 'SELLER_CASH',
+        description: 'Credit net payout to seller wallet (listing price excluding 1.5% fee)',
+      }, t);
+
+      await ledgerService.recordEntry({
+        transactionId: transaction.id,
+        escrowAccountId: escrow.id,
+        type: 'CREDIT',
+        amount: platformFee,
+        accountType: 'PLATFORM_REVENUE',
+        description: 'Credit platform service charges (1.0% buyer + 1.5% seller commissions)',
+      }, t);
+
+      await logAction(transaction.id, req, `Admin released funds. Audit Notes: ${adminNotes}. Split details: Seller Net Payout: $${sellerNetPayout}, Platform Commission: $${platformFee}. Status set to AWAITING_RECEIPT.`, { transaction: t });
     });
 
     const result = await Transaction.findByPk(transaction.id, { include: transactionIncludes });
-    res.status(200).json({ success: true, message: `Funds successfully released to seller.`, data: result });
+    res.status(200).json({ success: true, message: `Funds successfully released. Awaiting seller receipt acknowledgment. (Net: $${sellerNetPayout}, Fee: $${platformFee}).`, data: result });
   } catch (error) {
     next(error);
   }
@@ -503,7 +667,7 @@ const refundBuyer = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Transaction not found' });
     }
 
-    const refundableStates = ['FUNDED', 'MUTATION_STARTED', 'UNDER_REVIEW'];
+    const refundableStates = ['FUNDED', 'MUTATION_STARTED', 'UNDER_REVIEW', 'DISPUTED'];
     if (!refundableStates.includes(transaction.status)) {
       return res.status(400).json({ success: false, message: 'Cannot refund at this state' });
     }
@@ -520,7 +684,26 @@ const refundBuyer = async (req, res, next) => {
       await transaction.update({ status: 'REFUNDED', refundDate: new Date() }, { transaction: t });
       await Property.update({ status: 'AVAILABLE' }, { where: { id: transaction.propertyId }, transaction: t });
 
-      await logAction(transaction.id, req, `Admin rejected mutation and refunded escrow balance of $${amount} to Buyer.`, { transaction: t });
+      // Bookkeeping entries
+      await ledgerService.recordEntry({
+        transactionId: transaction.id,
+        escrowAccountId: escrow.id,
+        type: 'DEBIT',
+        amount,
+        accountType: 'ESCROW_CUSTODY',
+        description: 'Debit custody balance to return to buyer',
+      }, t);
+
+      await ledgerService.recordEntry({
+        transactionId: transaction.id,
+        escrowAccountId: escrow.id,
+        type: 'CREDIT',
+        amount,
+        accountType: 'BUYER_CASH',
+        description: 'Credit return of deposit to buyer account',
+      }, t);
+
+      await logAction(transaction.id, req, `Admin rejected mutation/resolved dispute and refunded escrow balance of $${amount} to Buyer.`, { transaction: t });
     });
 
     const result = await Transaction.findByPk(transaction.id, { include: transactionIncludes });
@@ -552,7 +735,26 @@ const cancelTransaction = async (req, res, next) => {
 
     await sequelize.transaction(async (t) => {
       if (transaction.status === 'FUNDED' && escrow) {
+        const amount = parseFloat(escrow.balance);
         await escrow.update({ balance: 0.00, status: 'REFUNDED' }, { transaction: t });
+
+        await ledgerService.recordEntry({
+          transactionId: transaction.id,
+          escrowAccountId: escrow.id,
+          type: 'DEBIT',
+          amount,
+          accountType: 'ESCROW_CUSTODY',
+          description: 'Debit custody balance for cancelled refund',
+        }, t);
+
+        await ledgerService.recordEntry({
+          transactionId: transaction.id,
+          escrowAccountId: escrow.id,
+          type: 'CREDIT',
+          amount,
+          accountType: 'BUYER_CASH',
+          description: 'Credit refund return of deposit on cancelled agreement',
+        }, t);
       }
 
       await transaction.update({ status: 'REFUNDED', refundDate: new Date() }, { transaction: t });
@@ -568,7 +770,7 @@ const cancelTransaction = async (req, res, next) => {
   }
 };
 
-// @desc    Admin deletes transaction records
+// @desc    Admin deletes transaction records (preserves AuditLog entries for immutability compliance)
 // @route   DELETE /api/admin/transactions/:id
 // @access  Private (ADMIN)
 const deleteTransaction = async (req, res, next) => {
@@ -586,7 +788,7 @@ const deleteTransaction = async (req, res, next) => {
         await Escrow.destroy({ where: { id: transaction.escrowAccountId }, transaction: t });
       }
 
-      await AuditLog.destroy({ where: { transactionId: transaction.id }, transaction: t });
+      // We preserve the AuditLog records to satisfy immutable logging regulations
       await transaction.destroy({ transaction: t });
     });
 
@@ -610,6 +812,207 @@ const getAuditLogs = async (req, res, next) => {
   }
 };
 
+// @desc    Verify audit ledger chain integrity
+// @route   GET /api/admin/audit-logs/verify
+// @access  Private (ADMIN)
+const verifyAuditLogs = async (req, res, next) => {
+  try {
+    const verification = await AuditLog.verifyChain();
+    res.status(200).json({ success: true, ...verification });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Seller confirms receipt of funds (completes escrow transaction)
+// @route   POST /api/escrow/:id/confirm-receipt
+// @access  Private (SELLER)
+const confirmReceipt = async (req, res, next) => {
+  try {
+    const transaction = await Transaction.findByPk(req.params.id);
+    if (!transaction) {
+      return res.status(404).json({ success: false, message: 'Transaction not found' });
+    }
+
+    if (transaction.sellerId !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Only the seller can confirm receipt of funds' });
+    }
+
+    if (transaction.status !== 'AWAITING_RECEIPT') {
+      return res.status(400).json({ success: false, message: 'Transaction status must be AWAITING_RECEIPT' });
+    }
+
+    await sequelize.transaction(async (t) => {
+      await transaction.update({
+        status: 'COMPLETED',
+        sellerConfirmedFundsReceivedAt: new Date(),
+        releaseDate: new Date()
+      }, { transaction: t });
+
+      await Property.update(
+        { status: 'SOLD' },
+        { where: { id: transaction.propertyId }, transaction: t }
+      );
+
+      await logAction(transaction.id, req, `Seller confirmed receipt of funds. Escrow transaction officially COMPLETED. Listing set to SOLD.`, { transaction: t });
+    });
+
+    const result = await Transaction.findByPk(transaction.id, { include: transactionIncludes });
+    res.status(200).json({ success: true, message: 'Receipt confirmed. Agreement is fully finalized.', data: result });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Buyer confirms receipt of property/deed (locks in receipt date)
+// @route   POST /api/escrow/:id/confirm-property-receipt
+// @access  Private (BUYER)
+const confirmPropertyReceipt = async (req, res, next) => {
+  try {
+    const transaction = await Transaction.findByPk(req.params.id);
+    if (!transaction) {
+      return res.status(404).json({ success: false, message: 'Transaction not found' });
+    }
+
+    if (transaction.buyerId !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Only the buyer can confirm property deed receipt' });
+    }
+
+    const permittedStates = ['UNDER_REVIEW', 'AWAITING_RECEIPT', 'COMPLETED'];
+    if (!permittedStates.includes(transaction.status)) {
+      return res.status(400).json({ success: false, message: 'Cannot confirm property receipt at this stage' });
+    }
+
+    await sequelize.transaction(async (t) => {
+      await transaction.update({
+        buyerConfirmedPropertyReceivedAt: new Date()
+      }, { transaction: t });
+
+      await logAction(transaction.id, req, `Buyer confirmed receipt of property ownership deed transfer document.`, { transaction: t });
+    });
+
+    const result = await Transaction.findByPk(transaction.id, { include: transactionIncludes });
+    res.status(200).json({ success: true, message: 'Property receipt confirmed. Digital signature registered.', data: result });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const verifyRegistryDeed = async (req, res, next) => {
+  try {
+    const transaction = await Transaction.findByPk(req.params.id, { include: transactionIncludes });
+    if (!transaction) {
+      return res.status(404).json({ success: false, message: 'Transaction not found' });
+    }
+
+    // Guard: Verify that the caller is a transaction participant or Admin
+    if (transaction.buyerId !== req.user.id && transaction.sellerId !== req.user.id && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ success: false, message: 'Only transacting buyer, seller, or admin can trigger registry verification' });
+    }
+
+    if (transaction.status !== 'MUTATION_STARTED') {
+      return res.status(400).json({ success: false, message: 'Registry verification is only available during MUTATION_STARTED phase.' });
+    }
+
+    if (!transaction.mutationDocuments || transaction.mutationDocuments.length === 0) {
+      return res.status(400).json({ success: false, message: 'Please upload at least one mutation document proof first' });
+    }
+
+    // Inspect the first document content
+    const primaryDoc = transaction.mutationDocuments[0];
+    let docText = "";
+    
+    if (primaryDoc.documentUrl.startsWith('data:')) {
+      try {
+        const base64Parts = primaryDoc.documentUrl.split(',');
+        const base64Content = base64Parts[1];
+        docText = Buffer.from(base64Content, 'base64').toString('utf8');
+      } catch (err) {
+        docText = "";
+      }
+    } else {
+      docText = primaryDoc.documentUrl;
+    }
+
+    // Combine docText with description for keyword searching
+    const combinedContent = (docText + " " + primaryDoc.description).toUpperCase();
+
+    // Check structural fields
+    const hasDeedType = combinedContent.includes('DEED') || combinedContent.includes('MUTATION') || combinedContent.includes('TRANSFER');
+    const hasSeller = combinedContent.includes(transaction.seller.name.toUpperCase());
+    const hasBuyer = combinedContent.includes(transaction.buyer.name.toUpperCase());
+    const hasProperty = combinedContent.includes(transaction.property.title.toUpperCase()) || combinedContent.includes(`PROPERTY ID: ${transaction.propertyId}`) || combinedContent.includes(`PROP-${transaction.propertyId}`);
+    
+    // We expect a valid Unique Parcel Identifier (UPI) format in a real deed: UPI-[0-9]{2}-[0-9]{2}-[0-9]{4}
+    const upiRegex = /UPI-\d{2}-\d{2}-\d{4}/i;
+    const upiMatch = combinedContent.match(upiRegex);
+    const matchedUpi = upiMatch ? upiMatch[0].toUpperCase() : null;
+
+    let registryRecord = null;
+    let upiExists = false;
+    let ownerMatches = false;
+    let parcelClean = false;
+
+    if (matchedUpi) {
+      registryRecord = await registryService.lookupParcel(matchedUpi);
+      if (registryRecord) {
+        upiExists = true;
+        if (registryRecord.owner.toUpperCase() === transaction.seller.name.toUpperCase()) {
+          ownerMatches = true;
+        }
+        if (registryRecord.status === 'CLEAN') {
+          parcelClean = true;
+        }
+      }
+    }
+
+    // Compare with the listing's officially registered UPI code to prevent deed substitution fraud
+    const targetUpi = transaction.property.upiCode ? transaction.property.upiCode.toUpperCase() : '';
+    const propertyUpiMatches = matchedUpi && targetUpi && matchedUpi === targetUpi;
+
+    const report = {
+      documentTypeMatch: hasDeedType ? 'VERIFIED' : 'FAILED',
+      sellerMatch: hasSeller ? 'VERIFIED' : 'FAILED',
+      buyerMatch: hasBuyer ? 'VERIFIED' : 'FAILED',
+      propertyMatch: hasProperty ? 'VERIFIED' : 'FAILED',
+      upiFormatMatch: matchedUpi ? 'VERIFIED' : 'FAILED',
+      registryRecordFound: upiExists ? 'VERIFIED' : 'FAILED',
+      registryOwnerVerified: ownerMatches ? 'VERIFIED' : 'FAILED',
+      registryStatusClean: parcelClean ? 'VERIFIED' : 'FAILED',
+      registryUpiLinkVerified: propertyUpiMatches ? 'VERIFIED' : 'FAILED',
+    };
+
+    const allPassed = hasDeedType && hasSeller && hasBuyer && hasProperty && matchedUpi && upiExists && ownerMatches && parcelClean && propertyUpiMatches;
+
+    if (!allPassed) {
+      return res.status(400).json({
+        success: false,
+        message: 'Government Registry API validation failed: Document structure is invalid or transacting details mismatch registry records.',
+        report
+      });
+    }
+
+    await sequelize.transaction(async (t) => {
+      // Save validation receipt on transaction table
+      await transaction.update({
+        registryValidationReport: report,
+      }, { transaction: t });
+
+      await logAction(transaction.id, req, `AUTOMATED GOVT DEEDS REGISTRY SYSTEM verified transfer document. UPI: ${matchedUpi}. Registry check successfully passed. Signature consensus is still required.`, { transaction: t });
+    });
+
+    const result = await Transaction.findByPk(transaction.id, { include: transactionIncludes });
+    res.status(200).json({ 
+      success: true, 
+      message: 'Government deeds registry matched and verified listing ownership transfer documents. Mutual signature consensus is still required.', 
+      data: result,
+      report
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getTransactions,
   getMyTransactions,
@@ -625,4 +1028,8 @@ module.exports = {
   cancelTransaction,
   deleteTransaction,
   getAuditLogs,
+  verifyAuditLogs,
+  confirmReceipt,
+  confirmPropertyReceipt,
+  verifyRegistryDeed,
 };

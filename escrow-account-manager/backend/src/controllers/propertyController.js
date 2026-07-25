@@ -60,7 +60,7 @@ exports.getProperty = async (req, res, next) => {
 // @access  Private (SELLER, ADMIN)
 exports.createProperty = async (req, res, next) => {
   try {
-    const { title, description, price, location, bedrooms, bathrooms, area, propertyType, images } = req.body;
+    const { title, description, price, location, bedrooms, bathrooms, area, propertyType, images, listingType, biddingDeadline, upiCode } = req.body;
 
     const isLand = propertyType === 'LAND';
 
@@ -83,6 +83,21 @@ exports.createProperty = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Please provide all required property fields' });
     }
 
+    const finalListingType = listingType === 'AUCTION' ? 'AUCTION' : 'FIXED_PRICE';
+
+    if (!upiCode || !/^UPI-\d{2}-\d{2}-\d{4}$/i.test(upiCode)) {
+      return res.status(400).json({ success: false, message: 'A valid Land Registry UPI code is required (example: UPI-12-34-5678)' });
+    }
+
+    if (finalListingType === 'AUCTION') {
+      if (!biddingDeadline) {
+        return res.status(400).json({ success: false, message: 'Please provide a bidding deadline for auction listings' });
+      }
+      if (new Date(biddingDeadline) <= new Date()) {
+        return res.status(400).json({ success: false, message: 'Bidding deadline must be a future date' });
+      }
+    }
+
     const specs = normalizePropertySpecs({ propertyType, bedrooms, bathrooms, area });
 
     const property = await Property.create({
@@ -94,6 +109,9 @@ exports.createProperty = async (req, res, next) => {
       ...specs,
       propertyType,
       images: Array.isArray(images) ? images.filter(Boolean) : [],
+      listingType: finalListingType,
+      biddingDeadline: finalListingType === 'AUCTION' ? new Date(biddingDeadline) : null,
+      upiCode: upiCode.toUpperCase(),
     });
 
     res.status(201).json({ success: true, data: property });
@@ -127,16 +145,48 @@ exports.updateProperty = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Cannot update a property that is in an active transaction' });
     }
 
-    const { title, description, price, location, bedrooms, bathrooms, area, propertyType, images } = req.body;
-    const specs = normalizePropertySpecs({ propertyType, bedrooms, bathrooms, area });
+    const { title, description, price, location, bedrooms, bathrooms, area, propertyType, images, listingType, biddingDeadline, upiCode } = req.body;
+
+    const finalUpiCode = upiCode !== undefined ? upiCode : property.upiCode;
+    if (!finalUpiCode || !/^UPI-\d{2}-\d{2}-\d{4}$/i.test(finalUpiCode)) {
+      return res.status(400).json({ success: false, message: 'A valid Land Registry UPI code is required (example: UPI-12-34-5678)' });
+    }
+
+    const finalListingType = listingType !== undefined ? (listingType === 'AUCTION' ? 'AUCTION' : 'FIXED_PRICE') : property.listingType;
+    const finalBiddingDeadline = biddingDeadline !== undefined ? biddingDeadline : property.biddingDeadline;
+
+    if (finalListingType === 'AUCTION') {
+      if (!finalBiddingDeadline) {
+        return res.status(400).json({ success: false, message: 'Please provide a bidding deadline for auction listings' });
+      }
+      if (new Date(finalBiddingDeadline) <= new Date()) {
+        return res.status(400).json({ success: false, message: 'Bidding deadline must be a future date' });
+      }
+    }
+
+    const finalPropertyType = propertyType !== undefined ? propertyType : property.propertyType;
+    const finalBedrooms = bedrooms !== undefined ? bedrooms : property.bedrooms;
+    const finalBathrooms = bathrooms !== undefined ? bathrooms : property.bathrooms;
+    const finalArea = area !== undefined ? area : property.area;
+
+    const specs = normalizePropertySpecs({
+      propertyType: finalPropertyType,
+      bedrooms: finalBedrooms,
+      bathrooms: finalBathrooms,
+      area: finalArea
+    });
+
     await property.update({
-      title,
-      description,
-      price,
-      location,
+      title: title !== undefined ? title : property.title,
+      description: description !== undefined ? description : property.description,
+      price: price !== undefined ? price : property.price,
+      location: location !== undefined ? location : property.location,
       ...specs,
-      propertyType,
-      images: Array.isArray(images) ? images.filter(Boolean) : [],
+      propertyType: finalPropertyType,
+      images: Array.isArray(images) ? images.filter(Boolean) : property.images,
+      listingType: finalListingType,
+      biddingDeadline: finalListingType === 'AUCTION' ? new Date(finalBiddingDeadline) : null,
+      upiCode: finalUpiCode.toUpperCase(),
     });
 
     res.status(200).json({ success: true, data: property });
@@ -168,11 +218,11 @@ exports.deleteProperty = async (req, res, next) => {
           return res.status(400).json({ success: false, message: 'Cannot delete a property that is in an active transaction. Resolve the transaction first.' });
         }
         // Admin force delete cascading to active transactions and escrow accounts
-        const { Transaction, EscrowAccount } = require('../models');
+        const { Transaction, Escrow } = require('../models');
         const transactions = await Transaction.findAll({ where: { propertyId: property.id } });
         for (const txn of transactions) {
           if (txn.escrowAccountId) {
-            await EscrowAccount.destroy({ where: { id: txn.escrowAccountId } });
+            await Escrow.destroy({ where: { id: txn.escrowAccountId } });
           }
           await txn.destroy();
         }

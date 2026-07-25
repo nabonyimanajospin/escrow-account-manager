@@ -1,5 +1,6 @@
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/database');
+const crypto = require('crypto');
 
 const Transaction = sequelize.define('Transaction', {
   id: {
@@ -31,6 +32,14 @@ const Transaction = sequelize.define('Transaction', {
     type: DataTypes.DECIMAL(15, 2),
     allowNull: false,
   },
+  buyerFee: {
+    type: DataTypes.DECIMAL(15, 2),
+    defaultValue: 0.00,
+  },
+  sellerFee: {
+    type: DataTypes.DECIMAL(15, 2),
+    defaultValue: 0.00,
+  },
   escrowAccountId: {
     type: DataTypes.INTEGER,
     allowNull: true,
@@ -41,6 +50,8 @@ const Transaction = sequelize.define('Transaction', {
       'FUNDED',
       'MUTATION_STARTED',
       'UNDER_REVIEW',
+      'DISPUTED',
+      'AWAITING_RECEIPT',
       'COMPLETED',
       'REFUNDED'
     ),
@@ -48,7 +59,28 @@ const Transaction = sequelize.define('Transaction', {
   },
   verificationCode: {
     type: DataTypes.STRING(4),
+    allowNull: true,
+  },
+  verificationCodeHash: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  verificationCodeSalt: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  verificationCodeExpiresAt: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  },
+  verificationAttempts: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
     allowNull: false,
+  },
+  verificationLockedUntil: {
+    type: DataTypes.DATE,
+    allowNull: true,
   },
   buyerAuthorized: {
     type: DataTypes.BOOLEAN,
@@ -61,6 +93,10 @@ const Transaction = sequelize.define('Transaction', {
   mutationDocuments: {
     type: DataTypes.JSONB,
     defaultValue: [],
+  },
+  registryValidationReport: {
+    type: DataTypes.JSONB,
+    allowNull: true,
   },
   depositDate: {
     type: DataTypes.DATE,
@@ -78,6 +114,14 @@ const Transaction = sequelize.define('Transaction', {
     type: DataTypes.DATE,
     allowNull: true,
   },
+  buyerConfirmedPropertyReceivedAt: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  },
+  sellerConfirmedFundsReceivedAt: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  },
   refundDate: {
     type: DataTypes.DATE,
     allowNull: true,
@@ -86,16 +130,44 @@ const Transaction = sequelize.define('Transaction', {
     type: DataTypes.TEXT,
     allowNull: true,
   },
+  adminNotes: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  releaseChecklist: {
+    type: DataTypes.JSONB,
+    defaultValue: {},
+  },
+  buyerSignature: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  sellerSignature: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  buyerSignatureDate: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  },
+  sellerSignatureDate: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  },
 }, {
   timestamps: true,
+  defaultScope: {
+    attributes: { exclude: ['verificationCode', 'verificationCodeHash', 'verificationCodeSalt'] }
+  },
+  scopes: {
+    withVerificationCode: {
+      attributes: {}
+    }
+  },
   hooks: {
     beforeValidate: (transaction) => {
       if (!transaction.transactionId) {
-        transaction.transactionId = 'TXN-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6).toUpperCase();
-      }
-      if (!transaction.verificationCode) {
-        // Generate random 4-digit code
-        transaction.verificationCode = Math.floor(1000 + Math.random() * 9000).toString();
+        transaction.transactionId = 'TXN-' + Date.now() + '-' + crypto.randomBytes(3).toString('hex').toUpperCase();
       }
     },
   },

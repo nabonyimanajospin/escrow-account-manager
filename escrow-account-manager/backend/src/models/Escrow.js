@@ -47,7 +47,7 @@ const Escrow = sequelize.define('Escrow', {
   hooks: {
     beforeValidate: (escrow) => {
       if (!escrow.accountNumber) {
-        escrow.accountNumber = 'ESC-' + Date.now() + '-' + Math.random().toString(36).substr(2, 8).toUpperCase();
+        escrow.accountNumber = 'ESC-' + Date.now() + '-' + crypto.randomBytes(4).toString('hex').toUpperCase();
       }
       if (!escrow.contractAddress) {
         const uniqueVal = crypto.randomUUID() + '-' + Date.now() + '-' + escrow.transactionId;

@@ -22,6 +22,9 @@ const PropertyForm = () => {
   const [bedrooms, setBedrooms] = useState('2');
   const [bathrooms, setBathrooms] = useState('1');
   const [area, setArea] = useState('80');
+  const [listingType, setListingType] = useState('FIXED_PRICE');
+  const [biddingDeadline, setBiddingDeadline] = useState('');
+  const [upiCode, setUpiCode] = useState('');
   const [imageInput, setImageInput] = useState(''); // Comma separated URLs
   const [uploadMode, setUploadMode] = useState('link'); // 'link' or 'file'
   const [uploadedBase64, setUploadedBase64] = useState('');
@@ -63,7 +66,7 @@ const PropertyForm = () => {
             return;
           }
 
-          setTitle(p.title);
+           setTitle(p.title);
           setDescription(p.description);
           setPrice(p.price);
           setLocation(p.location);
@@ -71,6 +74,9 @@ const PropertyForm = () => {
           setBedrooms(p.bedrooms);
           setBathrooms(p.bathrooms);
           setArea(p.area);
+          setListingType(p.listingType || 'FIXED_PRICE');
+          setBiddingDeadline(p.biddingDeadline ? new Date(p.biddingDeadline).toISOString().slice(0, 16) : '');
+          setUpiCode(p.upiCode || '');
 
           const firstImage = p.images?.[0] || '';
           if (firstImage.startsWith('data:image')) {
@@ -129,6 +135,9 @@ const PropertyForm = () => {
       bathrooms: isLand ? 0 : Number(bathrooms),
       area: Number(area),
       images: imagesArray,
+      listingType,
+      biddingDeadline: listingType === 'AUCTION' ? biddingDeadline : null,
+      upiCode,
     };
 
     try {
@@ -209,6 +218,52 @@ const PropertyForm = () => {
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Listing Category (Fixed vs Auction) and Land UPI Parcel ID */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="input-label" htmlFor="listingType">Listing Category</label>
+              <select
+                id="listingType"
+                className="input-field cursor-pointer"
+                value={listingType}
+                onChange={(e) => setListingType(e.target.value)}
+                disabled={loading}
+              >
+                <option value="FIXED_PRICE">Fixed Price Sale</option>
+                <option value="AUCTION">Bidding Auction Listing</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="input-label" htmlFor="upiCode">Land Registry UPI Parcel ID</label>
+              <input
+                id="upiCode"
+                type="text"
+                required
+                className="input-field font-mono"
+                placeholder="UPI-12-34-5678"
+                value={upiCode}
+                onChange={(e) => setUpiCode(e.target.value.toUpperCase())}
+                disabled={loading}
+              />
+            </div>
+
+            {listingType === 'AUCTION' && (
+              <div>
+                <label className="input-label" htmlFor="biddingDeadline">Bidding Deadline</label>
+                <input
+                  id="biddingDeadline"
+                  type="datetime-local"
+                  required
+                  className="input-field"
+                  value={biddingDeadline}
+                  onChange={(e) => setBiddingDeadline(e.target.value)}
+                  disabled={loading}
+                />
+              </div>
+            )}
           </div>
 
           {/* Title and Location */}

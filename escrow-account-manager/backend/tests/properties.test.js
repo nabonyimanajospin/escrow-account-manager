@@ -22,7 +22,7 @@ jest.mock('../src/models', () => ({
     destroy: jest.fn(),
   },
   Transaction: { findAll: jest.fn(), findByPk: jest.fn(), create: jest.fn() },
-  EscrowAccount: { findByPk: jest.fn(), create: jest.fn(), destroy: jest.fn() },
+  Escrow: { findByPk: jest.fn(), create: jest.fn(), destroy: jest.fn() },
 }));
 
 const { User, Property } = require('../src/models');
@@ -71,6 +71,7 @@ describe('POST /api/properties', () => {
     bathrooms: 2,
     area: 100,
     propertyType: 'HOUSE',
+    upiCode: 'UPI-12-34-5678',
   };
 
   it('allows SELLER to create a listing', async () => {

@@ -47,6 +47,14 @@ const User = sequelize.define('User', {
     type: DataTypes.STRING,
     allowNull: true,
   },
+  isKycVerified: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
+  kycVerifiedAt: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  },
 }, {
   timestamps: true,
   hooks: {

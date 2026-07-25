@@ -50,6 +50,7 @@ const makeProperty = (overrides = {}) => ({
   propertyType: 'HOUSE',
   images: [],
   status: 'AVAILABLE',
+  upiCode: 'UPI-12-34-5678',
   update: jest.fn().mockImplementation(function (data) {
     Object.assign(this, data);
     return Promise.resolve(this);

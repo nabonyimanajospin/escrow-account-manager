@@ -11,6 +11,10 @@ const StatusBadge = ({ status }) => {
         return 'badge-mutation';
       case 'UNDER_REVIEW':
         return 'badge-role-admin';
+      case 'DISPUTED':
+        return 'bg-amber-100 text-amber-800 border border-amber-300';
+      case 'AWAITING_RECEIPT':
+        return 'bg-purple-100 text-purple-800 border border-purple-300';
       case 'COMPLETED':
       case 'FUNDS_RELEASED':
         return 'badge-completed';
@@ -36,6 +40,10 @@ const StatusBadge = ({ status }) => {
         return 'Mutation Started';
       case 'UNDER_REVIEW':
         return 'Under Review';
+      case 'DISPUTED':
+        return 'Disputed';
+      case 'AWAITING_RECEIPT':
+        return 'Awaiting Receipt';
       case 'COMPLETED':
       case 'FUNDS_RELEASED':
         return 'Completed';

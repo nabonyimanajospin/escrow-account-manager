@@ -38,9 +38,18 @@ jest.mock('../src/models', () => ({
   AuditLog: {
     create: jest.fn(),
   },
+  LedgerEntry: {
+    create: jest.fn(),
+  },
+  Offer: {
+    findAll: jest.fn(),
+    findByPk: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+  },
 }));
 
-const { User, Property, Transaction, Escrow, AuditLog } = require('../src/models');
+const { User, Property, Transaction, Escrow, AuditLog, LedgerEntry, Offer } = require('../src/models');
 const app = require('../src/app');
 
 // ─── Shared actors ────────────────────────────────────────────────────────────
@@ -60,16 +69,21 @@ beforeEach(() => {
 // Helper: make findByPk return the right user for JWT middleware
 const asUser = (u) => User.findByPk.mockResolvedValue(u);
 
-// Helper: build a full transaction with its escrow included (as Sequelize would)
 const fullTxn = (txnOverrides = {}, escrowOverrides = {}) => {
   const escrow = makeEscrow(escrowOverrides);
+  const prop = makeProperty();
   const txn = makeTransaction({
     buyerAuthorized: true,
     sellerAuthorized: true,
     verificationCode: '1234',
+    registryValidationReport: { registryRecordFound: 'VERIFIED', upiFormatMatch: 'VERIFIED' },
+    buyerConfirmedPropertyReceivedAt: new Date(),
     ...txnOverrides
   });
   txn.escrowAccount = escrow; // simulate include
+  txn.seller = seller;
+  txn.buyer = buyer;
+  txn.property = prop;
   return { txn, escrow };
 };
 
@@ -150,7 +164,7 @@ describe('POST /api/escrow/:id/deposit', () => {
     const res = await request(app)
       .post('/api/escrow/5/deposit')
       .set('Authorization', `Bearer ${tokenFor.buyer()}`)
-      .send({ amount: 100000 });
+      .send({ amount: 100000, reference: 'DEP-12345' });
 
     expect(res.status).toBe(200);
     expect(txn.update).toHaveBeenCalledWith(expect.objectContaining({ status: 'FUNDED' }), expect.any(Object));
@@ -165,7 +179,7 @@ describe('POST /api/escrow/:id/deposit', () => {
     const res = await request(app)
       .post('/api/escrow/5/deposit')
       .set('Authorization', `Bearer ${tokenFor.buyer()}`)
-      .send({ amount: 50000 }); // wrong amount
+      .send({ amount: 50000, reference: 'DEP-54321' }); // wrong amount
 
     expect(res.status).toBe(400);
   });
@@ -178,7 +192,7 @@ describe('POST /api/escrow/:id/deposit', () => {
     const res = await request(app)
       .post('/api/escrow/5/deposit')
       .set('Authorization', `Bearer ${tokenFor.buyer()}`)
-      .send({ amount: 100000 });
+      .send({ amount: 100000, reference: 'DEP-12345' });
 
     expect(res.status).toBe(400);
   });
@@ -191,7 +205,7 @@ describe('POST /api/escrow/:id/deposit', () => {
     const res = await request(app)
       .post('/api/escrow/5/deposit')
       .set('Authorization', `Bearer ${tokenFor.seller()}`)
-      .send({ amount: 100000 });
+      .send({ amount: 100000, reference: 'DEP-12345' });
 
     expect(res.status).toBe(403);
   });
@@ -313,23 +327,23 @@ describe('POST /api/escrow/:id/complete-mutation', () => {
 // ─── POST /api/admin/transactions/:id/release ──────────────────────────────────────
 
 describe('POST /api/admin/transactions/:id/release', () => {
-  it('releases funds to seller and marks property SOLD', async () => {
+  it('releases funds to seller changing status to AWAITING_RECEIPT', async () => {
     asUser(admin);
     const escrow = makeEscrow({ balance: 100000 });
     const { txn } = fullTxn({ status: 'UNDER_REVIEW', propertyId: 10 });
     Transaction.findByPk
       .mockResolvedValueOnce(txn)
-      .mockResolvedValueOnce({ ...txn, status: 'COMPLETED' });
+      .mockResolvedValueOnce({ ...txn, status: 'AWAITING_RECEIPT' });
     Escrow.findByPk.mockResolvedValue(escrow);
 
     const res = await request(app)
       .post('/api/admin/transactions/5/release')
-      .set('Authorization', `Bearer ${tokenFor.admin()}`);
+      .set('Authorization', `Bearer ${tokenFor.admin()}`)
+      .send({ adminNotes: 'Audit checks complete' });
 
     expect(res.status).toBe(200);
-    expect(txn.update).toHaveBeenCalledWith(expect.objectContaining({ status: 'COMPLETED' }), expect.any(Object));
+    expect(txn.update).toHaveBeenCalledWith(expect.objectContaining({ status: 'AWAITING_RECEIPT' }), expect.any(Object));
     expect(escrow.update).toHaveBeenCalledWith(expect.objectContaining({ balance: 0, status: 'RELEASED' }), expect.any(Object));
-    expect(Property.update).toHaveBeenCalledWith({ status: 'SOLD' }, expect.any(Object));
   });
 
   it('rejects release if mutation is not completed/under_review yet', async () => {
@@ -339,7 +353,8 @@ describe('POST /api/admin/transactions/:id/release', () => {
 
     const res = await request(app)
       .post('/api/admin/transactions/5/release')
-      .set('Authorization', `Bearer ${tokenFor.admin()}`);
+      .set('Authorization', `Bearer ${tokenFor.admin()}`)
+      .send({ adminNotes: 'Audit checks complete' });
 
     expect(res.status).toBe(400);
   });
@@ -349,7 +364,8 @@ describe('POST /api/admin/transactions/:id/release', () => {
 
     const res = await request(app)
       .post('/api/admin/transactions/5/release')
-      .set('Authorization', `Bearer ${tokenFor.seller()}`);
+      .set('Authorization', `Bearer ${tokenFor.seller()}`)
+      .send({ adminNotes: 'Audit checks complete' });
 
     expect(res.status).toBe(403);
   });
@@ -441,5 +457,64 @@ describe('POST /api/escrow/:id/cancel', () => {
 
     // seller is not the buyer — controller returns 403
     expect(res.status).toBe(403);
+  });
+});
+
+// ─── POST /api/escrow/:id/verify-registry ──────────────────────────────
+
+describe('POST /api/escrow/:id/verify-registry', () => {
+  it('fails verification if uploaded deed has invalid text structure', async () => {
+    asUser(seller);
+    const { txn } = fullTxn({
+      status: 'MUTATION_STARTED',
+      mutationDocuments: [{
+        documentUrl: 'data:text/plain;base64,SW52YWxpZCBEb2N1bWVudA==', // Base64 for "Invalid Document"
+        description: 'Mock deed file'
+      }]
+    });
+    Transaction.findByPk.mockResolvedValue(txn);
+
+    const res = await request(app)
+      .post('/api/escrow/5/verify-registry')
+      .set('Authorization', `Bearer ${tokenFor.seller()}`);
+
+    expect(res.status).toBe(400);
+    expect(res.body.report.upiFormatMatch).toBe('FAILED');
+  });
+
+  it('succeeds verification if deed matches buyer, seller, property, and UPI syntax', async () => {
+    asUser(seller);
+    const { txn } = fullTxn({
+      status: 'MUTATION_STARTED',
+      propertyId: 10,
+    });
+    
+    // Configure mock to match Land Registry database lookup coordinates
+    txn.seller.name = 'Alice Ishimwe';
+    txn.property.title = 'Kimihurura Heights Apartment';
+    txn.property.upiCode = 'UPI-12-34-5678';
+    
+    const deedText = `DEED OF MUTATION TRANSFER
+PROPERTY ID: ${txn.propertyId}
+PROPERTY TITLE: ${txn.property.title.toUpperCase()}
+SELLER: ${txn.seller.name.toUpperCase()}
+BUYER: ${txn.buyer.name.toUpperCase()}
+UNIQUE PARCEL IDENTIFIER: UPI-12-34-5678`;
+    
+    const base64Deed = 'data:text/plain;base64,' + Buffer.from(deedText).toString('base64');
+    txn.mutationDocuments = [{
+      documentUrl: base64Deed,
+      description: 'Valid deed file'
+    }];
+    
+    Transaction.findByPk.mockResolvedValue(txn);
+
+    const res = await request(app)
+      .post('/api/escrow/5/verify-registry')
+      .set('Authorization', `Bearer ${tokenFor.seller()}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.report.upiFormatMatch).toBe('VERIFIED');
+    expect(res.body.report.registryRecordFound).toBe('VERIFIED');
   });
 });

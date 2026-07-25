@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import axios from '../api/axiosConfig';
 import { useAuth } from '../context/AuthContext';
@@ -13,6 +13,25 @@ const PropertyDetail = () => {
   const [property, setProperty] = useState(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+
+  // Offers and bidding states
+  const [offers, setOffers] = useState([]);
+  const [offersLoading, setOffersLoading] = useState(false);
+  const [bidPrice, setBidPrice] = useState('');
+  const [bidPeriod, setBidPeriod] = useState('');
+
+  const fetchOffers = useCallback(async () => {
+    if (!isAuthenticated) return;
+    try {
+      setOffersLoading(true);
+      const response = await axios.get(`/properties/${id}/offers`);
+      setOffers(response.data.data || []);
+    } catch (err) {
+      console.error('Failed to load offers:', err);
+    } finally {
+      setOffersLoading(false);
+    }
+  }, [id, isAuthenticated]);
 
   useEffect(() => {
     const fetchProperty = async () => {
@@ -29,29 +48,53 @@ const PropertyDetail = () => {
       }
     };
     fetchProperty();
-  }, [id, navigate]);
+    fetchOffers();
+  }, [id, navigate, fetchOffers]);
 
-  const handleBuy = async () => {
+  const handlePlaceBid = async (e) => {
+    e.preventDefault();
     if (!isAuthenticated) {
-      toast.error('Please login to buy a property');
+      toast.error('Please login to bid on a property');
       navigate('/login');
       return;
     }
 
-    if (user?.role !== 'BUYER') {
-      toast.error('Only buyers can initiate escrow transactions');
+    if (!bidPrice || !bidPeriod) {
+      toast.error('Please fill in both bid price and payment period');
       return;
     }
 
-    if (!window.confirm(`Do you want to initiate a secure escrow agreement to purchase "${property.title}" for $${Number(property.price).toLocaleString()}?`)) return;
+    if (parseFloat(bidPrice) < parseFloat(property.price)) {
+      toast.error(`Your bid must be at least the target price of $${Number(property.price).toLocaleString()}`);
+      return;
+    }
 
     try {
       setActionLoading(true);
-      const response = await axios.post('/escrow/initiate', { propertyId: property.id });
-      toast.success('Escrow transaction initiated successfully!');
+      await axios.post(`/properties/${id}/offers`, {
+        price: parseFloat(bidPrice),
+        paymentPeriodDays: parseInt(bidPeriod, 10),
+      });
+      toast.success('Your bidding offer was successfully submitted!');
+      setBidPrice('');
+      setBidPeriod('');
+      fetchOffers();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to place bid');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleAcceptOffer = async (offerId, amount) => {
+    if (!window.confirm(`Are you sure you want to accept this offer of $${Number(amount).toLocaleString()}? This will reject all other bids and initiate the escrow contract.`)) return;
+    try {
+      setActionLoading(true);
+      const response = await axios.post(`/escrow/offers/${offerId}/accept`);
+      toast.success('Offer accepted! Escrow transaction initiated.');
       navigate(`/escrow/${response.data.data.id}`);
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to initiate transaction');
+      toast.error(err.response?.data?.message || 'Failed to accept offer');
     } finally {
       setActionLoading(false);
     }
@@ -185,13 +228,45 @@ const PropertyDetail = () => {
             <div className="section-divider" />
 
             {showEscrowBtn && (
-              <button
-                onClick={handleBuy}
-                disabled={actionLoading}
-                className="btn-primary w-full py-3 font-bold"
-              >
-                {actionLoading ? 'Initializing Protocol...' : 'Buy via Secure Escrow'}
-              </button>
+              <form onSubmit={handlePlaceBid} className="space-y-4">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider text-center">Place Bidding Offer</p>
+                <div className="space-y-2">
+                  <label className="text-[11px] font-bold text-slate-500 block text-left">Offer Amount ($ USD)</label>
+                  <input
+                    type="number"
+                    required
+                    min={property.price}
+                    className="input-field !py-1.5 !px-3 text-xs w-full"
+                    placeholder={`Min. $${Number(property.price).toLocaleString()}`}
+                    value={bidPrice}
+                    onChange={(e) => setBidPrice(e.target.value)}
+                    disabled={actionLoading}
+                  />
+                  <p className="text-[9px] text-slate-400 font-semibold leading-tight text-left">
+                    * Final cost includes a 1.0% Platform Security Fee: <strong>${(Number(bidPrice || property.price) * 1.01).toLocaleString(undefined, { maximumFractionDigits: 2 })} USD</strong>
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[11px] font-bold text-slate-500 block text-left">Mutation Payment Period (Days)</label>
+                  <input
+                    type="number"
+                    required
+                    min={1}
+                    className="input-field !py-1.5 !px-3 text-xs w-full"
+                    placeholder="E.g. 15 days"
+                    value={bidPeriod}
+                    onChange={(e) => setBidPeriod(e.target.value)}
+                    disabled={actionLoading}
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={actionLoading}
+                  className="btn-primary w-full py-2.5 font-bold text-xs cursor-pointer"
+                >
+                  {actionLoading ? 'Submitting Bid...' : 'Submit Custom Offer'}
+                </button>
+              </form>
             )}
 
             {property.status === 'SOLD' && !isOwner && !isAdmin && (
@@ -253,6 +328,81 @@ const PropertyDetail = () => {
               <p className="text-xs text-slate-400 mt-1 font-mono">{property.seller?.phone || 'N/A'}</p>
             </div>
           </div>
+
+          {/* Offers Panel */}
+          {isAuthenticated && (isOwner || isAdmin || user?.role === 'BUYER') && (
+            <div className="card p-5 bg-white space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Offers & Bids Feed</h3>
+                <span className="text-[9px] bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded font-bold border border-indigo-200">
+                  AI Ranked
+                </span>
+              </div>
+
+              {offersLoading ? (
+                <p className="text-xs text-slate-400 italic text-center py-2">Loading bids...</p>
+              ) : offers.length === 0 ? (
+                <p className="text-xs text-slate-400 italic text-center py-2">No active bidding offers yet.</p>
+              ) : (
+                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+                  {offers.map((offer) => {
+                    const isMyOffer = user?.id === offer.buyerId;
+                    return (
+                      <div 
+                        key={offer.id} 
+                        className={`p-3 rounded-xl border transition-all text-xs space-y-2 text-left relative ${
+                          offer.isAIChoice 
+                            ? 'border-indigo-300 bg-indigo-50/30' 
+                            : offer.status === 'ACCEPTED'
+                            ? 'border-emerald-300 bg-emerald-50/20'
+                            : 'border-slate-200 bg-slate-50/30 hover:bg-slate-55'
+                        }`}
+                      >
+                        {offer.isAIChoice && (
+                          <span className="absolute -top-2 right-2 bg-indigo-600 text-white text-[8px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider shadow">
+                            ★ AI Match Choice
+                          </span>
+                        )}
+
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-extrabold text-slate-850 text-[13px] text-slate-800">${Number(offer.price).toLocaleString()}</p>
+                            <p className="text-[10px] text-slate-400 font-bold mt-0.5">Proposed Period: {offer.paymentPeriodDays} days</p>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-[10px] font-bold text-indigo-600">AI Match: {offer.aiScore}%</span>
+                            <p className="text-[9px] text-slate-405 mt-0.5 font-bold text-slate-500">Buyer: {offer.buyer?.name}</p>
+                          </div>
+                        </div>
+
+                        <div className="flex justify-between items-center pt-2 border-t border-slate-100/70">
+                          <span className={`text-[10px] font-extrabold ${
+                            offer.status === 'ACCEPTED'
+                              ? 'text-emerald-600'
+                              : offer.status === 'REJECTED'
+                              ? 'text-red-500'
+                              : 'text-amber-600'
+                          }`}>
+                            Status: {offer.status}
+                          </span>
+
+                          {isOwner && property.status === 'AVAILABLE' && offer.status === 'PENDING' && (
+                            <button
+                              onClick={() => handleAcceptOffer(offer.id, offer.price)}
+                              disabled={actionLoading}
+                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-[10px] transition-colors cursor-pointer"
+                            >
+                              Accept Bid
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
         </div>
 

@@ -47,8 +47,7 @@ const Login = () => {
         
         {/* Header */}
         <div className="text-center">
-          <span className="text-sm font-bold text-primary-600 uppercase tracking-widest">Secure Client Area</span>
-          <h2 className="mt-2 text-3xl font-extrabold text-slate-900 font-sans">
+          <h2 className="text-3xl font-extrabold text-slate-900 font-sans">
             Sign in to EscrowTrust
           </h2>
           <p className="mt-2 text-sm text-slate-500 font-medium">

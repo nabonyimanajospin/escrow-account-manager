@@ -29,7 +29,7 @@ jest.mock('../src/models', () => ({
   },
   Property: { findAll: jest.fn(), findByPk: jest.fn() },
   Transaction: { findAll: jest.fn(), findByPk: jest.fn() },
-  EscrowAccount: { findByPk: jest.fn() },
+  Escrow: { findByPk: jest.fn() },
 }));
 
 const { User } = require('../src/models');
