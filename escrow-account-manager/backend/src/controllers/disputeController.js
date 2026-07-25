@@ -186,6 +186,9 @@ exports.resolveDispute = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Open dispute case not found' });
     }
 
+    if (!transaction.escrowAccountId) {
+      return res.status(400).json({ success: false, message: 'Transaction has no associated escrow account' });
+    }
     const escrow = await Escrow.findByPk(transaction.escrowAccountId);
     if (!escrow) {
       return res.status(404).json({ success: false, message: 'Escrow account not found' });

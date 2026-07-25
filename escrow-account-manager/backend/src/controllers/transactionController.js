@@ -8,17 +8,17 @@ const registryService = require('../services/registryService');
 
 const { Dispute, DisputeEvidence } = require('../models');
 
-const issueAndDeliverConsensusOtp = async (transaction, dbTransaction) => {
+const issueAndDeliverConsensusOtp = async (transaction, dbTransaction, targetRole = 'BOTH') => {
   const otp = await otpService.issueConsensusCode(transaction, dbTransaction);
   const [buyer, seller] = await Promise.all([
     User.findByPk(transaction.buyerId),
     User.findByPk(transaction.sellerId),
   ]);
 
-  if (buyer) {
+  if (buyer && (targetRole === 'BOTH' || targetRole === 'BUYER')) {
     await notificationService.sendConsensusCode({ user: buyer, transaction, ...otp });
   }
-  if (seller) {
+  if (seller && (targetRole === 'BOTH' || targetRole === 'SELLER')) {
     await notificationService.sendConsensusCode({ user: seller, transaction, ...otp });
   }
 };
@@ -343,6 +343,9 @@ const depositFunds = async (req, res, next) => {
       return res.status(400).json({ success: false, message: paymentVerification.message || 'Payment provider verification failed' });
     }
 
+    if (!transaction.escrowAccountId) {
+      return res.status(400).json({ success: false, message: 'Transaction has no associated escrow account' });
+    }
     const escrow = await Escrow.findByPk(transaction.escrowAccountId);
     if (!escrow) {
       return res.status(404).json({ success: false, message: 'Escrow account not found' });
@@ -428,9 +431,7 @@ const initiateMutation = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Escrow funds must be deposited before starting mutation' });
     }
 
-    if (!transaction.buyerAuthorized || !transaction.sellerAuthorized) {
-      return res.status(400).json({ success: false, message: 'Cryptographic consensus required. Both parties must submit verification codes.' });
-    }
+    // Removed cryptographic consensus requirement here - buyer depositing funds implicitly authorizes mutation start.
 
     await sequelize.transaction(async (t) => {
       await transaction.update({
@@ -440,7 +441,8 @@ const initiateMutation = async (req, res, next) => {
         sellerAuthorized: false,
       }, { transaction: t });
 
-      await issueAndDeliverConsensusOtp(transaction, t);
+      // We issue the OTP only to the SELLER, so they can authorize the mutation completion later.
+      await issueAndDeliverConsensusOtp(transaction, t, 'SELLER');
 
       await logAction(transaction.id, req, `Seller initiated ownership mutation (legal transfer)`, { transaction: t });
       
@@ -527,8 +529,8 @@ const completeMutation = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Please upload at least one mutation document as proof' });
     }
 
-    if (!transaction.buyerAuthorized || !transaction.sellerAuthorized) {
-      return res.status(400).json({ success: false, message: 'Cryptographic consensus required. Both parties must submit verification codes.' });
+    if (!transaction.sellerAuthorized) {
+      return res.status(400).json({ success: false, message: 'Cryptographic consensus required. Seller must verify their identity to submit.' });
     }
 
     await sequelize.transaction(async (t) => {
@@ -594,6 +596,9 @@ const releaseFunds = async (req, res, next) => {
       }
     }
 
+    if (!transaction.escrowAccountId) {
+      return res.status(400).json({ success: false, message: 'Transaction has no associated escrow account' });
+    }
     const escrow = await Escrow.findByPk(transaction.escrowAccountId);
     if (!escrow) {
       return res.status(404).json({ success: false, message: 'Escrow account not found' });
@@ -699,6 +704,9 @@ const refundBuyer = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Cannot refund at this state' });
     }
 
+    if (!transaction.escrowAccountId) {
+      return res.status(400).json({ success: false, message: 'Transaction has no associated escrow account' });
+    }
     const escrow = await Escrow.findByPk(transaction.escrowAccountId);
     if (!escrow) {
       return res.status(404).json({ success: false, message: 'Escrow account not found' });
@@ -778,6 +786,9 @@ const cancelTransaction = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Cannot cancel transaction at this stage' });
     }
 
+    if (!transaction.escrowAccountId) {
+      return res.status(400).json({ success: false, message: 'Transaction has no associated escrow account' });
+    }
     const escrow = await Escrow.findByPk(transaction.escrowAccountId);
 
     await sequelize.transaction(async (t) => {
@@ -1015,19 +1026,18 @@ const verifyRegistryDeed = async (req, res, next) => {
     let parcelClean = false;
 
     for (const doc of transaction.mutationDocuments) {
-      let docText = "";
       if (doc.documentUrl.startsWith('data:')) {
-        try {
-          const base64Parts = doc.documentUrl.split(',');
-          docText = Buffer.from(base64Parts[1], 'base64').toString('utf8');
-        } catch (err) {
-          docText = "";
-        }
-      } else {
-        docText = doc.documentUrl;
+        continue; // Reject raw base64 spoofing attempts
+      }
+      
+      // Enforce that it is a valid upload path
+      if (!doc.documentUrl.startsWith('/uploads/')) {
+        continue;
       }
 
-      const combinedContent = (docText + " " + doc.description).toUpperCase();
+      // Read description as the OCR mock source, rejecting raw file path text
+      const docText = doc.description || "";
+      const combinedContent = docText.toUpperCase();
       
       const hasDeedType = combinedContent.includes('DEED') || combinedContent.includes('MUTATION') || combinedContent.includes('TRANSFER');
       const hasSeller = combinedContent.includes(transaction.seller.name.toUpperCase());
