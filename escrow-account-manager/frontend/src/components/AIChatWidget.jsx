@@ -16,6 +16,7 @@ const AIChatWidget = ({ transactionId }) => {
   const [inputValue, setInputValue] = useState('');
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef(null);
+  const inputRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -24,6 +25,8 @@ const AIChatWidget = ({ transactionId }) => {
   useEffect(() => {
     if (isOpen) {
       scrollToBottom();
+      // Use setTimeout to ensure the element is rendered before focusing
+      setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [messages, isOpen]);
 
@@ -148,6 +151,7 @@ const AIChatWidget = ({ transactionId }) => {
           {/* Input Area */}
           <form onSubmit={handleSend} className="p-3 bg-white border-t border-slate-100 flex gap-2">
             <input
+              ref={inputRef}
               type="text"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
