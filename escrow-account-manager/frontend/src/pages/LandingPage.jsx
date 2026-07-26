@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { resolveImageUrl } from '../utils/imageUtils';
 import axios from '../api/axiosConfig';
 import StatusBadge from '../components/StatusBadge';
