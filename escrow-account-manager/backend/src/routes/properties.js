@@ -15,8 +15,8 @@ const { uploadPropertyImage } = require('../middleware/upload');
 
 // Public routes
 router.post('/ai-description', protect, roleCheck('SELLER'), generateDescription);
-router.get('/', protect, getProperties);
-router.get('/:id', protect, getProperty);
+router.get('/', getProperties);
+router.get('/:id', getProperty);
 
 // Protected routes (with optional image upload)
 router.post('/', protect, roleCheck('SELLER', 'ADMIN'), uploadPropertyImage, createProperty);
