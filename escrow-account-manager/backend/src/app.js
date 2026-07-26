@@ -93,6 +93,11 @@ app.use(hpp());
 
 // ─── Static File Serving (uploaded files) ────────────────────────────────────
 const { protect } = require('./middleware/auth');
+
+// Publicly accessible property images (for marketplace)
+app.use('/uploads/properties', express.static(path.join(__dirname, '..', 'uploads', 'properties')));
+
+// Protected sensitive documents (KYC, mutation deeds, evidence)
 app.use('/uploads', protect, express.static(path.join(__dirname, '..', 'uploads')));
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
