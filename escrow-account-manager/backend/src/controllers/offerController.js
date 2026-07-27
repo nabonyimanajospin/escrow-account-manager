@@ -66,6 +66,21 @@ exports.createOffer = async (req, res, next) => {
       status: 'PENDING',
     });
 
+    try {
+      await notificationService.createInAppNotification(
+        req.user.id,
+        'Bid Placed Successfully',
+        `Your bid of $${offerPrice.toLocaleString()} for the property has been placed.`
+      );
+      await notificationService.createInAppNotification(
+        property.sellerId,
+        'New Bid Received',
+        `You received a new bid of $${offerPrice.toLocaleString()} on your property listing.`
+      );
+    } catch (notifErr) {
+      console.error('Failed to send bid notifications', notifErr);
+    }
+
     res.status(201).json({ success: true, message: 'Bid successfully placed on property listing', data: offer });
   } catch (error) {
     next(error);

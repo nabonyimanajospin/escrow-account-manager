@@ -46,13 +46,18 @@ const Login = () => {
       <div className="max-w-md w-full space-y-8 animate-fade-in">
         
         {/* Header */}
-        <div className="text-center">
-          <h2 className="text-3xl font-extrabold text-slate-900 font-sans">
-            Sign in to EscrowTrust
-          </h2>
-          <p className="mt-2 text-sm text-slate-500 font-medium">
-            Access your secure escrow transactions
-          </p>
+        <div>
+          <Link to="/" className="text-slate-400 hover:text-primary-600 transition-colors flex items-center gap-1 text-sm font-bold mb-6">
+            &larr; Back to Home
+          </Link>
+          <div className="text-center">
+            <h2 className="text-3xl font-extrabold text-slate-900 font-sans">
+              Sign in to EscrowTrust
+            </h2>
+            <p className="mt-2 text-sm text-slate-500 font-medium">
+              Access your secure escrow transactions
+            </p>
+          </div>
         </div>
 
         {/* Card Form */}

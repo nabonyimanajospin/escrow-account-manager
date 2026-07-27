@@ -141,7 +141,7 @@ const PropertyDetail = () => {
 
   const isOwner = user?.id === property.sellerId;
   const isAdmin = user?.role === 'ADMIN';
-  const showEscrowBtn = user?.role === 'BUYER' && property.status === 'AVAILABLE';
+  const showEscrowBtn = !isOwner && !isAdmin && property.status === 'AVAILABLE';
 
   return (
     <div className="page-wrapper space-y-6">
@@ -352,7 +352,7 @@ const PropertyDetail = () => {
               ) : offers.length === 0 ? (
                 <p className="text-xs text-slate-400 italic text-center py-2">No active bidding offers yet.</p>
               ) : (
-                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+                <div className="space-y-4 pt-3 max-h-[300px] overflow-y-auto pr-1">
                   {offers.map((offer) => {
                     const isMyOffer = user?.id === offer.buyerId;
                     return (
@@ -367,7 +367,7 @@ const PropertyDetail = () => {
                         }`}
                       >
                         {offer.isAIChoice && (
-                          <span className="absolute -top-2 right-2 bg-indigo-600 text-white text-[8px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider shadow">
+                          <span className="absolute -top-2.5 right-2 bg-indigo-600 text-white text-[8px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider shadow">
                             ★ AI Match Choice
                           </span>
                         )}

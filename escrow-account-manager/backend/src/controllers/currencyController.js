@@ -22,7 +22,7 @@ const getRates = async (req, res) => {
       success: true,
       base: 'USD',
       date: new Date().toISOString().split('T')[0],
-      rates: { RWF: 1360, EUR: 0.92, GBP: 0.79, KES: 130, UGX: 3750, TZS: 2640, NGN: 1580 },
+      rates: { RWF: 1470.94, EUR: 0.92, GBP: 0.79, KES: 130, UGX: 3750, TZS: 2640, NGN: 1580 },
       fallback: true,
     });
   }
@@ -54,7 +54,7 @@ const convertCurrency = async (req, res) => {
   } catch (err) {
     console.error('[Currency] Convert failed:', err.message);
     // Fallback
-    const fallbackRates = { RWF: 1360, EUR: 0.92, GBP: 0.79 };
+    const fallbackRates = { RWF: 1470.94, EUR: 0.92, GBP: 0.79 };
     const fallbackUSD = parseFloat(amount) / (fallbackRates[from] || 1);
     res.json({
       success: true,

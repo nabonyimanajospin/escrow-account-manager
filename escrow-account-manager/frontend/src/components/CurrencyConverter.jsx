@@ -44,22 +44,16 @@ export default function CurrencyConverter({ defaultUSD = '', compact = false }) 
 
   const handleUsdChange = (val) => {
     setUsd(val);
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      if (val === '' || isNaN(val)) { setRwf(''); return; }
-      if (rate) setRwf(Math.round(parseFloat(val) * rate).toLocaleString());
-    }, 300);
+    if (val === '' || isNaN(val)) { setRwf(''); return; }
+    if (rate) setRwf(Math.round(parseFloat(val) * rate).toLocaleString());
   };
 
   const handleRwfChange = (val) => {
     // Remove commas for calculation
     const raw = val.replace(/,/g, '');
     setRwf(val);
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      if (raw === '' || isNaN(raw)) { setUsd(''); return; }
-      if (rate) setUsd((parseFloat(raw) / rate).toFixed(2));
-    }, 300);
+    if (raw === '' || isNaN(raw)) { setUsd(''); return; }
+    if (rate) setUsd((parseFloat(raw) / rate).toFixed(2));
   };
 
   if (compact) {
@@ -242,11 +236,11 @@ const cs = {
   compactField: { display: 'flex', alignItems: 'center', gap: 6 },
   compactLabel: { color: '#9ca3af', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' },
   compactInput: {
-    background: 'rgba(255,255,255,0.07)',
-    border: '1px solid rgba(200,169,110,0.2)',
+    background: '#ffffff',
+    border: '1px solid rgba(200,169,110,0.3)',
     borderRadius: 8,
     padding: '8px 10px',
-    color: '#fff',
+    color: '#1e293b',
     fontSize: 14,
     outline: 'none',
     width: 110,
