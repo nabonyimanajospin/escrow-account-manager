@@ -44,12 +44,13 @@ exports.register = async (req, res, next) => {
       expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'none',
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
     };
     res.cookie('escrowtrust_token', token, cookieOptions);
 
     res.status(201).json({
       success: true,
+      token,
       user: {
         id: user.id,
         name: user.name,
@@ -98,12 +99,13 @@ exports.login = async (req, res, next) => {
       expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'none',
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
     };
     res.cookie('escrowtrust_token', token, cookieOptions);
 
     res.status(200).json({
       success: true,
+      token,
       user: {
         id: user.id,
         name: user.name,

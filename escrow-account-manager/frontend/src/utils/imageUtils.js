@@ -8,15 +8,5 @@ export const resolveImageUrl = (url) => {
   const cleanServerUrl = serverUrl.endsWith('/') ? serverUrl.slice(0, -1) : serverUrl;
   const cleanUrl = url.startsWith('/') ? url : `/${url}`;
   
-  let finalUrl = `${cleanServerUrl}${cleanUrl}`;
-  
-  // Append token for protected /uploads routes
-  if (finalUrl.includes('/uploads/')) {
-    const token = localStorage.getItem('token');
-    if (token) {
-      finalUrl += `?token=${token}`;
-    }
-  }
-  
-  return finalUrl;
+  return `${cleanServerUrl}${cleanUrl}`;
 };

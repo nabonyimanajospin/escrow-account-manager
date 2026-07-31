@@ -103,6 +103,26 @@ const PropertyDetail = () => {
     }
   };
 
+  const handleDirectPurchase = async () => {
+    if (!isAuthenticated) {
+      toast.error('Please login to buy this property');
+      navigate('/login');
+      return;
+    }
+    if (!window.confirm(`Initiate direct purchase for $${Number(property.price).toLocaleString()}? This will lock the property into escrow for your review.`)) return;
+
+    try {
+      setActionLoading(true);
+      const response = await axios.post('/escrow/initiate', { propertyId: property.id });
+      toast.success('Escrow initiated successfully! Proceeding to contract room...');
+      navigate(`/escrow/${response.data.data.id}`);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to initiate purchase');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleDelete = async () => {
     if (!window.confirm('Are you sure you want to delete this listing permanently? This cannot be undone.')) return;
     try {
@@ -258,46 +278,103 @@ const PropertyDetail = () => {
             <div className="section-divider" />
 
             {showEscrowBtn && (
-              <form onSubmit={handlePlaceBid} className="space-y-4">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider text-center">Place Bidding Offer</p>
-                <div className="space-y-2">
-                  <label className="text-[11px] font-bold text-slate-500 block text-left">Offer Amount ($ USD)</label>
-                  <input
-                    type="number"
-                    required
-                    min={property.price}
-                    step="any"
-                    className="input-field !py-1.5 !px-3 text-xs w-full"
-                    placeholder={`Min. $${Number(property.price).toLocaleString()}`}
-                    value={bidPrice}
-                    onChange={(e) => setBidPrice(e.target.value)}
-                    disabled={actionLoading}
-                  />
-                  <p className="text-[9px] text-slate-400 font-semibold leading-tight text-left">
-                    * Final cost includes a 1.0% Platform Security Fee: <strong>${(Number(bidPrice || property.price) * 1.01).toLocaleString(undefined, { maximumFractionDigits: 2 })} USD</strong>
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[11px] font-bold text-slate-500 block text-left">Mutation Payment Period (Days)</label>
-                  <input
-                    type="number"
-                    required
-                    min={1}
-                    className="input-field !py-1.5 !px-3 text-xs w-full"
-                    placeholder="E.g. 15 days"
-                    value={bidPeriod}
-                    onChange={(e) => setBidPeriod(e.target.value)}
-                    disabled={actionLoading}
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={actionLoading}
-                  className="btn-primary w-full py-2.5 font-bold text-xs cursor-pointer"
-                >
-                  {actionLoading ? 'Submitting Bid...' : 'Submit Custom Offer'}
-                </button>
-              </form>
+              <div className="space-y-4">
+                {property.listingType === 'FIXED_PRICE' ? (
+                  <div className="space-y-4">
+                    <button
+                      type="button"
+                      onClick={handleDirectPurchase}
+                      disabled={actionLoading}
+                      className="btn-primary w-full py-3 font-bold text-sm cursor-pointer shadow-md hover:shadow-lg transition-all"
+                    >
+                      {actionLoading ? 'Initiating Escrow...' : '🔒 Buy Now & Lock Escrow'}
+                    </button>
+                    <p className="text-[10px] text-slate-400 font-semibold text-center">
+                      Instant purchase at list price. Locks funds securely in Escrow Trust.
+                    </p>
+                    
+                    <details className="mt-2 text-left">
+                      <summary className="text-[11px] font-bold text-indigo-600 hover:text-indigo-700 cursor-pointer text-center">
+                        Need to negotiate terms or submit a custom offer?
+                      </summary>
+                      <form onSubmit={handlePlaceBid} className="space-y-3 mt-3 pt-3 border-t border-slate-100">
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-bold text-slate-500 block">Proposed Price ($ USD)</label>
+                          <input
+                            type="number"
+                            required
+                            min={1}
+                            step="any"
+                            className="input-field !py-1.5 !px-3 text-xs w-full"
+                            placeholder={`$${Number(property.price).toLocaleString()}`}
+                            value={bidPrice}
+                            onChange={(e) => setBidPrice(e.target.value)}
+                            disabled={actionLoading}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-bold text-slate-500 block">Proposed Settlement Period (Days)</label>
+                          <input
+                            type="number"
+                            required
+                            min={1}
+                            className="input-field !py-1.5 !px-3 text-xs w-full"
+                            placeholder="E.g. 15 days"
+                            value={bidPeriod}
+                            onChange={(e) => setBidPeriod(e.target.value)}
+                            disabled={actionLoading}
+                          />
+                        </div>
+                        <button
+                          type="submit"
+                          disabled={actionLoading}
+                          className="btn-secondary w-full py-2 font-bold text-xs cursor-pointer"
+                        >
+                          {actionLoading ? 'Submitting Offer...' : 'Submit Bargain Offer'}
+                        </button>
+                      </form>
+                    </details>
+                  </div>
+                ) : (
+                  <form onSubmit={handlePlaceBid} className="space-y-4">
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider text-center">Place Bidding Offer</p>
+                    <div className="space-y-2">
+                      <label className="text-[11px] font-bold text-slate-500 block text-left">Offer Amount ($ USD)</label>
+                      <input
+                        type="number"
+                        required
+                        min={property.price}
+                        step="any"
+                        className="input-field !py-1.5 !px-3 text-xs w-full"
+                        placeholder={`Min. $${Number(property.price).toLocaleString()}`}
+                        value={bidPrice}
+                        onChange={(e) => setBidPrice(e.target.value)}
+                        disabled={actionLoading}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[11px] font-bold text-slate-500 block text-left">Mutation Payment Period (Days)</label>
+                      <input
+                        type="number"
+                        required
+                        min={1}
+                        className="input-field !py-1.5 !px-3 text-xs w-full"
+                        placeholder="E.g. 15 days"
+                        value={bidPeriod}
+                        onChange={(e) => setBidPeriod(e.target.value)}
+                        disabled={actionLoading}
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={actionLoading}
+                      className="btn-primary w-full py-2.5 font-bold text-xs cursor-pointer"
+                    >
+                      {actionLoading ? 'Submitting Bid...' : 'Submit Auction Bid'}
+                    </button>
+                  </form>
+                )}
+              </div>
             )}
 
             {property.status === 'SOLD' && !isOwner && !isAdmin && (
@@ -391,7 +468,7 @@ const PropertyDetail = () => {
                       >
                         {offer.isSystemChoice && (
                           <div className="absolute -top-3 -right-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-md flex items-center gap-1 border-2 border-white transform rotate-3">
-                            <Sparkles className="w-3 h-3" />
+                            <span className="text-xs">✨</span>
                             System Recommended
                           </div>)}
 

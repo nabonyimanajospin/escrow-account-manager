@@ -127,12 +127,12 @@ exports.getOffersByProperty = async (req, res, next) => {
     const targetPrice = parseFloat(property.price);
 
     // Compute System Matching Score for each offer
-    // Score Formula: (Offer Price / Target Price) * 100 - (Payment Period Days * 2.0)
-    // Higher bids + shorter payment periods get a higher score. Every extra day penalizes the score by 2% to prioritize fast liquidity.
+    // Score Formula: (Offer Price / Target Price) * 100 - (Payment Period Days * 0.5)
+    // Higher bids + shorter payment periods get a higher score. Every extra day penalizes the score by 0.5% to prioritize fast liquidity.
     const rankedOffers = offers.map(o => {
       const oPrice = parseFloat(o.price);
       const days = o.paymentPeriodDays;
-      const systemScore = parseFloat(((oPrice / targetPrice) * 100 - (days * 2.0)).toFixed(2));
+      const systemScore = parseFloat(((oPrice / targetPrice) * 100 - (days * 0.5)).toFixed(2));
       
       const offerJson = o.toJSON();
       offerJson.systemScore = systemScore;

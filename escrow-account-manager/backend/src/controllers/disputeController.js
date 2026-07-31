@@ -82,15 +82,20 @@ exports.raiseDispute = async (req, res, next) => {
 // @access  Private (BUYER, SELLER)
 exports.uploadEvidence = async (req, res, next) => {
   try {
-    // Support both real file uploads (Multer req.file) and legacy URL strings
-    let fileUrl = req.body.fileUrl;
-    if (req.file) {
-      fileUrl = `/uploads/evidence/${req.file.filename}`;
+    let fileUrls = [];
+    if (req.files && req.files.length > 0) {
+      fileUrls = req.files.map(f => `/uploads/evidence/${f.filename}`);
+    } else if (req.file) {
+      fileUrls = [`/uploads/evidence/${req.file.filename}`];
+    } else if (req.body.fileUrl) {
+      fileUrls = [req.body.fileUrl];
     }
+
     const { description } = req.body;
-    if (!fileUrl) {
+    if (fileUrls.length === 0) {
       return res.status(400).json({ success: false, message: 'Evidence file or URL is required' });
     }
+    const fileUrl = fileUrls[0]; // primary file URL reference
 
     const transaction = await Transaction.findByPk(req.params.id);
     if (!transaction) {

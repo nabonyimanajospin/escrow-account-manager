@@ -142,12 +142,12 @@ You can ask me questions like:
       setActionLoading(true);
       await axios.post(`/escrow/${id}/deposit`, {
         amount: Number(transaction.amount) + Number(transaction.buyerFee || 0),
-        reference: `MOCK-DEP-${Date.now()}`,
+        reference: `DEP-${Date.now()}`,
       });
-      toast.success('Funds successfully locked in escrow');
+      toast.success('Funds successfully deposited and locked in escrow!');
       fetchTransaction();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Deposit simulation failed');
+      toast.error(err.response?.data?.message || 'Deposit processing failed');
     } finally {
       setActionLoading(false);
     }
@@ -223,7 +223,7 @@ You can ask me questions like:
   };
 
   const handleCancel = async () => {
-    if (!window.confirm('Are you sure you want to cancel this transaction? Any deposited funds will be simulated as refunded.')) return;
+    if (!window.confirm('Are you sure you want to cancel this transaction? Any deposited funds will be returned to the buyer.')) return;
     try {
       setActionLoading(true);
       await axios.post(`/escrow/${id}/cancel`);
@@ -753,7 +753,7 @@ STATUS: COMPLETED MUTATION`;
                       disabled={actionLoading || !buyerAuthorized || !sellerAuthorized}
                       className="btn-primary text-xs"
                     >
-                      {actionLoading ? 'Locking Funds...' : 'Simulate Deposit ($' + Number(Number(transaction.amount) + Number(transaction.buyerFee || 0)).toLocaleString() + ')'}
+                      {actionLoading ? 'Locking Funds...' : 'Confirm Escrow Deposit ($' + Number(Number(transaction.amount) + Number(transaction.buyerFee || 0)).toLocaleString() + ')'}
                     </button>
                     <button
                       onClick={handleCancel}
@@ -1719,7 +1719,7 @@ STATUS: COMPLETED MUTATION`;
             
             <div className="space-y-3 text-xs leading-tight">
               <div>
-                <p className="text-slate-400 font-semibold mb-0.5">Mock Contract Address</p>
+                <p className="text-slate-400 font-semibold mb-0.5">Escrow Contract Reference</p>
                 <p className="font-mono font-bold text-slate-800 break-all">{transaction.escrowAccount?.contractAddress}</p>
               </div>
 
