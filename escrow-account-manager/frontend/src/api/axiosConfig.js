@@ -12,13 +12,8 @@ const axiosInstance = axios.create({
   withCredentials: true,
 });
 
-// Request interceptor - Add token
 axiosInstance.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`;
-    }
     return config;
   },
   (error) => {
@@ -34,7 +29,6 @@ axiosInstance.interceptors.response.use(
     
     // Handle authentication errors
     if (error.response?.status === 401) {
-      localStorage.removeItem('token');
       localStorage.removeItem('user');
       if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
         toast.error('Session expired. Please login again.');

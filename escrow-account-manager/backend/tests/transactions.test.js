@@ -163,6 +163,18 @@ describe('POST /api/escrow/initiate', () => {
 
     expect(res.status).toBe(403);
   });
+
+  it('blocks unverified BUYER from initiating a transaction', async () => {
+    asUser(makeUser({ id: 1, role: 'BUYER', isKycVerified: false }));
+
+    const res = await request(app)
+      .post('/api/escrow/initiate')
+      .set('Authorization', `Bearer ${tokenFor.buyer()}`)
+      .send({ propertyId: 10 });
+
+    expect(res.status).toBe(403);
+    expect(res.body.message).toMatch(/KYC verification is required/);
+  });
 });
 
 // ─── POST /api/escrow/:id/deposit ──────────────────────────────────────
@@ -379,6 +391,20 @@ describe('POST /api/admin/transactions/:id/release', () => {
       .send({ adminNotes: 'Audit checks complete' });
 
     expect(res.status).toBe(400);
+  });
+
+  it('blocks direct admin release of DISPUTED transactions', async () => {
+    asUser(admin);
+    const { txn } = fullTxn({ status: 'DISPUTED' });
+    Transaction.findByPk.mockResolvedValue(txn);
+
+    const res = await request(app)
+      .post('/api/admin/transactions/5/release')
+      .set('Authorization', `Bearer ${tokenFor.admin()}`)
+      .send({ adminNotes: 'Audit checks complete' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/dispute resolution workflow/i);
   });
 
   it('blocks SELLER from releasing funds', async () => {

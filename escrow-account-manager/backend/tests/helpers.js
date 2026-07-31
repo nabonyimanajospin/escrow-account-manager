@@ -27,6 +27,7 @@ const makeUser = (overrides = {}) => ({
   email: 'test@example.com',
   password: '$2a$10$hashedpassword',
   role: 'BUYER',
+  isKycVerified: true,
   phone: null,
   address: null,
   matchPassword: jest.fn().mockResolvedValue(true),

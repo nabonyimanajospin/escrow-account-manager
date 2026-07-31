@@ -581,8 +581,12 @@ const releaseFunds = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Transaction not found' });
     }
 
-    if (transaction.status !== 'UNDER_REVIEW' && transaction.status !== 'DISPUTED') {
-      return res.status(400).json({ success: false, message: 'Transaction must be UNDER_REVIEW or DISPUTED to release funds' });
+    if (transaction.status === 'DISPUTED') {
+      return res.status(400).json({ success: false, message: 'Disputed transactions must be resolved through the dispute resolution workflow.' });
+    }
+
+    if (transaction.status !== 'UNDER_REVIEW') {
+      return res.status(400).json({ success: false, message: 'Transaction must be UNDER_REVIEW to release funds' });
     }
 
     // Require audit notes for accountability log records

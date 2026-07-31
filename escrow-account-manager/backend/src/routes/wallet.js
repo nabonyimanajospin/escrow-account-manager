@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const rateLimit = require('express-rate-limit');
 const { protect } = require('../middleware/auth');
+const requireKyc = require('../middleware/kycRequired');
 const {
   getWallet,
   requestWithdrawal,
@@ -26,6 +27,6 @@ router.get('/', getWallet);
 router.get('/history', getWalletHistory);
 
 // POST /api/wallet/withdraw — request a withdrawal (rate limited: 5/hour)
-router.post('/withdraw', withdrawalLimiter, requestWithdrawal);
+router.post('/withdraw', requireKyc, withdrawalLimiter, requestWithdrawal);
 
 module.exports = router;

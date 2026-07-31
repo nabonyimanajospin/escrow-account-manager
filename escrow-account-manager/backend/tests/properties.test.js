@@ -98,6 +98,18 @@ describe('POST /api/properties', () => {
     expect(res.status).toBe(403);
   });
 
+  it('blocks unverified SELLER from creating a listing', async () => {
+    resolveUser(makeUser({ id: 2, role: 'SELLER', isKycVerified: false }));
+
+    const res = await request(app)
+      .post('/api/properties')
+      .set('Authorization', `Bearer ${tokenFor.seller()}`)
+      .send(validPayload);
+
+    expect(res.status).toBe(403);
+    expect(res.body.message).toMatch(/KYC verification is required/);
+  });
+
   it('allows ADMIN to create a listing (SELLER + ADMIN both permitted)', async () => {
     resolveUser(admin);
     Property.create.mockResolvedValue(makeProperty({ sellerId: 99, ...validPayload }));

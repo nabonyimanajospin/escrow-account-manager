@@ -21,7 +21,6 @@ export const AuthProvider = ({ children }) => {
   const navigate = useNavigate();
 
   const doLogout = () => {
-    localStorage.removeItem('token');
     localStorage.removeItem('user');
     setUser(null);
     setIsAuthenticated(false);
@@ -44,7 +43,6 @@ export const AuthProvider = ({ children }) => {
       setIsAuthenticated(true);
     } catch (error) {
       console.log('No active session.');
-      localStorage.removeItem('token');
       localStorage.removeItem('user');
       setUser(null);
       setIsAuthenticated(false);
@@ -73,11 +71,7 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       const response = await axios.post('/auth/login', { email, password });
-      const { user: loggedUser, token } = response.data;
-      
-      if (token) {
-        localStorage.setItem('token', token);
-      }
+      const { user: loggedUser } = response.data;
       localStorage.setItem('user', JSON.stringify(loggedUser));
       
       setUser(loggedUser);
@@ -96,11 +90,7 @@ export const AuthProvider = ({ children }) => {
   const register = async (userData) => {
     try {
       const response = await axios.post('/auth/register', userData);
-      const { user: registeredUser, token } = response.data;
-      
-      if (token) {
-        localStorage.setItem('token', token);
-      }
+      const { user: registeredUser } = response.data;
       localStorage.setItem('user', JSON.stringify(registeredUser));
       
       setUser(registeredUser);

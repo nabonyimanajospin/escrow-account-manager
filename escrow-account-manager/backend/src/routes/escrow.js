@@ -19,6 +19,7 @@ const { acceptOffer } = require('../controllers/offerController');
 const { chatWithAI } = require('../controllers/aiController');
 const { protect } = require('../middleware/auth');
 const roleCheck = require('../middleware/roleCheck');
+const requireKyc = require('../middleware/kycRequired');
 const { uploadEvidence: uploadEvidenceFile, uploadMutationDoc } = require('../middleware/upload');
 
 // Get user's active/past escrow transactions
@@ -28,25 +29,25 @@ router.get('/my', protect, roleCheck('BUYER', 'SELLER', 'ADMIN'), getMyTransacti
 router.get('/:id', protect, getTransaction);
 
 // Initiate transaction (Buy click)
-router.post('/initiate', protect, roleCheck('BUYER'), initiateTransaction);
+router.post('/initiate', protect, roleCheck('BUYER'), requireKyc, initiateTransaction);
 
 // Submit consensus verification code
 router.post('/:id/consensus-verify', protect, verifyConsensusCode);
 
 // Deposit funds (Buyer simulation)
-router.post('/:id/deposit', protect, roleCheck('BUYER'), depositFunds);
+router.post('/:id/deposit', protect, roleCheck('BUYER'), requireKyc, depositFunds);
 
 // Cancel transaction
 router.post('/:id/cancel', protect, roleCheck('BUYER'), cancelTransaction);
 
 // Seller starts mutation process
-router.post('/:id/initiate-mutation', protect, roleCheck('SELLER'), initiateMutation);
+router.post('/:id/initiate-mutation', protect, roleCheck('SELLER'), requireKyc, initiateMutation);
 
 // Seller uploads mutation proof document/image (URL string)
-router.post('/:id/upload-document', protect, roleCheck('SELLER'), uploadMutationDocument);
+router.post('/:id/upload-document', protect, roleCheck('SELLER'), requireKyc, uploadMutationDocument);
 
 // Seller uploads mutation proof via real file (multipart)
-router.post('/:id/upload-mutation-file', protect, roleCheck('SELLER'), uploadMutationDoc, async (req, res, next) => {
+router.post('/:id/upload-mutation-file', protect, roleCheck('SELLER'), requireKyc, uploadMutationDoc, async (req, res, next) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'No file uploaded.' });
@@ -61,13 +62,13 @@ router.post('/:id/upload-mutation-file', protect, roleCheck('SELLER'), uploadMut
 });
 
 // Seller/Admin completes mutation
-router.post('/:id/complete-mutation', protect, roleCheck('SELLER', 'ADMIN'), completeMutation);
+router.post('/:id/complete-mutation', protect, roleCheck('SELLER', 'ADMIN'), requireKyc, completeMutation);
 
 // Raise dispute
-router.post('/:id/dispute', protect, roleCheck('BUYER', 'SELLER'), raiseDispute);
+router.post('/:id/dispute', protect, roleCheck('BUYER', 'SELLER'), requireKyc, raiseDispute);
 
 // Upload evidence for dispute (supports real file upload OR url string)
-router.post('/:id/dispute/evidence', protect, roleCheck('BUYER', 'SELLER'), uploadEvidenceFile, uploadEvidence);
+router.post('/:id/dispute/evidence', protect, roleCheck('BUYER', 'SELLER'), requireKyc, uploadEvidenceFile, uploadEvidence);
 
 // Resolve dispute (Admin)
 router.post('/:id/dispute/resolve', protect, roleCheck('ADMIN'), resolveDispute);
@@ -76,10 +77,10 @@ router.post('/:id/dispute/resolve', protect, roleCheck('ADMIN'), resolveDispute)
 router.post('/:id/dispute/mediate', protect, roleCheck('ADMIN'), mediateDispute);
 
 // Confirm receipt of funds (Seller)
-router.post('/:id/confirm-receipt', protect, roleCheck('SELLER'), confirmReceipt);
+router.post('/:id/confirm-receipt', protect, roleCheck('SELLER'), requireKyc, confirmReceipt);
 
 // Confirm receipt of property/deed (Buyer)
-router.post('/:id/confirm-property-receipt', protect, roleCheck('BUYER'), confirmPropertyReceipt);
+router.post('/:id/confirm-property-receipt', protect, roleCheck('BUYER'), requireKyc, confirmPropertyReceipt);
 
 // Verify deed document with Land Registry API simulation
 router.post('/:id/verify-registry', protect, verifyRegistryDeed);
@@ -88,7 +89,7 @@ router.post('/:id/verify-registry', protect, verifyRegistryDeed);
 router.post('/:id/ai-chat', protect, chatWithAI);
 
 // Offer acceptance route
-router.post('/offers/:id/accept', protect, roleCheck('SELLER'), acceptOffer);
+router.post('/offers/:id/accept', protect, roleCheck('SELLER'), requireKyc, acceptOffer);
 
 // AI document analysis
 const { analyzeTransactionDocument, getDocumentAnalysisReport } = require('../controllers/documentAnalysisController');
