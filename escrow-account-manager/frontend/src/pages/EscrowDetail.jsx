@@ -699,36 +699,7 @@ STATUS: COMPLETED MUTATION`;
               </div>
             </div>
 
-            {/* Consensus Signing Input Console */}
-            {!userHasSigned && ['PENDING', 'FUNDED', 'MUTATION_STARTED'].includes(status) && (isBuyer || isSeller) && (
-              <form onSubmit={handleVerifyCode} className="mt-5 p-4 bg-primary-50/50 border border-primary-200 rounded-xl flex flex-col md:flex-row items-center gap-4">
-                <div className="flex-grow text-left">
-                  <p className="text-xs font-bold text-primary-900">Cryptographical Contract Consensus</p>
-                  <p className="text-[10px] text-primary-700 font-semibold leading-tight mt-0.5">
-                    Verify the One-Time Consensus Code sent to your secure notification delivery channel to sign terms.
-                  </p>
-                </div>
-                <div className="flex gap-2 w-full md:w-auto items-center">
-                  <input
-                    type="text"
-                    required
-                    maxLength={4}
-                    className="input-field !py-1.5 !px-3 font-mono text-center font-bold text-sm !w-24 placeholder:font-sans"
-                    placeholder="Code"
-                    value={consensusCode}
-                    onChange={(e) => setConsensusCode(e.target.value.replace(/[^0-9]/g, ''))}
-                    disabled={actionLoading}
-                  />
-                  <button
-                    type="submit"
-                    disabled={actionLoading}
-                    className="btn-primary text-xs !py-1.5 whitespace-nowrap"
-                  >
-                    Sign Contract
-                  </button>
-                </div>
-              </form>
-            )}
+
 
             {/* Waiting for other party indicator */}
             {userHasSigned && ['PENDING', 'FUNDED', 'MUTATION_STARTED'].includes(status) && (
