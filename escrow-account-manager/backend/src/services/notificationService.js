@@ -167,6 +167,13 @@ const sendConsensusCode = async ({ user, transaction, code, expiresAt }) => {
   console.log(`CODE: >>> ${code} <<<`);
   console.log(`===========================================\n`);
 
+  // Create in-app notification so user sees code in notification bell panel
+  await createInAppNotification(
+    user.id,
+    '🔐 Verification Approval Code',
+    `Your verification approval code for deal ${ref} is: ${code}`
+  );
+
   return sendOtpEmail(user.email, user.name, code, ref);
 };
 

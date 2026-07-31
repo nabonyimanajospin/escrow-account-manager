@@ -236,6 +236,25 @@ You can ask me questions like:
     }
   };
 
+  const handleVerifyConsensusCode = async (e) => {
+    e.preventDefault();
+    if (!consensusCode || !consensusCode.trim()) {
+      toast.error('Please enter your verification code');
+      return;
+    }
+    try {
+      setActionLoading(true);
+      await axios.post(`/escrow/${id}/consensus-verify`, { code: consensusCode.trim() });
+      toast.success('Verification code approved! Digital consensus signature registered.');
+      setConsensusCode('');
+      fetchTransaction();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Verification failed');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // ── AI Document Analysis ──────────────────────────────────────────────────
   const handleAnalyzeDocument = async () => {
     try {
@@ -726,6 +745,42 @@ STATUS: COMPLETED MUTATION`;
               <h3 className="text-md font-bold text-slate-900 font-sans">Workspace Actions</h3>
               <StatusBadge status={status} />
             </div>
+
+            {/* OTP Consensus Verification Card */}
+            {((isBuyer && !buyerAuthorized) || (isSeller && !sellerAuthorized)) && status !== 'COMPLETED' && status !== 'CANCELLED' && (
+              <div className="p-4 bg-indigo-50/70 border border-indigo-200 rounded-xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">🔐</span>
+                    <h4 className="text-xs font-bold text-indigo-950 font-sans">Verification OTP Approval Required</h4>
+                  </div>
+                  <span className="text-[10px] font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
+                    Check Notification Bell (🔔)
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed font-semibold">
+                  Please enter the verification OTP code sent to your <strong>Notification Panel (🔔)</strong> or terminal log to authorize this transaction step and generate your cryptographic consensus signature.
+                </p>
+                <form onSubmit={handleVerifyConsensusCode} className="flex gap-2">
+                  <input
+                    type="text"
+                    required
+                    className="input-field text-xs font-mono tracking-widest uppercase !py-2 !px-3 font-bold flex-1"
+                    placeholder="Enter Code (e.g. 6789)"
+                    value={consensusCode}
+                    onChange={(e) => setConsensusCode(e.target.value)}
+                    disabled={actionLoading}
+                  />
+                  <button
+                    type="submit"
+                    disabled={actionLoading}
+                    className="btn-primary text-xs py-2 px-4 font-bold cursor-pointer flex-shrink-0"
+                  >
+                    {actionLoading ? 'Verifying...' : 'Verify Code'}
+                  </button>
+                </form>
+              </div>
+            )}
 
             {/* 1. Buyer Deposit action */}
             {status === 'PENDING' && (
