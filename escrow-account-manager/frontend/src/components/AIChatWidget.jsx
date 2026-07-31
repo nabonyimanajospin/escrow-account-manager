@@ -89,7 +89,7 @@ const AIChatWidget = ({ transactionId }) => {
 
       {/* Chat Window */}
       {isOpen && (
-        <div className="fixed bottom-6 right-6 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl overflow-hidden z-50 flex flex-col border border-slate-200" style={{ height: '500px', maxHeight: '80vh' }}>
+        <div className="fixed bottom-6 right-6 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl overflow-hidden z-50 flex flex-col border border-slate-200 animate-slide-up" style={{ height: '500px', maxHeight: '80vh' }}>
           {/* Header */}
           <div className="bg-gradient-to-r from-primary-600 to-indigo-600 p-4 flex justify-between items-center text-white">
             <div className="flex items-center gap-2">

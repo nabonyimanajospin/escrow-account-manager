@@ -224,8 +224,8 @@ const KYCPage = () => {
 
       {/* Reject Modal */}
       {rejectModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4 animate-scale-in">
             <h3 className="text-sm font-bold text-slate-900">Reject KYC — {rejectModal.name}</h3>
             <p className="text-xs text-slate-500 font-medium">
               The user will be notified with your reason and asked to resubmit.

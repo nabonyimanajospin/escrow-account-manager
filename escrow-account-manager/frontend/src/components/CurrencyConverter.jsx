@@ -11,7 +11,9 @@ const API = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
  *   - compact {bool} — smaller inline version for embedding in cards
  */
 export default function CurrencyConverter({ defaultUSD = '', compact = false }) {
-  const [usd, setUsd] = useState(defaultUSD !== '' ? String(defaultUSD) : '');
+  // Ensure defaultUSD is a clean number string (no commas)
+  const cleanDefaultUSD = defaultUSD ? String(defaultUSD).replace(/,/g, '') : '';
+  const [usd, setUsd] = useState(cleanDefaultUSD);
   const [rwf, setRwf] = useState('');
   const [rate, setRate] = useState(null);
   const [rateDate, setRateDate] = useState('');
@@ -28,24 +30,30 @@ export default function CurrencyConverter({ defaultUSD = '', compact = false }) 
         setRate(r);
         setRateDate(res.data.date);
         setIsFallback(res.data.fallback || false);
-        // If defaultUSD is set, pre-convert
-        if (defaultUSD !== '' && r) {
-          setRwf(Math.round(parseFloat(defaultUSD) * r).toLocaleString());
+        // When rate is loaded, update RWF based on the initial USD state
+        if (cleanDefaultUSD !== '' && r) {
+          setRwf(Math.round(parseFloat(cleanDefaultUSD) * r).toLocaleString());
         }
       } catch {
-        setRate(1360);
+        // Safe fallback for Rwandan Francs
+        const fallbackRate = 1360;
+        setRate(fallbackRate);
         setIsFallback(true);
+        if (cleanDefaultUSD !== '') {
+          setRwf(Math.round(parseFloat(cleanDefaultUSD) * fallbackRate).toLocaleString());
+        }
       } finally {
         setLoading(false);
       }
     };
     fetchRate();
-  }, [defaultUSD]);
+  }, [cleanDefaultUSD]);
 
   const handleUsdChange = (val) => {
+    const raw = val.replace(/,/g, '');
     setUsd(val);
-    if (val === '' || isNaN(val)) { setRwf(''); return; }
-    if (rate) setRwf(Math.round(parseFloat(val) * rate).toLocaleString());
+    if (raw === '' || isNaN(raw)) { setRwf(''); return; }
+    if (rate) setRwf(Math.round(parseFloat(raw) * rate).toLocaleString());
   };
 
   const handleRwfChange = (val) => {
@@ -61,15 +69,15 @@ export default function CurrencyConverter({ defaultUSD = '', compact = false }) 
       <div style={cs.compactWrap}>
         <div style={cs.compactRow}>
           <div style={cs.compactField}>
-            <span style={cs.compactLabel}>USD $</span>
-            <input
-              style={cs.compactInput}
-              type="number"
-              value={usd}
-              onChange={(e) => handleUsdChange(e.target.value)}
-              placeholder="0"
-            />
-          </div>
+              <span style={cs.compactLabel}>USD $</span>
+              <input
+                style={cs.compactInput}
+                type="text"
+                value={usd}
+                onChange={(e) => handleUsdChange(e.target.value)}
+                placeholder="0.00"
+              />
+            </div>
           <span style={cs.arrow}>⇄</span>
           <div style={cs.compactField}>
             <span style={cs.compactLabel}>RWF</span>

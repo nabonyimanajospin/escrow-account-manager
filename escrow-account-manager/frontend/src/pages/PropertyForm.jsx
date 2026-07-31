@@ -502,7 +502,8 @@ const PropertyForm = () => {
                   disabled={loading}
                 />
                 <span className="text-[10px] text-slate-400 font-semibold block mt-1">
-                  Provide an external URL to a JPEG or PNG photo.
+                  Provide comma-separated URLs to multiple photos. 
+                  <strong className="text-primary-600 block mt-0.5">Note: The FIRST photo you paste will be the main cover picture shown in the catalog. The rest will be visible as a gallery when the buyer clicks on the property.</strong>
                 </span>
               </div>
             ) : (

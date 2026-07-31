@@ -64,7 +64,7 @@ const startCronJobs = () => {
       const overdueDisputes = await Dispute.findAll({
         where: {
           status: { [Op.notIn]: ['RESOLVED'] },
-          resolutionDeadline: { [Op.lt]: new Date() }
+          resolutionDeadline: { [Op.lt]: new Date(Date.now() - 24 * 60 * 60 * 1000) } // 24h cooling-off buffer
         }
       });
 
@@ -139,6 +139,13 @@ const startCronJobs = () => {
             if (buyerUser && buyerUser.email) {
               await notificationService.sendTransactionStatusEmail(buyerUser.email, buyerUser.name, 'REFUNDED', transaction.id, amount);
               await notificationService.createInAppNotification(buyerUser.id, 'Dispute Resolved', `The dispute on transaction ${transaction.id} was auto-resolved in your favor. $${amount} has been refunded.`);
+            }
+
+            // Notify seller
+            const sellerUser = await User.findByPk(transaction.sellerId, { transaction: t });
+            if (sellerUser && sellerUser.email) {
+              await notificationService.sendTransactionStatusEmail(sellerUser.email, sellerUser.name, 'REFUNDED', transaction.id, amount);
+              await notificationService.createInAppNotification(sellerUser.id, 'Dispute Auto-Resolved', `The dispute on transaction ${transaction.id} was auto-resolved in buyer's favor due to deadline expiration. $${amount} was refunded to the buyer.`);
             }
           });
           console.log(`[Cron] Auto-resolved dispute ${dispute.id} for transaction ${transaction.id}.`);

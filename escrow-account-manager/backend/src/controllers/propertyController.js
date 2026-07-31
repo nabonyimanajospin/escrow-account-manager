@@ -1,5 +1,6 @@
-const { Property, User } = require('../models');
+const { Property, User, Transaction, Escrow } = require('../models');
 const logger = require('../utils/logger');
+const { Op } = require('sequelize');
 
 const normalizePropertySpecs = ({ propertyType, bedrooms, bathrooms, area }) => {
   if (propertyType === 'LAND') {
@@ -23,7 +24,18 @@ const normalizePropertySpecs = ({ propertyType, bedrooms, bathrooms, area }) => 
 exports.getProperties = async (req, res, next) => {
   try {
     const where = {};
-    if (req.query.status) where.status = req.query.status;
+    const { status, location, minPrice, maxPrice, propertyType, listingType, bedrooms } = req.query;
+
+    if (status) where.status = status;
+    if (location) where.location = { [Op.iLike]: `%${location}%` };
+    if (minPrice || maxPrice) {
+      where.price = {};
+      if (minPrice) where.price[Op.gte] = parseFloat(minPrice);
+      if (maxPrice) where.price[Op.lte] = parseFloat(maxPrice);
+    }
+    if (propertyType) where.propertyType = propertyType;
+    if (listingType) where.listingType = listingType;
+    if (bedrooms) where.bedrooms = { [Op.gte]: parseInt(bedrooms) };
 
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
@@ -238,7 +250,6 @@ exports.deleteProperty = async (req, res, next) => {
           return res.status(400).json({ success: false, message: 'Cannot delete a property that is in an active transaction. Resolve the transaction first.' });
         }
         // Admin force delete cascading to active transactions and escrow accounts
-        const { Transaction, Escrow } = require('../models');
         const transactions = await Transaction.findAll({ where: { propertyId: property.id } });
         for (const txn of transactions) {
           if (txn.escrowAccountId) {

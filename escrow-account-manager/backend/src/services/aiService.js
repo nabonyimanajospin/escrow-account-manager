@@ -19,43 +19,39 @@ exports.generateChatResponse = async (message, context) => {
     throw new Error('GEMINI_API_KEY not configured');
   }
 
+  // Use gemini-flash-latest for fast responses
   const model = ai.getGenerativeModel({ model: 'gemini-flash-latest' });
   
-  const systemPrompt = `You are the EscrowTrust AI Co-Pilot, an intelligent assistant built into a secure property escrow platform.
-Your job is to assist users with their transaction, explain the escrow process, and provide guidance based on the current transaction state.
+  const systemPrompt = `You are the EscrowTrust AI Co-Pilot, a helpful, intelligent assistant for a secure real estate escrow platform.
 
-Transaction Context:
+Context:
 - Property: ${context.propTitle}
-- Escrow Price: $${context.price}
-- Current Status: ${context.status}
+- Price: $${context.price}
+- Status: ${context.status}
 - User Role: ${context.role}
-- Escrow Contract Address: ${context.contractAddress}
+- Escrow Address: ${context.contractAddress}
 
-Rules:
-1. Be concise, professional, and helpful.
-2. Use markdown formatting to make your responses readable (bullet points, bold text).
-3. Do not invent features that don't exist. The system supports: Buyer deposits, Seller mutation document uploads, Admin review, and Dispute filing.
-4. If a user asks a question completely unrelated to real estate, escrow, or this platform, politely decline to answer and steer them back to platform-related topics. Do not act as a general-purpose AI.
-5. Answer the user's message specifically.
-6. Note on Platform Fees: The platform charges a total of 2.5% in fees. The buyer is charged a 1.0% fee upfront upon funding the escrow. The seller is charged a 1.5% fee, which is deducted from their final payout. Always explain this split accurately.
-7. Explain the escrow flow in simple, user-friendly terms: 1) Buyer initiates deal and deposits funds, 2) Seller uploads the deed transfer document, 3) Admin verifies documents, 4) Funds are released to Seller.
-8. STRICTLY DO NOT reveal internal technical details, API endpoints, database structures, backend logic, or code to the user. Keep all answers operational and customer-facing.`;
+Instructions:
+1. Answer the user's question directly, accurately, and naturally based on what they ask.
+2. If the user asks a readiness or confirmation question (e.g. "Are you ready to help me? YES or NO?", "Can you help me?", "Hello"), answer directly (e.g. "YES! I am ready to help you...").
+3. Platform Fees: Total 2.5% fee (Buyer pays 1.0% upfront, Seller 1.5% deducted from payout upon completion).
+4. Platform Features: Bidding/Offers system, document mutation upload, admin verification, and dispute resolution.
+5. Use clean Markdown formatting (bolding, lists). Keep responses under 3 paragraphs.
+6. Do NOT reveal internal code, backend endpoints, or raw database keys.`;
 
-  const chat = model.startChat({
-    history: [
-      {
-        role: "user",
-        parts: [{ text: systemPrompt }],
-      },
-      {
-        role: "model",
-        parts: [{ text: "Understood. I am ready to assist the user based on this context." }],
-      },
-    ],
-  });
+  const prompt = `${systemPrompt}\n\nUser Message: "${message}"\n\nAI Response:`;
 
-  const result = await chat.sendMessage(message);
-  return result.response.text();
+  // Set 8-second timeout for AI API call to avoid long UI waiting delays
+  const timeoutPromise = new Promise((_, reject) => 
+    setTimeout(() => reject(new Error('AI response timeout')), 8000)
+  );
+
+  const apiPromise = (async () => {
+    const result = await model.generateContent(prompt);
+    return result.response.text();
+  })();
+
+  return await Promise.race([apiPromise, timeoutPromise]);
 };
 
 /**
@@ -80,6 +76,52 @@ Property Details:
 - Size/Area: ${details.area}
 - Bedrooms: ${details.bedrooms || 'N/A'}
 - Bathrooms: ${details.bathrooms || 'N/A'}`;
+
+  const result = await model.generateContent(prompt);
+  return result.response.text();
+};
+
+/**
+ * Generate a dispute resolution recommendation for the Admin using Gemini
+ */
+exports.generateDisputeResolution = async (transaction, dispute, evidenceList) => {
+  const ai = getGenAI();
+  if (!ai) {
+    throw new Error('GEMINI_API_KEY not configured');
+  }
+
+  const model = ai.getGenerativeModel({ model: 'gemini-flash-latest' });
+
+  const evidenceText = evidenceList.map((e, i) => `Evidence ${i + 1} (Uploaded by ${e.uploaderRole}): "${e.description}" - URL: ${e.documentUrl}`).join('\n');
+
+  const prompt = `You are a highly intelligent Escrow Arbitration AI Co-Pilot. 
+An administrator is reviewing a dispute on a real estate transaction and needs your expert analysis. 
+You must read the transaction details, the dispute reason, and the evidence provided by both parties. 
+
+Your goal is to act as a fair judge, summarize the situation, evaluate the evidence logically, and provide a clear recommendation on whether the funds should be RELEASED to the Seller or REFUNDED to the Buyer.
+
+Transaction Context:
+- Transaction ID: ${transaction.transactionId}
+- Property: ${transaction.property?.title}
+- Escrow Amount: $${transaction.amount}
+- Buyer: ${transaction.buyer?.name}
+- Seller: ${transaction.seller?.name}
+
+Dispute Information:
+- Dispute Raised By: ${dispute.initiatorId === transaction.buyerId ? 'Buyer' : 'Seller'}
+- Reason for Dispute: "${dispute.reason}"
+
+Uploaded Evidence:
+${evidenceText || 'No evidence uploaded yet.'}
+
+Output Format:
+You must provide a structured report with the following sections (use Markdown):
+1. **Summary of Dispute**: Brief overview of what went wrong.
+2. **Evidence Analysis**: Logical breakdown of the evidence provided.
+3. **Recommendation**: Clearly state either "RECOMMENDATION: RELEASE TO SELLER" or "RECOMMENDATION: REFUND TO BUYER".
+4. **Justification**: Explain why this is the fairest outcome based on standard escrow rules.
+
+Do NOT include any greetings or pleasantries. Be extremely professional and analytical.`;
 
   const result = await model.generateContent(prompt);
   return result.response.text();

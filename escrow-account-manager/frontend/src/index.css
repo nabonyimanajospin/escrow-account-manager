@@ -47,6 +47,7 @@
   --animate-slide-up:   slideUp   0.4s ease-out both;
   --animate-slide-down: slideDown 0.3s ease-out both;
   --animate-scale-in:   scaleIn   0.25s ease-out both;
+  --animate-slide-in-right: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
   --animate-float:      float     6s   ease-in-out infinite;
   --animate-pulse-glow: pulseGlow 2.5s ease-in-out infinite;
   --animate-shimmer:    shimmer   2s   linear     infinite;
@@ -62,6 +63,10 @@
   @keyframes slideDown {
     0%   { transform: translateY(-12px); opacity: 0; }
     100% { transform: translateY(0);     opacity: 1; }
+  }
+  @keyframes slideInRight {
+    0%   { transform: translateX(100%); opacity: 0.5; }
+    100% { transform: translateX(0); opacity: 1; }
   }
   @keyframes scaleIn {
     0%   { transform: scale(0.96); opacity: 0; }

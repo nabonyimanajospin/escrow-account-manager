@@ -42,7 +42,7 @@ beforeEach(() => jest.clearAllMocks());
 describe('GET /api/properties', () => {
   it('returns all properties for authenticated user', async () => {
     resolveUser(buyer);
-    Property.findAll.mockResolvedValue([makeProperty(), makeProperty({ id: 11, title: 'Villa' })]);
+    Property.findAndCountAll = jest.fn().mockResolvedValue({ count: 2, rows: [makeProperty(), makeProperty({ id: 11, title: 'Villa' })] });
 
     const res = await request(app)
       .get('/api/properties')
@@ -53,7 +53,7 @@ describe('GET /api/properties', () => {
   });
 
   it('returns 200 without token (public route — anyone can browse)', async () => {
-    Property.findAll.mockResolvedValue([makeProperty()]);
+    Property.findAndCountAll = jest.fn().mockResolvedValue({ count: 1, rows: [makeProperty()] });
     const res = await request(app).get('/api/properties');
     expect(res.status).toBe(200);
   });

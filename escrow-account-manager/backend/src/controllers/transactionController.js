@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const { Transaction, Escrow, Property, User, AuditLog, LedgerEntry, WalletTransaction } = require('../models');
 const { sequelize } = require('../config/database');
 const ledgerService = require('../services/ledgerService');
@@ -257,7 +258,6 @@ const verifyConsensusCode = async (req, res, next) => {
     }
 
     await sequelize.transaction(async (t) => {
-      const crypto = require('crypto');
       const timeStr = new Date().toISOString();
       if (req.user.role === 'BUYER') {
         const payload = `BUYER-SIGNATURE:${req.user.id}:${transaction.id}:${timeStr}:${transaction.amount}`;
@@ -383,14 +383,20 @@ const depositFunds = async (req, res, next) => {
 
       await logAction(transaction.id, req, `Funds deposited: $${amount} locked in escrow address ${escrow.contractAddress}`, { transaction: t });
       
+      // Reload transaction to get buyer/seller details
+      const txWithUsers = await Transaction.findByPk(transaction.id, {
+        include: transactionIncludes,
+        transaction: t
+      });
+
       // Notify users
-      if (transaction.buyer && transaction.buyer.email) {
-        await notificationService.sendTransactionStatusEmail(transaction.buyer.email, transaction.buyer.name, 'FUNDED', transaction.id, amount);
-        await notificationService.createInAppNotification(transaction.buyerId, 'Funds Deposited', `Your deposit of $${amount} has been received.`);
+      if (txWithUsers.buyer && txWithUsers.buyer.email) {
+        await notificationService.sendTransactionStatusEmail(txWithUsers.buyer.email, txWithUsers.buyer.name, 'FUNDED', txWithUsers.id, amount);
+        await notificationService.createInAppNotification(txWithUsers.buyerId, 'Funds Deposited', `Your deposit of $${amount} has been received.`);
       }
-      if (transaction.seller && transaction.seller.email) {
-        await notificationService.sendTransactionStatusEmail(transaction.seller.email, transaction.seller.name, 'FUNDED', transaction.id, amount);
-        await notificationService.createInAppNotification(transaction.sellerId, 'Funds Deposited', `Buyer has deposited $${amount} into escrow.`);
+      if (txWithUsers.seller && txWithUsers.seller.email) {
+        await notificationService.sendTransactionStatusEmail(txWithUsers.seller.email, txWithUsers.seller.name, 'FUNDED', txWithUsers.id, amount);
+        await notificationService.createInAppNotification(txWithUsers.sellerId, 'Funds Deposited', `Buyer has deposited $${amount} into escrow.`);
       }
     });
 
@@ -434,10 +440,16 @@ const initiateMutation = async (req, res, next) => {
 
       await logAction(transaction.id, req, `Seller initiated ownership mutation (legal transfer)`, { transaction: t });
       
+      // Reload transaction to get buyer details
+      const txWithUsers = await Transaction.findByPk(transaction.id, {
+        include: transactionIncludes,
+        transaction: t
+      });
+
       // Notify buyer that mutation has started
-      if (transaction.buyer && transaction.buyer.email) {
-        await notificationService.sendTransactionStatusEmail(transaction.buyer.email, transaction.buyer.name, 'MUTATION_STARTED', transaction.id, transaction.amount);
-        await notificationService.createInAppNotification(transaction.buyerId, 'Mutation Started', 'The seller has initiated the legal property transfer process.');
+      if (txWithUsers.buyer && txWithUsers.buyer.email) {
+        await notificationService.sendTransactionStatusEmail(txWithUsers.buyer.email, txWithUsers.buyer.name, 'MUTATION_STARTED', txWithUsers.id, txWithUsers.amount);
+        await notificationService.createInAppNotification(txWithUsers.buyerId, 'Mutation Started', 'The seller has initiated the legal property transfer process.');
       }
     });
 
@@ -533,14 +545,20 @@ const completeMutation = async (req, res, next) => {
 
       await logAction(transaction.id, req, `Mutation completed and submitted under review for Admin verification`, { transaction: t });
       
+      // Reload transaction to get buyer/seller details
+      const txWithUsers = await Transaction.findByPk(transaction.id, {
+        include: transactionIncludes,
+        transaction: t
+      });
+
       // Notify both parties that mutation is under review
-      if (transaction.buyer && transaction.buyer.email) {
-        await notificationService.sendTransactionStatusEmail(transaction.buyer.email, transaction.buyer.name, 'UNDER_REVIEW', transaction.id, transaction.amount);
-        await notificationService.createInAppNotification(transaction.buyerId, 'Mutation Under Review', 'The property transfer has been submitted to Admin for verification.');
+      if (txWithUsers.buyer && txWithUsers.buyer.email) {
+        await notificationService.sendTransactionStatusEmail(txWithUsers.buyer.email, txWithUsers.buyer.name, 'UNDER_REVIEW', txWithUsers.id, txWithUsers.amount);
+        await notificationService.createInAppNotification(txWithUsers.buyerId, 'Mutation Under Review', 'The property transfer has been submitted to Admin for verification.');
       }
-      if (transaction.seller && transaction.seller.email) {
-        await notificationService.sendTransactionStatusEmail(transaction.seller.email, transaction.seller.name, 'UNDER_REVIEW', transaction.id, transaction.amount);
-        await notificationService.createInAppNotification(transaction.sellerId, 'Mutation Under Review', 'Your property transfer submission is now under admin review.');
+      if (txWithUsers.seller && txWithUsers.seller.email) {
+        await notificationService.sendTransactionStatusEmail(txWithUsers.seller.email, txWithUsers.seller.name, 'UNDER_REVIEW', txWithUsers.id, txWithUsers.amount);
+        await notificationService.createInAppNotification(txWithUsers.sellerId, 'Mutation Under Review', 'Your property transfer submission is now under admin review.');
       }
     });
 
@@ -637,7 +655,7 @@ const releaseFunds = async (req, res, next) => {
       }, t);
 
       // ── Credit Seller Wallet ──────────────────────────────────────────────
-      const seller = await User.findByPk(transaction.sellerId, { transaction: t });
+      const seller = await User.findByPk(transaction.sellerId, { transaction: t, lock: t.LOCK.UPDATE });
       if (seller) {
         const newBalance = parseFloat(seller.walletBalance || 0) + sellerNetPayout;
         await seller.update({ walletBalance: newBalance }, { transaction: t });
@@ -652,8 +670,7 @@ const releaseFunds = async (req, res, next) => {
         }, { transaction: t });
 
         // Send email notification (fire-and-forget, non-blocking)
-        const notif = require('../services/notificationService');
-        notif.sendWalletCreditEmail(
+        notificationService.sendWalletCreditEmail(
           seller.email,
           seller.name,
           sellerNetPayout,
@@ -742,10 +759,16 @@ const refundBuyer = async (req, res, next) => {
       const logMsg = `Admin rejected mutation/resolved dispute and refunded escrow balance of $${amount} to Buyer.` + (adminNotes ? ` Notes: ${adminNotes}` : '');
       await logAction(transaction.id, req, logMsg, { transaction: t });
 
+      // Reload transaction to get buyer details
+      const txWithUsers = await Transaction.findByPk(transaction.id, {
+        include: transactionIncludes,
+        transaction: t
+      });
+
       // Notify buyer
-      if (transaction.buyer && transaction.buyer.email) {
-        await notificationService.sendTransactionStatusEmail(transaction.buyer.email, transaction.buyer.name, 'REFUNDED', transaction.id, amount);
-        await notificationService.createInAppNotification(transaction.buyerId, 'Refund Initiated', `A refund of $${amount} has been initiated back to your wallet.`);
+      if (txWithUsers.buyer && txWithUsers.buyer.email) {
+        await notificationService.sendTransactionStatusEmail(txWithUsers.buyer.email, txWithUsers.buyer.name, 'REFUNDED', txWithUsers.id, amount);
+        await notificationService.createInAppNotification(txWithUsers.buyerId, 'Refund Initiated', `A refund of $${amount} has been initiated back to your wallet.`);
       }
     });
 
@@ -820,10 +843,16 @@ const cancelTransaction = async (req, res, next) => {
 
       await logAction(transaction.id, req, `Transaction cancelled by Buyer. Escrow returned to AVAILABLE.`, { transaction: t });
 
+      // Reload transaction to get seller details
+      const txWithUsers = await Transaction.findByPk(transaction.id, {
+        include: transactionIncludes,
+        transaction: t
+      });
+
       // Notify seller
-      if (transaction.seller && transaction.seller.email) {
-        await notificationService.sendTransactionStatusEmail(transaction.seller.email, transaction.seller.name, 'CANCELLED', transaction.id, transaction.amount);
-        await notificationService.createInAppNotification(transaction.sellerId, 'Transaction Cancelled', 'The buyer has cancelled the transaction.');
+      if (txWithUsers.seller && txWithUsers.seller.email) {
+        await notificationService.sendTransactionStatusEmail(txWithUsers.seller.email, txWithUsers.seller.name, 'CANCELLED', txWithUsers.id, txWithUsers.amount);
+        await notificationService.createInAppNotification(txWithUsers.sellerId, 'Transaction Cancelled', 'The buyer has cancelled the transaction.');
       }
     });
 
@@ -868,8 +897,14 @@ const deleteTransaction = async (req, res, next) => {
       }
 
       // We preserve the AuditLog records to satisfy immutable logging regulations
-      // Nullify the foreign key so we don't hit DB constraint violations
-      await AuditLog.update({ transactionId: null }, { where: { transactionId: transaction.id }, transaction: t });
+      // Nullify the foreign key so we don't hit DB constraint violations (using raw query to bypass immutability hook)
+      await sequelize.query(
+        'UPDATE "AuditLogs" SET "transactionId" = NULL WHERE "transactionId" = :transactionId',
+        {
+          replacements: { transactionId: transaction.id },
+          transaction: t
+        }
+      );
       
       await transaction.destroy({ transaction: t });
     });
@@ -950,10 +985,16 @@ const confirmReceipt = async (req, res, next) => {
 
       await logAction(transaction.id, req, `Seller confirmed receipt of funds. Escrow transaction officially COMPLETED. Listing set to SOLD.`, { transaction: t });
 
+      // Reload transaction to get buyer details
+      const txWithUsers = await Transaction.findByPk(transaction.id, {
+        include: transactionIncludes,
+        transaction: t
+      });
+
       // Notify buyer
-      if (transaction.buyer && transaction.buyer.email) {
-        await notificationService.sendTransactionStatusEmail(transaction.buyer.email, transaction.buyer.name, 'COMPLETED', transaction.id, transaction.amount);
-        await notificationService.createInAppNotification(transaction.buyerId, 'Transaction Completed', 'The escrow transaction has been completed successfully.');
+      if (txWithUsers.buyer && txWithUsers.buyer.email) {
+        await notificationService.sendTransactionStatusEmail(txWithUsers.buyer.email, txWithUsers.buyer.name, 'COMPLETED', txWithUsers.id, txWithUsers.amount);
+        await notificationService.createInAppNotification(txWithUsers.buyerId, 'Transaction Completed', 'The escrow transaction has been completed successfully.');
       }
     });
 

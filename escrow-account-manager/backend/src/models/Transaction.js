@@ -74,6 +74,30 @@ const Transaction = sequelize.define('Transaction', {
     type: DataTypes.DATE,
     allowNull: true,
   },
+  buyerVerificationCodeHash: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  buyerVerificationCodeSalt: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  buyerVerificationCodeExpiresAt: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  },
+  sellerVerificationCodeHash: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  sellerVerificationCodeSalt: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  sellerVerificationCodeExpiresAt: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  },
   verificationAttempts: {
     type: DataTypes.INTEGER,
     defaultValue: 0,
@@ -171,7 +195,7 @@ const Transaction = sequelize.define('Transaction', {
 }, {
   timestamps: true,
   defaultScope: {
-    attributes: { exclude: ['verificationCode', 'verificationCodeHash', 'verificationCodeSalt'] }
+    attributes: { exclude: ['verificationCode', 'verificationCodeHash', 'verificationCodeSalt', 'buyerVerificationCodeHash', 'buyerVerificationCodeSalt', 'sellerVerificationCodeHash', 'sellerVerificationCodeSalt'] }
   },
   scopes: {
     withVerificationCode: {

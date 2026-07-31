@@ -63,8 +63,8 @@ const LandingPage = () => {
                 <span className="text-[10px] font-bold uppercase tracking-wider mt-1">Audit Trail</span>
               </div>
               <div className="flex flex-col items-center">
-                <span className="text-2xl font-black text-slate-700">256-bit</span>
-                <span className="text-[10px] font-bold uppercase tracking-wider mt-1">AES Encryption</span>
+                <span className="text-2xl font-black text-slate-700">Bank-Grade</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider mt-1">Data Security</span>
               </div>
             </div>
           </div>
@@ -123,9 +123,22 @@ const LandingPage = () => {
           {/* Bento Card 3: Standard */}
           <div className="card p-8 relative overflow-hidden group">
             <div className="relative z-10 h-full flex flex-col justify-between">
-              <div className="h-12 w-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-primary-600 mb-6 group-hover:-translate-y-1 transition-transform">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+              <div className="flex items-center justify-between mb-6">
+                <div className="h-12 w-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-primary-600 group-hover:-translate-y-1 transition-transform">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                </div>
+                
+                {/* New Mini UI Graphic */}
+                <div className="w-24 h-12 bg-primary-50 rounded-lg border border-primary-100 flex flex-col justify-center px-3 group-hover:border-primary-200 transition-colors">
+                  <div className="flex gap-1">
+                    <div className="w-2 h-2 rounded-full bg-primary-400 animate-pulse"></div>
+                    <div className="w-2 h-2 rounded-full bg-primary-400 animate-pulse" style={{ animationDelay: '200ms' }}></div>
+                    <div className="w-2 h-2 rounded-full bg-primary-500 animate-pulse" style={{ animationDelay: '400ms' }}></div>
+                  </div>
+                  <div className="h-1.5 w-12 bg-primary-200 rounded-full mt-2"></div>
+                </div>
               </div>
+
               <div>
                 <h3 className="text-lg font-bold text-slate-900 mb-2">Instant Settlement</h3>
                 <p className="text-slate-500 text-sm font-medium leading-relaxed">

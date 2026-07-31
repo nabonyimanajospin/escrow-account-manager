@@ -39,10 +39,16 @@ exports.register = async (req, res, next) => {
 
     const user = await User.create({ name, email, password, role, phone, address });
     const token = generateToken(user.id);
+    const cookieOptions = {
+      expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'none',
+    };
+    res.cookie('escrowtrust_token', token, cookieOptions);
 
     res.status(201).json({
       success: true,
-      token,
       user: {
         id: user.id,
         name: user.name,
@@ -86,10 +92,16 @@ exports.login = async (req, res, next) => {
     }
 
     const token = generateToken(user.id);
+    const cookieOptions = {
+      expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'none',
+    };
+    res.cookie('escrowtrust_token', token, cookieOptions);
 
     res.status(200).json({
       success: true,
-      token,
       user: {
         id: user.id,
         name: user.name,
@@ -100,6 +112,19 @@ exports.login = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+};
+
+// @desc    Logout user
+// @route   POST /api/auth/logout
+// @access  Private
+exports.logout = async (req, res, next) => {
+  res.cookie('escrowtrust_token', 'none', {
+    expires: new Date(Date.now() + 10 * 1000),
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'none',
+  });
+  res.status(200).json({ success: true, message: 'Logged out successfully' });
 };
 
 // @desc    Get current logged-in user

@@ -15,6 +15,7 @@ const PropertyDetail = () => {
   const [property, setProperty] = useState(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
   // Offers and bidding states
   const [offers, setOffers] = useState([]);
@@ -159,24 +160,45 @@ const PropertyDetail = () => {
         <div className="lg:col-span-2 space-y-6">
           
           {/* Cover image or placeholder */}
-          <div className="card overflow-hidden h-[400px] bg-slate-100 relative">
-            {property.images && property.images[0] ? (
-              <img
-                src={resolveImageUrl(property.images[0])}
-                alt={property.title}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 font-semibold bg-slate-200/50">
-                <svg className="w-12 h-12 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                </svg>
-                <span className="text-xs uppercase font-bold tracking-widest">No Image Uploaded</span>
+          <div className="space-y-4">
+            <div className="card overflow-hidden h-[400px] bg-slate-100 relative">
+              {property.images && property.images.length > 0 ? (
+                <img
+                  src={resolveImageUrl(property.images[selectedImageIndex] || property.images[0])}
+                  alt={property.title}
+                  className="w-full h-full object-cover animate-fade-in transition-all duration-300"
+                />
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 font-semibold bg-slate-200/50">
+                  <svg className="w-12 h-12 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                  </svg>
+                  <span className="text-xs uppercase font-bold tracking-widest">No Image Uploaded</span>
+                </div>
+              )}
+              <div className="absolute top-4 right-4">
+                <StatusBadge status={property.status} />
+              </div>
+            </div>
+
+            {/* Thumbnail Carousel */}
+            {property.images && property.images.length > 1 && (
+              <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+                {property.images.map((imgUrl, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setSelectedImageIndex(idx)}
+                    className={`relative w-20 h-20 rounded-xl overflow-hidden flex-shrink-0 transition-all ${
+                      selectedImageIndex === idx 
+                        ? 'ring-2 ring-primary-600 shadow-md ring-offset-2' 
+                        : 'opacity-70 hover:opacity-100 hover:ring-2 hover:ring-slate-300 hover:ring-offset-1'
+                    }`}
+                  >
+                    <img src={resolveImageUrl(imgUrl)} className="w-full h-full object-cover" alt={`Thumbnail ${idx + 1}`} />
+                  </button>
+                ))}
               </div>
             )}
-            <div className="absolute top-4 right-4">
-              <StatusBadge status={property.status} />
-            </div>
           </div>
 
           {/* Core Description card */}
@@ -244,6 +266,7 @@ const PropertyDetail = () => {
                     type="number"
                     required
                     min={property.price}
+                    step="any"
                     className="input-field !py-1.5 !px-3 text-xs w-full"
                     placeholder={`Min. $${Number(property.price).toLocaleString()}`}
                     value={bidPrice}
@@ -359,18 +382,18 @@ const PropertyDetail = () => {
                       <div 
                         key={offer.id} 
                         className={`p-3 rounded-xl border transition-all text-xs space-y-2 text-left relative ${
-                          offer.isAIChoice 
+                          offer.isSystemChoice 
                             ? 'border-indigo-300 bg-indigo-50/30' 
                             : offer.status === 'ACCEPTED'
                             ? 'border-emerald-300 bg-emerald-50/20'
                             : 'border-slate-200 bg-slate-50/30 hover:bg-slate-55'
                         }`}
                       >
-                        {offer.isAIChoice && (
-                          <span className="absolute -top-2.5 right-2 bg-indigo-600 text-white text-[8px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider shadow">
-                            ★ AI Match Choice
-                          </span>
-                        )}
+                        {offer.isSystemChoice && (
+                          <div className="absolute -top-3 -right-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-md flex items-center gap-1 border-2 border-white transform rotate-3">
+                            <Sparkles className="w-3 h-3" />
+                            System Recommended
+                          </div>)}
 
                         <div className="flex justify-between items-start">
                           <div>
@@ -378,7 +401,7 @@ const PropertyDetail = () => {
                             <p className="text-[10px] text-slate-400 font-bold mt-0.5">Proposed Period: {offer.paymentPeriodDays} days</p>
                           </div>
                           <div className="text-right">
-                            <span className="text-[10px] font-bold text-indigo-600">AI Match: {offer.aiScore}%</span>
+                            <span className="text-[10px] font-bold text-indigo-600">Match Score: {offer.systemScore}%</span>
                             <p className="text-[9px] text-slate-405 mt-0.5 font-bold text-slate-500">Buyer: {offer.buyer?.name}</p>
                           </div>
                         </div>

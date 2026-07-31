@@ -53,7 +53,7 @@ describe('POST /api/auth/register', () => {
 
     expect(res.status).toBe(201);
     expect(res.body.success).toBe(true);
-    expect(res.body.token).toBeDefined();
+    expect(res.headers['set-cookie']).toBeDefined();
   });
 
   it('rejects duplicate email with 400', async () => {
@@ -90,7 +90,7 @@ describe('POST /api/auth/login', () => {
     });
 
     expect(res.status).toBe(200);
-    expect(res.body.token).toBeDefined();
+    expect(res.headers['set-cookie']).toBeDefined();
   });
 
   it('rejects wrong password with 401', async () => {

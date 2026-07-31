@@ -4,6 +4,8 @@ import axios from '../api/axiosConfig';
 import StatusBadge from '../components/StatusBadge';
 import AuditLog from '../components/AuditLog';
 import toast from 'react-hot-toast';
+import EmptyState from '../components/common/EmptyState';
+import { SkeletonCard, SkeletonTable } from '../components/common/SkeletonLoader';
 
 const AdminPanel = () => {
   const [loading, setLoading] = useState(true);
@@ -107,13 +109,11 @@ const AdminPanel = () => {
 
   if (loading) {
     return (
-      <div className="min-h-[80vh] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <svg className="animate-spin h-10 w-10 text-primary-600" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-          </svg>
-          <span className="text-sm font-semibold text-slate-500">Decrypting ledger and transactions...</span>
+      <div className="page-wrapper dashboard-wrapper space-y-7 animate-fade-in">
+        <div className="card-tinted p-6 h-28 bg-white border border-slate-100 rounded-2xl animate-pulse"></div>
+        <div className="card p-6 bg-white border border-slate-100 rounded-2xl">
+           <div className="h-6 w-48 bg-slate-200 rounded mb-6 animate-pulse"></div>
+           <SkeletonTable rows={5} columns={6} />
         </div>
       </div>
     );
@@ -250,7 +250,9 @@ const AdminPanel = () => {
                 ))}
                 {propsList.length === 0 && (
                   <tr>
-                    <td colSpan="6" className="text-center py-12 text-slate-400 text-sm font-semibold">No property listings found.</td>
+                    <td colSpan="6" className="p-0 border-none">
+                      <EmptyState title="No property listings found" description="There are no properties active on the platform." />
+                    </td>
                   </tr>
                 )}
               </tbody>
@@ -324,7 +326,9 @@ const AdminPanel = () => {
                 ))}
                 {txnsList.length === 0 && (
                   <tr>
-                    <td colSpan="6" className="text-center py-12 text-slate-400 text-sm font-semibold">No transactions found.</td>
+                    <td colSpan="6" className="p-0 border-none">
+                      <EmptyState title="No transactions found" description="There are no active escrow deals on the platform." />
+                    </td>
                   </tr>
                 )}
               </tbody>
@@ -373,7 +377,9 @@ const AdminPanel = () => {
                 ))}
                 {usersList.length === 0 && (
                   <tr>
-                    <td colSpan="6" className="text-center py-12 text-slate-400 text-sm font-semibold">No registered users found.</td>
+                    <td colSpan="5" className="p-0 border-none">
+                      <EmptyState title="No users found" description="No users are currently registered on the platform." />
+                    </td>
                   </tr>
                 )}
               </tbody>
@@ -389,8 +395,8 @@ const AdminPanel = () => {
 
       {/* ── Release / Refund Confirmation Modal ── */}
       {modal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4 animate-scale-in">
             <div className="flex items-center gap-3">
               <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-lg ${
                 modal.type === 'release' ? 'bg-emerald-600' : 'bg-red-600'
@@ -409,10 +415,33 @@ const AdminPanel = () => {
                 ? 'You are about to release the locked escrow funds to the seller. This action is irreversible. Please provide your audit review notes below.'
                 : 'You are about to refund the full escrow balance to the buyer and reset the property to AVAILABLE. Please provide your audit review notes below.'}
             </p>
+
+            <button
+              onClick={async () => {
+                try {
+                  setActionLoading(true);
+                  const toastId = toast.loading('✨ AI Co-Pilot is analyzing the dispute evidence...');
+                  const res = await axios.post(`/ai/analyze-dispute/${modal.txId}`);
+                  setModalNotes(res.data.analysis);
+                  toast.success('AI Analysis Complete', { id: toastId });
+                } catch (err) {
+                  console.error(err);
+                  toast.error(err.response?.data?.message || 'Failed to fetch AI analysis');
+                } finally {
+                  setActionLoading(false);
+                }
+              }}
+              disabled={actionLoading}
+              className="w-full py-2 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 text-xs font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+              Ask AI Co-Pilot to Analyze Evidence
+            </button>
+
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Audit Review Notes (Required)</label>
               <textarea
-                className="w-full border border-slate-200 rounded-xl p-3 text-xs font-medium text-slate-800 resize-none h-24 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                className="w-full border border-slate-200 rounded-xl p-3 text-xs font-medium text-slate-800 resize-none h-48 focus:outline-none focus:ring-2 focus:ring-primary-400"
                 placeholder="Describe your review findings, document verification outcome, and reason for this decision..."
                 value={modalNotes}
                 onChange={(e) => setModalNotes(e.target.value)}

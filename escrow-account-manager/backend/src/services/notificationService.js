@@ -159,6 +159,14 @@ const sendWalletCreditEmail = async (toEmail, toName, amount, newBalance, transa
  */
 const sendConsensusCode = async ({ user, transaction, code, expiresAt }) => {
   const ref = transaction.reference || `TXN-${transaction.id}`;
+  
+  // Log it to the terminal so we can test without an email server configured!
+  console.log(`\n===========================================`);
+  console.log(`🔐 OTP CONSENSUS CODE for ${user.email}`);
+  console.log(`Transaction: ${ref}`);
+  console.log(`CODE: >>> ${code} <<<`);
+  console.log(`===========================================\n`);
+
   return sendOtpEmail(user.email, user.name, code, ref);
 };
 

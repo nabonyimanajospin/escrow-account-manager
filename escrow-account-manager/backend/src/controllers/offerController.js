@@ -67,10 +67,30 @@ exports.createOffer = async (req, res, next) => {
     });
 
     try {
+      // Calculate System Rank to notify buyer
+      const allOffers = await Offer.findAll({ where: { propertyId } });
+      const rankedOffers = allOffers.map(o => {
+        const oPrice = parseFloat(o.price);
+        const days = o.paymentPeriodDays;
+        const systemScore = parseFloat(((oPrice / targetPrice) * 100 - (days * 0.5)).toFixed(2));
+        return { id: o.id, systemScore };
+      });
+      rankedOffers.sort((a, b) => b.systemScore - a.systemScore);
+      
+      const rankIndex = rankedOffers.findIndex(o => o.id === offer.id);
+      const rank = rankIndex + 1;
+      
+      const getOrdinal = (n) => {
+        const s = ["th", "st", "nd", "rd"];
+        const v = n % 100;
+        return n + (s[(v - 20) % 10] || s[v] || s[0]);
+      };
+      const rankText = getOrdinal(rank);
+
       await notificationService.createInAppNotification(
         req.user.id,
         'Bid Placed Successfully',
-        `Your bid of $${offerPrice.toLocaleString()} for the property has been placed.`
+        `Your bid of $${offerPrice.toLocaleString()} has been placed. You are currently ranked ${rankText} based on system evaluation.`
       );
       await notificationService.createInAppNotification(
         property.sellerId,
@@ -87,7 +107,7 @@ exports.createOffer = async (req, res, next) => {
   }
 };
 
-// @desc    Get all bids/offers for a property with AI rank recommendation
+// @desc    Get all bids/offers for a property with system rank recommendation
 // @route   GET /api/properties/:id/offers
 // @access  Private
 exports.getOffersByProperty = async (req, res, next) => {
@@ -106,25 +126,25 @@ exports.getOffersByProperty = async (req, res, next) => {
 
     const targetPrice = parseFloat(property.price);
 
-    // Compute AI Matching Score for each offer
-    // Score Formula: (Offer Price / Target Price) * 100 - (Payment Period Days * 0.5)
-    // Higher bids + shorter payment periods get a higher score.
+    // Compute System Matching Score for each offer
+    // Score Formula: (Offer Price / Target Price) * 100 - (Payment Period Days * 2.0)
+    // Higher bids + shorter payment periods get a higher score. Every extra day penalizes the score by 2% to prioritize fast liquidity.
     const rankedOffers = offers.map(o => {
       const oPrice = parseFloat(o.price);
       const days = o.paymentPeriodDays;
-      const aiScore = parseFloat(((oPrice / targetPrice) * 100 - (days * 0.5)).toFixed(2));
+      const systemScore = parseFloat(((oPrice / targetPrice) * 100 - (days * 2.0)).toFixed(2));
       
       const offerJson = o.toJSON();
-      offerJson.aiScore = aiScore;
+      offerJson.systemScore = systemScore;
       return offerJson;
     });
 
-    // Sort by AI Score descending
-    rankedOffers.sort((a, b) => b.aiScore - a.aiScore);
+    // Sort by System Score descending
+    rankedOffers.sort((a, b) => b.systemScore - a.systemScore);
 
     // Tag the best choice
     if (rankedOffers.length > 0) {
-      rankedOffers[0].isAIChoice = true;
+      rankedOffers[0].isSystemChoice = true;
     }
 
     res.status(200).json({ 

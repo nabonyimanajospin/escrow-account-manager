@@ -300,16 +300,72 @@ exports.chatWithGlobalAI = async (req, res, next) => {
       };
       responseText = await generateChatResponse(message, context);
     } catch (aiError) {
-      // Fallback — fix: use message variable not undefined query
+      logger.warn('Gemini AI global chat fallback active:', aiError.message);
       const q = message.toLowerCase();
-      if (q.includes('fee') || q.includes('charge')) {
-        responseText = `### 💸 Platform Fees\nThe platform charges a total **2.5% service fee** per transaction. The buyer pays **1.0%** upfront upon funding the escrow, and the seller pays **1.5%** which is deducted from their final payout.`;
-      } else if (q.includes('dispute') || q.includes('problem')) {
-        responseText = `### ⚖️ Disputes\nIf there is a conflict, you can file a dispute in your transaction workspace. An administrator will review evidence as a neutral mediator.`;
-      } else if (q.includes('flow') || q.includes('process') || q.includes('how it works')) {
-        responseText = `### 🔄 How Escrow Works\n1. **Fund**: Buyer deposits into Escrow (+ 1% fee).\n2. **Transfer**: Seller uploads deed transfer document.\n3. **Verification**: Admin verifies documents.\n4. **Release**: Funds released to Seller (- 1.5% fee).`;
+      
+      if (q.includes('ready') || q.includes('are you ready') || (q.includes('help') && (q.includes('yes') || q.includes('can you')))) {
+        responseText = `**YES!** I am fully ready to assist you. 
+
+As your **EscrowTrust AI Co-Pilot**, I am active and equipped to guide you with:
+- 🏡 **Buying & Bidding**: How to make custom offers on properties.
+- 🛡️ **Escrow Protection**: How buyer & seller funds are locked and verified.
+- 💸 **Fee Structure**: Understanding our transparent 2.5% fee split (1% Buyer / 1.5% Seller).
+- ⚖️ **Disputes & Mediation**: How our administrator mediation process protects your transaction.
+
+What would you like to explore first?`;
+      } else if (q.includes('fee') || q.includes('charge') || q.includes('cost') || q.includes('percent')) {
+        responseText = `### 💸 Platform Fee Breakdown
+EscrowTrust charges a transparent **2.5% total service fee**:
+- **Buyer Fee (1.0%)**: Paid upfront when funding the escrow.
+- **Seller Fee (1.5%)**: Deducted from the seller's final payout upon successful transaction completion.
+
+*No hidden costs or extra charges.*`;
+      } else if (q.includes('dispute') || q.includes('problem') || q.includes('complain') || q.includes('stuck') || q.includes('fraud')) {
+        responseText = `### ⚖️ Dispute Resolution System
+If any disagreement or issue arises during a deal:
+1. Click **"File Dispute"** in your transaction dashboard to lock and freeze escrow funds.
+2. Both parties submit evidence (documents, payment proofs, communications).
+3. A platform Administrator acts as an impartial arbitrator to review evidence and order a **Refund** or **Funds Release**.`;
+      } else if (q.includes('buy') || q.includes('purchase') || q.includes('browse')) {
+        responseText = `### 🛒 How to Buy Property on EscrowTrust
+1. **Browse Marketplace**: Select a listing from our properties page.
+2. **Submit Offer or Direct Purchase**: Buy instantly or place a custom bid specifying your price and payment duration.
+3. **Fund Escrow**: Deposit your funds into the secure smart escrow contract.
+4. **Deed Verification**: Seller uploads ownership transfer documents for official admin verification.
+5. **Ownership Transfer**: Upon verification, funds are released to the seller and the property is yours!`;
+      } else if (q.includes('sell') || q.includes('list') || q.includes('seller')) {
+        responseText = `### 🏡 How to Sell Property on EscrowTrust
+1. **List Property**: Click "Add Property" from your dashboard and fill in parcel details.
+2. **Review Offers**: View incoming buyer bids ranked by our AI algorithm.
+3. **Accept Offer**: Accepting a bid instantly opens an Escrow workspace.
+4. **Upload Deed**: Once buyer funds the escrow, upload your mutation transfer documents.
+5. **Get Paid**: After verification, net funds (minus 1.5% fee) are released directly to your wallet!`;
+      } else if (q.includes('bid') || q.includes('offer')) {
+        responseText = `### 🎯 Bidding & Custom Offers System
+Buyers can place custom bids on any available property by specifying:
+- **Offered Amount ($)**
+- **Proposed Payment Term (in days)**
+
+Our **AI Offer Ranker** grades each bid for the seller based on price and duration. Once the seller accepts an offer, the deal moves directly into Escrow!`;
+      } else if (q.includes('hi') || q.includes('hello') || q.includes('hey') || q.includes('greetings')) {
+        responseText = `👋 Hello! I am your **EscrowTrust AI Co-Pilot**. I am ready to answer any questions you have about real estate listings, escrow protection, placing bids, or platform fees. How can I help you today?`;
+      } else if (q.includes('flow') || q.includes('process') || q.includes('how it works') || q.includes('escrow')) {
+        responseText = `### 🔄 How EscrowTrust Works
+1. **Agreement**: Buyer buys directly or seller accepts a bid.
+2. **Deposit**: Buyer funds the smart escrow (+ 1.0% fee).
+3. **Deed Transfer**: Seller uploads official land mutation certificates.
+4. **Admin Audit**: Administrator verifies document authenticity against land registry records.
+5. **Payout**: Funds (net of 1.5% fee) are released to the seller!`;
       } else {
-        responseText = `Hello! I am your AI Assistant. I can help you understand how escrow transactions work, explain platform fees, or guide you through filing a dispute.`;
+        responseText = `Hello! I am your AI Assistant. You asked: *"_${message}_"*
+
+I am fully active and ready to help! I can assist you with:
+- **Buying & Bidding on Properties**
+- **Understanding Platform Escrow Fees**
+- **How smart contracts & document verification protect your funds**
+- **Filing and resolving transaction disputes**
+
+Feel free to ask me anything specific about buying, selling, or escrow protection!`;
       }
     }
 
@@ -317,6 +373,41 @@ exports.chatWithGlobalAI = async (req, res, next) => {
       success: true,
       response: responseText,
       timestamp: new Date()
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const { generateDisputeResolution } = require('../services/aiService');
+const { Dispute, DisputeEvidence } = require('../models');
+const { transactionIncludes } = require('../utils/transactionHelpers');
+
+exports.analyzeDispute = async (req, res, next) => {
+  try {
+    const { id } = req.params; // Transaction ID
+    
+    // Fetch transaction
+    const transaction = await Transaction.findByPk(id, { include: transactionIncludes });
+    if (!transaction) {
+      return res.status(404).json({ success: false, message: 'Transaction not found' });
+    }
+
+    // Fetch dispute
+    const dispute = await Dispute.findOne({ where: { transactionId: id, status: 'OPEN' } });
+    if (!dispute) {
+      return res.status(404).json({ success: false, message: 'No open dispute found for this transaction' });
+    }
+
+    // Fetch evidence
+    const evidenceList = await DisputeEvidence.findAll({ where: { disputeId: dispute.id } });
+
+    // Generate AI resolution
+    const analysis = await generateDisputeResolution(transaction, dispute, evidenceList);
+
+    res.status(200).json({
+      success: true,
+      analysis,
     });
   } catch (error) {
     next(error);

@@ -9,6 +9,10 @@ const getRates = async (req, res) => {
   try {
     const response = await axios.get('https://api.frankfurter.app/latest?from=USD&to=RWF,EUR,GBP,KES,UGX,TZS,NGN');
     const { rates, date } = response.data;
+    
+    // Frankfurter doesn't support RWF, so inject fallback if missing
+    if (!rates.RWF) rates.RWF = 1470.94;
+    
     res.json({
       success: true,
       base: 'USD',

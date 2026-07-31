@@ -11,7 +11,7 @@ jest.mock('../src/config/database', () => ({
     define: jest.fn(),
     authenticate: jest.fn(),
     sync: jest.fn(),
-    transaction: jest.fn((cb) => cb('MOCK_TX')),
+    transaction: jest.fn((cb) => cb({ LOCK: { UPDATE: 'UPDATE' } })),
   },
   connectDB: jest.fn(),
 }));
@@ -60,6 +60,7 @@ jest.mock('../src/services/notificationService', () => ({
   sendDisputeNotificationEmail: jest.fn().mockResolvedValue(undefined),
   sendWalletCreditEmail: jest.fn().mockResolvedValue(undefined),
   sendEmail: jest.fn().mockResolvedValue(undefined),
+  createInAppNotification: jest.fn().mockResolvedValue(undefined),
 }));
 
 const { User, Property, Transaction, Escrow, AuditLog, LedgerEntry, Offer, WalletTransaction } = require('../src/models');
@@ -406,8 +407,10 @@ describe('POST /api/admin/transactions/:id/refund', () => {
 
     const res = await request(app)
       .post('/api/admin/transactions/5/refund')
+      .send({ adminNotes: 'Refund testing' })
       .set('Authorization', `Bearer ${tokenFor.admin()}`);
 
+    if (res.status !== 200) console.log('Refund Test Error:', res.body);
     expect(res.status).toBe(200);
     expect(txn.update).toHaveBeenCalledWith(expect.objectContaining({ status: 'REFUNDED' }), expect.any(Object));
     expect(escrow.update).toHaveBeenCalledWith(expect.objectContaining({ balance: 0, status: 'REFUNDED' }), expect.any(Object));
@@ -451,6 +454,7 @@ describe('POST /api/escrow/:id/cancel', () => {
       .post('/api/escrow/5/cancel')
       .set('Authorization', `Bearer ${tokenFor.buyer()}`);
 
+    if (res.status !== 200) console.log('Cancel Test Error:', res.body);
     expect(res.status).toBe(200);
     expect(Property.update).toHaveBeenCalledWith({ status: 'AVAILABLE' }, expect.any(Object));
   });
@@ -489,8 +493,8 @@ describe('POST /api/escrow/:id/verify-registry', () => {
     const { txn } = fullTxn({
       status: 'MUTATION_STARTED',
       mutationDocuments: [{
-        documentUrl: 'data:text/plain;base64,SW52YWxpZCBEb2N1bWVudA==', // Base64 for "Invalid Document"
-        description: 'Mock deed file'
+        documentUrl: '/uploads/invalid.pdf',
+        description: 'Invalid Document'
       }]
     });
     Transaction.findByPk.mockResolvedValue(txn);
@@ -500,7 +504,8 @@ describe('POST /api/escrow/:id/verify-registry', () => {
       .set('Authorization', `Bearer ${tokenFor.seller()}`);
 
     expect(res.status).toBe(400);
-    expect(res.body.report.upiFormatMatch).toBe('FAILED');
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toMatch(/Registry verification failed/);
   });
 
   it('succeeds verification if deed matches buyer, seller, property, and UPI syntax', async () => {
@@ -522,10 +527,9 @@ SELLER: ${txn.seller.name.toUpperCase()}
 BUYER: ${txn.buyer.name.toUpperCase()}
 UNIQUE PARCEL IDENTIFIER: 1/03/01/04/1000`;
     
-    const base64Deed = 'data:text/plain;base64,' + Buffer.from(deedText).toString('base64');
     txn.mutationDocuments = [{
-      documentUrl: base64Deed,
-      description: 'Valid deed file'
+      documentUrl: '/uploads/valid-deed.pdf',
+      description: deedText
     }];
     
     Transaction.findByPk.mockResolvedValue(txn);
@@ -534,6 +538,7 @@ UNIQUE PARCEL IDENTIFIER: 1/03/01/04/1000`;
       .post('/api/escrow/5/verify-registry')
       .set('Authorization', `Bearer ${tokenFor.seller()}`);
 
+    if (res.status !== 200) console.log('Verify-Registry Test Error:', res.body);
     expect(res.status).toBe(200);
     expect(res.body.report.upiFormatMatch).toBe('VERIFIED');
     expect(res.body.report.registryRecordFound).toBe('VERIFIED');

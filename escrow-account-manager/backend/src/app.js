@@ -4,6 +4,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 const hpp = require('hpp');
+const cookieParser = require('cookie-parser');
 const errorHandler = require('./middleware/errorHandler');
 const logger = require('./utils/logger');
 require('dotenv').config();
@@ -87,6 +88,7 @@ app.use('/api/escrow/verify-otp', otpLimiter);
 // ─── Body Parsers ─────────────────────────────────────────────────────────────
 app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ extended: true, limit: '20mb' }));
+app.use(cookieParser());
 
 // ─── Input Sanitization (HPP + Helmet CSP) ────────────────────────────────────────
 app.use(hpp());

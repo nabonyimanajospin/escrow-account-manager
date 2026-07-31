@@ -4,6 +4,8 @@ import axios from '../api/axiosConfig';
 import StatusBadge from '../components/StatusBadge';
 import toast from 'react-hot-toast';
 import { resolveImageUrl } from '../utils/imageUtils';
+import EmptyState from '../components/common/EmptyState';
+import { SkeletonCard } from '../components/common/SkeletonLoader';
 
 const PropertyList = () => {
   const [properties, setProperties] = useState([]);
@@ -34,7 +36,12 @@ const PropertyList = () => {
   const filteredProperties = properties.filter((p) => {
     if (p.status === 'SOLD') return false;
     if (typeFilter !== 'ALL' && p.propertyType !== typeFilter) return false;
-    if (locationFilter && !p.location.toLowerCase().includes(locationFilter.toLowerCase())) return false;
+    if (locationFilter) {
+      const query = locationFilter.toLowerCase();
+      const matchesTitle = p.title?.toLowerCase().includes(query);
+      const matchesLocation = p.location?.toLowerCase().includes(query);
+      if (!matchesTitle && !matchesLocation) return false;
+    }
     if (priceFilter) {
       const maxPrice = Number(priceFilter);
       if (Number(p.price) > maxPrice) return false;
@@ -44,13 +51,20 @@ const PropertyList = () => {
 
   if (loading) {
     return (
-      <div className="min-h-[70vh] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <svg className="animate-spin h-10 w-10 text-primary-600" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-          </svg>
-          <span className="text-sm font-semibold text-slate-500">Loading catalog listings...</span>
+      <div className="page-wrapper space-y-6">
+        <div className="h-10 w-48 bg-slate-200 rounded animate-pulse mb-1"></div>
+        <div className="card p-4 bg-white grid grid-cols-1 sm:grid-cols-3 gap-4">
+           <div className="h-10 bg-slate-200 rounded animate-pulse"></div>
+           <div className="h-10 bg-slate-200 rounded animate-pulse"></div>
+           <div className="h-10 bg-slate-200 rounded animate-pulse"></div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
         </div>
       </div>
     );
@@ -86,11 +100,11 @@ const PropertyList = () => {
         </div>
 
         <div>
-          <label className="input-label">Search Location</label>
+          <label className="input-label">Search Title or Location</label>
           <input
             type="text"
             className="input-field"
-            placeholder="e.g. Kigali, Nyarutarama"
+            placeholder="e.g. Kigali, Villa, Modern..."
             value={locationFilter}
             onChange={(e) => setLocationFilter(e.target.value)}
           />
@@ -110,15 +124,12 @@ const PropertyList = () => {
 
       {/* Grid List */}
       {filteredProperties.length === 0 ? (
-        <div className="card p-12 text-center bg-white border border-slate-200">
-          <p className="text-slate-500 text-sm font-semibold">No property listings match your query parameters.</p>
-          <button
-            onClick={() => { setTypeFilter('ALL'); setLocationFilter(''); setPriceFilter(''); }}
-            className="btn-secondary text-xs mt-3"
-          >
-            Clear Filters
-          </button>
-        </div>
+        <EmptyState
+          title="No properties found"
+          description="No property listings match your query parameters."
+          actionText="Clear Filters"
+          actionOnClick={() => { setTypeFilter('ALL'); setLocationFilter(''); setPriceFilter(''); }}
+        />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredProperties.map((p) => (

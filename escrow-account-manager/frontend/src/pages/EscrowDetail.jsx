@@ -6,6 +6,9 @@ import StatusBadge from '../components/StatusBadge';
 import AuditLog from '../components/AuditLog';
 import toast from 'react-hot-toast';
 import { resolveImageUrl } from '../utils/imageUtils';
+import EscrowTimeline from '../components/escrow/EscrowTimeline';
+import EscrowLedger from '../components/escrow/EscrowLedger';
+import { SkeletonCard } from '../components/common/SkeletonLoader';
 
 const EscrowDetail = () => {
   const { id } = useParams();
@@ -557,13 +560,16 @@ STATUS: COMPLETED MUTATION`;
 
   if (loading) {
     return (
-      <div className="min-h-[85vh] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <svg className="animate-spin h-10 w-10 text-primary-600" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-          </svg>
-          <span className="text-sm font-semibold text-slate-500">Decrypting transaction records...</span>
+      <div className="page-wrapper max-w-7xl mx-auto space-y-6 animate-fade-in">
+        <div className="h-10 w-64 bg-slate-200 rounded animate-pulse mb-6"></div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2 space-y-6">
+            <SkeletonCard />
+            <SkeletonCard />
+          </div>
+          <div className="space-y-6">
+            <SkeletonCard />
+          </div>
         </div>
       </div>
     );
@@ -607,62 +613,8 @@ STATUS: COMPLETED MUTATION`;
         <span className="text-xs text-slate-400 font-mono">Deal Reference: {transaction.transactionId}</span>
       </div>
 
-      {/* 1. STATE MACHINE TIMELINE */}
-      <div className="card p-6 bg-white border border-slate-200">
-        <h2 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-6">Escrow Transaction Progress</h2>
-        
-        {status === 'REFUNDED' ? (
-          <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-center">
-            <p className="text-sm font-bold text-red-800">Transaction Voided</p>
-            <p className="text-xs text-red-600 mt-1">This transaction agreement has been cancelled, and any deposited capital has been refunded.</p>
-          </div>
-        ) : status === 'DISPUTED' ? (
-          <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-center">
-            <p className="text-sm font-bold text-amber-800">⚠️ Active Dispute Filed</p>
-            <p className="text-xs text-amber-600 mt-1">This transaction is currently frozen under active dispute mediation. No funds will be released until the arbitrator resolves this case.</p>
-          </div>
-        ) : (
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative">
-            
-            {/* Timeline line background */}
-            <div className="hidden md:block absolute left-4 right-4 top-1/2 -translate-y-1/2 h-[3px] bg-slate-100 -z-10" />
-
-            {[
-              { label: 'Agreement Pending', key: 'PENDING', desc: 'Sign online contract' },
-              { label: 'Escrow Funded', key: 'FUNDED', desc: 'Buyer deposits capital' },
-              { label: 'Mutation Initiated', key: 'MUTATION_STARTED', desc: 'Seller starts ownership transfer' },
-              { label: 'Under Review', key: 'UNDER_REVIEW', desc: 'Admin audits documents' },
-              { label: 'Awaiting Receipt', key: 'AWAITING_RECEIPT', desc: 'Seller confirms payout' },
-              { label: 'Settled / Sold', key: 'COMPLETED', desc: 'Transaction finalized' },
-            ].map((step, idx) => {
-              const isPast = currentStep > idx;
-              const isCurrent = currentStep === idx;
-              return (
-                <div key={step.key} className="flex-1 flex md:flex-col items-center gap-4 md:gap-3 text-left md:text-center">
-                  
-                  {/* Circle Pin */}
-                  <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs font-bold transition-all ${
-                    isPast
-                      ? 'border-emerald-500 bg-emerald-500 text-white'
-                      : isCurrent
-                      ? 'border-primary-600 bg-primary-600 text-white shadow'
-                      : 'border-slate-200 bg-white text-slate-400'
-                  }`}>
-                    {idx + 1}
-                  </div>
-
-                  {/* Descriptions */}
-                  <div className="leading-tight">
-                    <p className={`text-sm font-bold ${isCurrent ? 'text-primary-700' : 'text-slate-800'}`}>{step.label}</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5 leading-relaxed font-semibold">{step.desc}</p>
-                  </div>
-
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      <EscrowTimeline status={status} />
+      <EscrowLedger transaction={transaction} />
 
       {/* 2. TRANSACTION AND ACCOUNT DETAILS SPLIT */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -1879,7 +1831,7 @@ STATUS: COMPLETED MUTATION`;
       {/* AI Co-Pilot Sidebar Drawer */}
       {isAIChatOpen && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex justify-end z-50 animate-fade-in">
-          <div className="w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-slide-in">
+          <div className="w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-slide-in-right">
             {/* Header */}
             <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
               <div className="flex items-center gap-2">

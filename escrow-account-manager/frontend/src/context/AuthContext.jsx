@@ -21,7 +21,6 @@ export const AuthProvider = ({ children }) => {
   const navigate = useNavigate();
 
   const doLogout = () => {
-    localStorage.removeItem('token');
     localStorage.removeItem('user');
     setUser(null);
     setIsAuthenticated(false);
@@ -38,19 +37,15 @@ export const AuthProvider = ({ children }) => {
   }, [navigate]);
 
   const checkAuth = async () => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      try {
-        const response = await axios.get('/auth/me');
-        setUser(response.data.user);
-        setIsAuthenticated(true);
-      } catch (error) {
-        console.error('Session validation failed:', error.message);
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        setUser(null);
-        setIsAuthenticated(false);
-      }
+    try {
+      const response = await axios.get('/auth/me');
+      setUser(response.data.user);
+      setIsAuthenticated(true);
+    } catch (error) {
+      console.log('No active session.');
+      localStorage.removeItem('user');
+      setUser(null);
+      setIsAuthenticated(false);
     }
     setLoading(false);
   };
@@ -76,9 +71,8 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       const response = await axios.post('/auth/login', { email, password });
-      const { token, user: loggedUser } = response.data;
+      const { user: loggedUser } = response.data;
       
-      localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(loggedUser));
       
       setUser(loggedUser);
@@ -97,9 +91,8 @@ export const AuthProvider = ({ children }) => {
   const register = async (userData) => {
     try {
       const response = await axios.post('/auth/register', userData);
-      const { token, user: registeredUser } = response.data;
+      const { user: registeredUser } = response.data;
       
-      localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(registeredUser));
       
       setUser(registeredUser);
@@ -115,7 +108,12 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await axios.post('/auth/logout');
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
     doLogout();
     toast.success('Logged out successfully.');
   };
