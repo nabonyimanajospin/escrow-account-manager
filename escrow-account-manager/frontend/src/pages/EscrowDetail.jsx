@@ -841,10 +841,10 @@ STATUS: COMPLETED MUTATION`;
                   {isSeller ? (
                     <button
                       onClick={handleInitiateMutation}
-                      disabled={actionLoading || !buyerAuthorized || !sellerAuthorized}
-                      className="btn-primary text-xs"
+                      disabled={actionLoading}
+                      className="btn-primary text-xs font-bold shadow-md hover:shadow-lg transition-all"
                     >
-                      Start Ownership Mutation
+                      🚀 Start Ownership Mutation
                     </button>
                   ) : (
                     <span className="text-xs font-bold text-slate-400 italic">Waiting for Seller to start mutation...</span>
@@ -859,11 +859,6 @@ STATUS: COMPLETED MUTATION`;
                     </button>
                   )}
                 </div>
-                {(!buyerAuthorized || !sellerAuthorized) && (
-                  <p className="text-[10px] text-slate-400 font-bold leading-tight">
-                    * Action locks until both parties sign verification code {transaction.verificationCode} for mutation start consensus.
-                  </p>
-                )}
               </div>
             )}
 
@@ -1571,34 +1566,36 @@ STATUS: COMPLETED MUTATION`;
               </div>
             )}
 
-            {/* Unified File Dispute trigger for active states */}
+            {/* File Dispute trigger (Expandable Accordion) */}
             {['FUNDED', 'MUTATION_STARTED', 'UNDER_REVIEW'].includes(status) && (isBuyer || isSeller) && (
-              <form onSubmit={handleRaiseDispute} className="pt-4 border-t border-slate-100 space-y-3 text-left">
-                <div>
-                  <p className="text-[11px] font-bold text-slate-700">Having issues with this transaction?</p>
-                  <p className="text-[9px] text-slate-400 font-semibold leading-tight mt-0.5">
-                    Describe the issue or disagreement below to freeze the escrow custody account and file a formal dispute case.
+              <details className="pt-3 border-t border-slate-100 text-left">
+                <summary className="text-[11px] font-bold text-slate-500 hover:text-red-600 cursor-pointer flex items-center gap-1">
+                  <span>⚠️ Having an issue or disagreement? Click here to report/file a dispute</span>
+                </summary>
+                <form onSubmit={handleRaiseDispute} className="mt-3 p-3 bg-red-50/50 border border-red-100 rounded-xl space-y-2">
+                  <p className="text-[9px] text-slate-500 font-semibold leading-tight">
+                    Describing an issue freezes the escrow custody account and opens a formal arbitration case for Admin review.
                   </p>
-                </div>
-                <div className="flex gap-2 items-center">
-                  <input
-                    type="text"
-                    required
-                    placeholder="Enter reason for dispute..."
-                    className="input-field flex-grow !py-1.5 !px-3 text-xs"
-                    value={disputeReason}
-                    onChange={(e) => setDisputeReason(e.target.value)}
-                    disabled={actionLoading}
-                  />
-                  <button
-                    type="submit"
-                    disabled={actionLoading || !disputeReason.trim()}
-                    className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer"
-                  >
-                    File Dispute
-                  </button>
-                </div>
-              </form>
+                  <div className="flex gap-2 items-center">
+                    <input
+                      type="text"
+                      required
+                      placeholder="Reason for dispute (e.g. Invalid document, non-responsive seller...)"
+                      className="input-field text-xs !py-1.5 flex-1"
+                      value={disputeReason}
+                      onChange={(e) => setDisputeReason(e.target.value)}
+                      disabled={actionLoading}
+                    />
+                    <button
+                      type="submit"
+                      disabled={actionLoading}
+                      className="btn-secondary text-xs !py-1.5 font-bold text-red-600 border-red-200 hover:bg-red-50 cursor-pointer flex-shrink-0"
+                    >
+                      File Dispute Case
+                    </button>
+                  </div>
+                </form>
+              </details>
             )}
 
           </div>
