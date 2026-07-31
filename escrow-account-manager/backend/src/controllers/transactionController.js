@@ -626,6 +626,13 @@ const releaseFunds = async (req, res, next) => {
       await escrow.update({ balance: 0.00, status: 'RELEASED', releaseHistory }, { transaction: t });
       await transaction.update({ status: 'AWAITING_RECEIPT', releaseDate: new Date(), adminNotes }, { transaction: t });
 
+      if (transaction.status === 'DISPUTED') {
+        await Dispute.update(
+          { status: 'RESOLVED', mediatorId: req.user.id, mediatorNotes: adminNotes, mediatorDecision: 'RELEASE_TO_SELLER' },
+          { where: { transactionId: transaction.id, status: ['OPEN', 'EVIDENCE_SUBMITTED', 'UNDER_MEDIATION'] }, transaction: t }
+        );
+      }
+
       // Bookkeeping entries
       await ledgerService.recordEntry({
         transactionId: transaction.id,
@@ -758,6 +765,13 @@ const refundBuyer = async (req, res, next) => {
 
       const logMsg = `Admin rejected mutation/resolved dispute and refunded escrow balance of $${amount} to Buyer.` + (adminNotes ? ` Notes: ${adminNotes}` : '');
       await logAction(transaction.id, req, logMsg, { transaction: t });
+
+      if (transaction.status === 'DISPUTED') {
+        await Dispute.update(
+          { status: 'RESOLVED', mediatorId: req.user.id, mediatorNotes: adminNotes, mediatorDecision: 'REFUND_TO_BUYER' },
+          { where: { transactionId: transaction.id, status: ['OPEN', 'EVIDENCE_SUBMITTED', 'UNDER_MEDIATION'] }, transaction: t }
+        );
+      }
 
       // Reload transaction to get buyer details
       const txWithUsers = await Transaction.findByPk(transaction.id, {
