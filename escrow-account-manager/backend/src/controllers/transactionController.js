@@ -435,8 +435,8 @@ const initiateMutation = async (req, res, next) => {
         sellerAuthorized: false,
       }, { transaction: t });
 
-      // We issue the OTP only to the SELLER, so they can authorize the mutation completion later.
-      await issueAndDeliverConsensusOtp(transaction, t, 'SELLER');
+      // Issue OTP to BOTH buyer and seller upon mutation initiation
+      await issueAndDeliverConsensusOtp(transaction, t, 'BOTH');
 
       await logAction(transaction.id, req, `Seller initiated ownership mutation (legal transfer)`, { transaction: t });
       
