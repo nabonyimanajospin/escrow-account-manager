@@ -29,7 +29,8 @@ exports.register = async (req, res, next) => {
       });
     }
 
-    const existingUser = await User.findOne({ where: { email } });
+    const cleanEmail = email.toLowerCase().trim();
+    const existingUser = await User.findOne({ where: { email: cleanEmail } });
     if (existingUser) {
       return res.status(400).json({
         success: false,
@@ -37,7 +38,7 @@ exports.register = async (req, res, next) => {
       });
     }
 
-    const user = await User.create({ name, email, password, role, phone, address });
+    const user = await User.create({ name, email: cleanEmail, password, role, phone, address });
     const token = generateToken(user.id);
     const cookieOptions = {
       expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
@@ -75,7 +76,8 @@ exports.login = async (req, res, next) => {
       });
     }
 
-    const user = await User.findOne({ where: { email } });
+    const cleanEmail = email.toLowerCase().trim();
+    const user = await User.findOne({ where: { email: cleanEmail } });
     if (!user) {
       return res.status(401).json({
         success: false,
