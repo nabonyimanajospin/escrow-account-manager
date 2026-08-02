@@ -36,8 +36,9 @@ axiosInstance.interceptors.response.use(
       localStorage.removeItem('user');
       if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
         toast.error('Session expired. Please login again.');
-        // Use history API for SPA navigation — avoids full page reload
         window.dispatchEvent(new CustomEvent('auth:expired'));
+      } else {
+        toast.error(message);
       }
     } else {
       toast.error(message);

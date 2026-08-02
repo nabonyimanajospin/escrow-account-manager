@@ -274,6 +274,8 @@
    ═══════════════════════════════════════════════════ */
 .input-field {
   width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   padding: 0.625rem 1rem;
   background: #ffffff;
   border: 1.5px solid #e2e8f0;

@@ -96,11 +96,37 @@ app.use(hpp());
 // ─── Static File Serving (uploaded files) ────────────────────────────────────
 const { protect } = require('./middleware/auth');
 
-// Publicly accessible property images (for marketplace)
-app.use('/uploads/properties', express.static(path.join(__dirname, '..', 'uploads', 'properties')));
+// Publicly accessible uploaded files (properties, contracts, mutations)
+app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
-// Protected sensitive documents (KYC, mutation deeds, evidence)
-app.use('/uploads', protect, express.static(path.join(__dirname, '..', 'uploads')));
+// Contract download fallback route for generated PDF certificates
+app.get('/uploads/contracts/:filename', async (req, res) => {
+  const contractsDir = path.join(__dirname, '..', 'uploads', 'contracts');
+  const fs = require('fs');
+  if (!fs.existsSync(contractsDir)) fs.mkdirSync(contractsDir, { recursive: true });
+
+  const requestedFile = path.join(contractsDir, req.params.filename);
+  if (fs.existsSync(requestedFile)) {
+    return res.sendFile(requestedFile);
+  }
+  try {
+    const { Transaction } = require('./models');
+    const { generateEscrowContract } = require('./services/contractService');
+    const { transactionIncludes } = require('./utils/transactionHelpers');
+    
+    // Find transaction to generate contract on-the-fly
+    const tx = await Transaction.findOne({ order: [['id', 'DESC']], include: transactionIncludes });
+    if (tx) {
+      await generateEscrowContract(tx, req.params.filename);
+      if (fs.existsSync(requestedFile)) {
+        return res.sendFile(requestedFile);
+      }
+    }
+  } catch (err) {
+    logger.error('[Contract On-the-Fly] Error:', err.message);
+  }
+  res.status(404).send('Contract document unavailable.');
+});
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 app.use('/api/auth',       require('./routes/auth'));

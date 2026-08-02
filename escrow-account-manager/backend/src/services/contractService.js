@@ -9,11 +9,11 @@ const path = require('path');
  * @param {object} transaction  - Sequelize Transaction instance (with buyer, seller, property included)
  * @returns {Promise<string>}   - Relative path like /uploads/contracts/CONTRACT-xxx.pdf
  */
-const generateEscrowContract = async (transaction) => {
+const generateEscrowContract = async (transaction, customFilename = null) => {
   const contractsDir = path.join(__dirname, '..', 'uploads', 'contracts');
   if (!fs.existsSync(contractsDir)) fs.mkdirSync(contractsDir, { recursive: true });
 
-  const filename = `CONTRACT-${transaction.transactionId || transaction.id}-${Date.now()}.pdf`;
+  const filename = customFilename || `CONTRACT-${transaction.transactionId || transaction.id}-${Date.now()}.pdf`;
   const filePath = path.join(contractsDir, filename);
 
   return new Promise((resolve, reject) => {

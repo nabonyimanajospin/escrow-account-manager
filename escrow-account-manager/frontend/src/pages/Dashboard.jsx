@@ -117,19 +117,25 @@ const Dashboard = () => {
             Welcome back, {user?.name}
           </h1>
           <p className="text-slate-500 mt-1 text-sm font-semibold">
-            Logged in as <span className="text-primary-600">{user?.role}</span>
+            {user?.role === 'SELLER'
+              ? '🏡 Seller Control Portal — Manage your property listings, buyer bids & escrow payouts'
+              : '🛒 Buyer Escrow Workspace — Track active transactions & secured property purchases'}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {user?.role === 'SELLER' && (
-            <Link to="/properties/create" className="btn-primary text-sm font-semibold">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Create Listing
-            </Link>
+          {user?.role === 'SELLER' ? (
+            <>
+              <Link to="/properties/create" className="btn-primary text-sm font-semibold">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                + Add Property
+              </Link>
+              <Link to="/properties" className="btn-secondary text-sm font-semibold">Public Marketplace</Link>
+            </>
+          ) : (
+            <Link to="/properties" className="btn-primary text-sm font-semibold">Browse Listings Catalog</Link>
           )}
-          <Link to="/properties" className="btn-secondary text-sm font-semibold">Browse Listings</Link>
         </div>
       </div>
 

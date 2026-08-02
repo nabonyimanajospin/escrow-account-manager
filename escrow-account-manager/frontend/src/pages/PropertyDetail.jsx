@@ -57,8 +57,8 @@ const PropertyDetail = () => {
   const handlePlaceBid = async (e) => {
     e.preventDefault();
     if (!isAuthenticated) {
-      toast.error('Please login to bid on a property');
-      navigate('/login');
+      toast.error('Please sign in to place your bid on this property');
+      navigate('/login', { state: { from: `/properties/${id}`, action: 'BID' } });
       return;
     }
 
@@ -105,8 +105,8 @@ const PropertyDetail = () => {
 
   const handleDirectPurchase = async () => {
     if (!isAuthenticated) {
-      toast.error('Please login to buy this property');
-      navigate('/login');
+      toast.error('Please sign in to purchase this property');
+      navigate('/login', { state: { from: `/properties/${id}`, action: 'BUY' } });
       return;
     }
     if (!window.confirm(`Initiate direct purchase for $${Number(property.price).toLocaleString()}? This will lock the property into escrow for your review.`)) return;
@@ -437,53 +437,119 @@ const PropertyDetail = () => {
             </div>
           </div>
 
-          {/* Offers Panel */}
+          {/* AI Buyer Ranking & Recommendation Panel */}
           {isAuthenticated && (isOwner || isAdmin || user?.role === 'BUYER') && (
             <div className="card p-5 bg-white space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Offers & Bids Feed</h3>
-                <span className="text-[9px] bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded font-bold border border-indigo-200">
-                  AI Ranked
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div>
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5 font-sans">
+                    <span>🤖</span> AI Buyer Ranking & Recommendation
+                  </h3>
+                  <p className="text-[10px] text-slate-400 font-medium">Dynamic multi-factor offer analysis engine</p>
+                </div>
+                <span className="text-[10px] bg-indigo-100 text-indigo-700 font-extrabold px-2 py-0.5 rounded-full border border-indigo-200">
+                  {offers.length} Buyer{offers.length !== 1 ? 's' : ''} Ranked
                 </span>
               </div>
 
+              {/* My Rank Summary Card for Logged-in Buyer */}
+              {user?.role === 'BUYER' && offers.length > 0 && (() => {
+                const myOffer = offers.find(o => o.buyerId === user.id);
+                if (!myOffer) return null;
+                const isRank1 = myOffer.rank === 1;
+                return (
+                  <div className={`p-3.5 rounded-xl border leading-relaxed space-y-1 ${
+                    isRank1
+                      ? 'bg-emerald-50/80 border-emerald-200 text-emerald-950'
+                      : 'bg-amber-50/80 border-amber-200 text-amber-950'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-extrabold flex items-center gap-1">
+                        {isRank1 ? '🏆 Rank #1 (Top Pick)' : `🥈 Rank #${myOffer.rank} of ${offers.length} Buyers`}
+                      </span>
+                      <span className="text-[10px] font-mono font-bold bg-white/80 px-2 py-0.5 rounded border border-current">
+                        AI Match Score: {myOffer.systemScore}%
+                      </span>
+                    </div>
+                    <p className="text-[11px] font-medium leading-snug">
+                      {isRank1
+                        ? 'Congratulations! Your offer is currently ranked #1 by our AI evaluation model.'
+                        : 'Tip: Lowering your payment duration (days) or increasing your offer amount will improve your AI Rank score to reach #1.'}
+                    </p>
+                  </div>
+                );
+              })()}
+
               {offersLoading ? (
-                <p className="text-xs text-slate-400 italic text-center py-2">Loading bids...</p>
+                <p className="text-xs text-slate-400 italic text-center py-4">Analyzing and ranking buyer offers...</p>
               ) : offers.length === 0 ? (
-                <p className="text-xs text-slate-400 italic text-center py-2">No active bidding offers yet.</p>
+                <p className="text-xs text-slate-400 italic text-center py-4">No buyer offers placed yet. The first buyer to submit an offer will immediately be ranked #1!</p>
               ) : (
-                <div className="space-y-4 pt-3 max-h-[300px] overflow-y-auto pr-1">
+                <div className="space-y-3 pt-1 max-h-[380px] overflow-y-auto pr-1">
                   {offers.map((offer) => {
                     const isMyOffer = user?.id === offer.buyerId;
+                    const rankNum = offer.rank || offer.aiRank || 1;
+                    const isRank1 = rankNum === 1;
+
                     return (
                       <div 
                         key={offer.id} 
-                        className={`p-3 rounded-xl border transition-all text-xs space-y-2 text-left relative ${
-                          offer.isSystemChoice 
-                            ? 'border-indigo-300 bg-indigo-50/30' 
+                        className={`p-3.5 rounded-xl border transition-all text-xs space-y-2 text-left relative ${
+                          isRank1
+                            ? 'border-emerald-300 bg-emerald-50/30 ring-1 ring-emerald-200' 
                             : offer.status === 'ACCEPTED'
-                            ? 'border-emerald-300 bg-emerald-50/20'
-                            : 'border-slate-200 bg-slate-50/30 hover:bg-slate-55'
+                            ? 'border-blue-300 bg-blue-50/20'
+                            : 'border-slate-200 bg-slate-50/50 hover:bg-slate-100/50'
                         }`}
                       >
-                        {offer.isSystemChoice && (
-                          <div className="absolute -top-3 -right-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-md flex items-center gap-1 border-2 border-white transform rotate-3">
-                            <span className="text-xs">✨</span>
-                            System Recommended
-                          </div>)}
-
+                        {/* Rank Badge Header */}
                         <div className="flex justify-between items-start">
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[11px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider ${
+                              isRank1
+                                ? 'bg-emerald-600 text-white shadow-xs'
+                                : rankNum === 2
+                                ? 'bg-slate-700 text-white'
+                                : 'bg-slate-200 text-slate-700'
+                            }`}>
+                              {isRank1 ? '🏆 Rank #1 Top AI Choice' : `#${rankNum} Ranked Buyer`}
+                            </span>
+                            {offer.buyer?.isKycVerified && (
+                              <span className="text-[9px] bg-emerald-100 text-emerald-800 font-extrabold px-1.5 py-0.5 rounded border border-emerald-200">
+                                ✓ KYC Verified
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-xs font-black text-indigo-600 font-mono">
+                            {offer.systemScore}% Score
+                          </span>
+                        </div>
+
+                        {/* Price and Details */}
+                        <div className="flex justify-between items-baseline pt-1">
                           <div>
-                            <p className="font-extrabold text-slate-850 text-[13px] text-slate-800">${Number(offer.price).toLocaleString()}</p>
-                            <p className="text-[10px] text-slate-400 font-bold mt-0.5">Proposed Period: {offer.paymentPeriodDays} days</p>
+                            <p className="font-extrabold text-slate-900 text-sm">
+                              ${Number(offer.price).toLocaleString()} <span className="text-[10px] text-slate-400 font-normal">USD</span>
+                            </p>
+                            <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
+                              Settlement Period: <strong className="text-slate-800">{offer.paymentPeriodDays} days</strong>
+                            </p>
                           </div>
                           <div className="text-right">
-                            <span className="text-[10px] font-bold text-indigo-600">Match Score: {offer.systemScore}%</span>
-                            <p className="text-[9px] text-slate-405 mt-0.5 font-bold text-slate-500">Buyer: {offer.buyer?.name}</p>
+                            <p className="text-[11px] font-bold text-slate-800">{offer.buyer?.name || 'Anonymous Buyer'}</p>
+                            {isMyOffer && <span className="text-[9px] font-bold text-primary-600">(Your Offer)</span>}
                           </div>
                         </div>
 
-                        <div className="flex justify-between items-center pt-2 border-t border-slate-100/70">
+                        {/* AI Rationale text */}
+                        {offer.aiRecommendation && (
+                          <div className="text-[10px] text-slate-600 bg-white/80 p-2 rounded-lg border border-slate-100 italic leading-snug">
+                            💡 {offer.aiRecommendation}
+                          </div>
+                        )}
+
+                        {/* Status & Accept Action */}
+                        <div className="flex justify-between items-center pt-2 border-t border-slate-100">
                           <span className={`text-[10px] font-extrabold ${
                             offer.status === 'ACCEPTED'
                               ? 'text-emerald-600'
@@ -498,9 +564,13 @@ const PropertyDetail = () => {
                             <button
                               onClick={() => handleAcceptOffer(offer.id, offer.price)}
                               disabled={actionLoading}
-                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-[10px] transition-colors cursor-pointer"
+                              className={`px-3 py-1.5 font-bold rounded-lg text-xs transition-all cursor-pointer shadow-xs ${
+                                isRank1
+                                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-300'
+                                  : 'bg-slate-800 hover:bg-slate-900 text-white'
+                              }`}
                             >
-                              Accept Bid
+                              {isRank1 ? 'Select #1 Buyer & Accept Bid' : 'Accept Buyer Bid'}
                             </button>
                           )}
                         </div>

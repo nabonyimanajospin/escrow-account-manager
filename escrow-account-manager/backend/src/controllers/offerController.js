@@ -68,12 +68,16 @@ exports.createOffer = async (req, res, next) => {
 
     try {
       // Calculate System Rank to notify buyer
-      const allOffers = await Offer.findAll({ where: { propertyId } });
+      const allOffers = await Offer.findAll({
+        where: { propertyId },
+        include: [{ model: User, as: 'buyer', attributes: ['id', 'isKycVerified'] }],
+      });
       const rankedOffers = allOffers.map(o => {
         const oPrice = parseFloat(o.price);
-        const days = o.paymentPeriodDays;
-        const systemScore = parseFloat(((oPrice / targetPrice) * 100 - (days * 0.5)).toFixed(2));
-        return { id: o.id, systemScore };
+        const days = o.paymentPeriodDays || 30;
+        let systemScore = ((oPrice / targetPrice) * 100) - (days * 0.5);
+        if (o.buyer && o.buyer.isKycVerified) systemScore += 5;
+        return { id: o.id, systemScore: parseFloat(systemScore.toFixed(2)) };
       });
       rankedOffers.sort((a, b) => b.systemScore - a.systemScore);
       
@@ -89,13 +93,13 @@ exports.createOffer = async (req, res, next) => {
 
       await notificationService.createInAppNotification(
         req.user.id,
-        'Bid Placed Successfully',
-        `Your bid of $${offerPrice.toLocaleString()} has been placed. You are currently ranked ${rankText} based on system evaluation.`
+        'Bid Placed & AI Ranked',
+        `Your offer of $${offerPrice.toLocaleString()} has been placed. You are currently AI Ranked #${rank} (${rankText} place) out of ${rankedOffers.length} buyer(s).`
       );
       await notificationService.createInAppNotification(
         property.sellerId,
-        'New Bid Received',
-        `You received a new bid of $${offerPrice.toLocaleString()} on your property listing.`
+        'New Buyer Offer Received (AI Ranked)',
+        `A new offer of $${offerPrice.toLocaleString()} was placed. Check AI Buyer Rankings to pick your buyer.`
       );
     } catch (notifErr) {
       console.error('Failed to send bid notifications', notifErr);
@@ -120,19 +124,22 @@ exports.getOffersByProperty = async (req, res, next) => {
 
     const offers = await Offer.findAll({
       where: { propertyId },
-      include: [{ model: User, as: 'buyer', attributes: ['id', 'name', 'email', 'phone'] }],
+      include: [{ model: User, as: 'buyer', attributes: ['id', 'name', 'email', 'phone', 'isKycVerified', 'walletBalance'] }],
       order: [['price', 'DESC']],
     });
 
     const targetPrice = parseFloat(property.price);
 
     // Compute System Matching Score for each offer
-    // Score Formula: (Offer Price / Target Price) * 100 - (Payment Period Days * 0.5)
-    // Higher bids + shorter payment periods get a higher score. Every extra day penalizes the score by 0.5% to prioritize fast liquidity.
+    // Score Formula: (Offer Price / Target Price) * 100 - (Payment Period Days * 0.5) + (KYC Verified ? 5 : 0)
     const rankedOffers = offers.map(o => {
       const oPrice = parseFloat(o.price);
-      const days = o.paymentPeriodDays;
-      const systemScore = parseFloat(((oPrice / targetPrice) * 100 - (days * 0.5)).toFixed(2));
+      const days = o.paymentPeriodDays || 30;
+      let systemScore = ((oPrice / targetPrice) * 100) - (days * 0.5);
+      if (o.buyer && o.buyer.isKycVerified) {
+        systemScore += 5;
+      }
+      systemScore = parseFloat(systemScore.toFixed(2));
       
       const offerJson = o.toJSON();
       offerJson.systemScore = systemScore;
@@ -142,10 +149,19 @@ exports.getOffersByProperty = async (req, res, next) => {
     // Sort by System Score descending
     rankedOffers.sort((a, b) => b.systemScore - a.systemScore);
 
-    // Tag the best choice
-    if (rankedOffers.length > 0) {
-      rankedOffers[0].isSystemChoice = true;
-    }
+    // Assign explicit integer rank (1, 2, 3...) and AI recommendation rationale
+    rankedOffers.forEach((offer, index) => {
+      const rankNum = index + 1;
+      offer.rank = rankNum;
+      offer.aiRank = rankNum;
+      offer.isSystemChoice = (index === 0);
+      
+      if (index === 0) {
+        offer.aiRecommendation = `🏆 Rank #1 Top AI Pick: Outstanding offer of $${Number(offer.price).toLocaleString()} with ${offer.paymentPeriodDays}-day settlement timeline.`;
+      } else {
+        offer.aiRecommendation = `Rank #${rankNum}: Offer of $${Number(offer.price).toLocaleString()} with ${offer.paymentPeriodDays}-day settlement timeline.`;
+      }
+    });
 
     res.status(200).json({ 
       success: true, 

@@ -340,13 +340,18 @@ If any disagreement or issue arises during a deal:
 3. **Accept Offer**: Accepting a bid instantly opens an Escrow workspace.
 4. **Upload Deed**: Once buyer funds the escrow, upload your mutation transfer documents.
 5. **Get Paid**: After verification, net funds (minus 1.5% fee) are released directly to your wallet!`;
-      } else if (q.includes('bid') || q.includes('offer')) {
-        responseText = `### 🎯 Bidding & Custom Offers System
-Buyers can place custom bids on any available property by specifying:
-- **Offered Amount ($)**
-- **Proposed Payment Term (in days)**
+      } else if (q.includes('rank') || q.includes('ranking') || q.includes('best buyer') || q.includes('pick buyer') || q.includes('bid') || q.includes('offer')) {
+        responseText = `### 🤖 AI Buyer Ranking & Recommendation System
+Our AI Engine automatically analyzes and ranks all buyer bids/offers placed on a property listing:
 
-Our **AI Offer Ranker** grades each bid for the seller based on price and duration. Once the seller accepts an offer, the deal moves directly into Escrow!`;
+1. **Immediate #1 Rank**: When the **first buyer** places money/an offer on a property, they are immediately assigned **Rank #1 (Top AI Choice)**.
+2. **Multi-Buyer Dynamic AI Analysis**: When a **second or subsequent buyer** places an offer on the same property, our AI model evaluates both buyers using a multi-factor score:
+   - **Offer Price Ratio**: Higher bids relative to target price increase score.
+   - **Settlement Timeline**: Shorter payment periods (fewer days) penalize less and boost rank.
+   - **Identity Verification**: Verified KYC identity adds a +5% trust bonus.
+3. **Where to see AI Rankings**:
+   - **For Sellers**: On the **Property Details page**, the seller views the **"AI Buyer Ranking & Recommendation"** feed showing **🏆 Rank #1 Top Pick**, Rank #2, etc. The seller can click **"Select #1 Buyer & Accept Bid"** directly based on AI rankings.
+   - **For Buyers**: On the **Property Details page**, buyers can see their current position (e.g., *🏆 Ranked #1 of X Buyers*) and AI advice on how to improve their rank score.`;
       } else if (q.includes('hi') || q.includes('hello') || q.includes('hey') || q.includes('greetings')) {
         responseText = `👋 Hello! I am your **EscrowTrust AI Co-Pilot**. I am ready to answer any questions you have about real estate listings, escrow protection, placing bids, or platform fees. How can I help you today?`;
       } else if (q.includes('flow') || q.includes('process') || q.includes('how it works') || q.includes('escrow')) {

@@ -255,6 +255,19 @@ You can ask me questions like:
     }
   };
 
+  const handleResendOtp = async () => {
+    try {
+      setActionLoading(true);
+      await axios.post(`/escrow/${id}/resend-otp`);
+      toast.success('Fresh OTP code sent to your Notification Bell (🔔)!');
+      fetchTransaction();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to resend code');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // ── AI Document Analysis ──────────────────────────────────────────────────
   const handleAnalyzeDocument = async () => {
     try {
@@ -750,6 +763,16 @@ STATUS: COMPLETED MUTATION`;
                     {actionLoading ? 'Verifying...' : 'Verify Code'}
                   </button>
                 </form>
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="button"
+                    onClick={handleResendOtp}
+                    disabled={actionLoading}
+                    className="text-[11px] font-bold text-indigo-700 hover:text-indigo-900 underline cursor-pointer flex items-center gap-1"
+                  >
+                    <span>📩 Don't see your code? Click to resend fresh OTP code to your Notification Bell (🔔)</span>
+                  </button>
+                </div>
               </div>
             )}
 
@@ -1167,7 +1190,17 @@ STATUS: COMPLETED MUTATION`;
                         {validationReport && validationReport.registryRecordFound === 'VERIFIED' && validationReport.upiFormatMatch === 'VERIFIED' ? (
                           <span className="text-emerald-600 flex items-center gap-1">✓ Verified Match</span>
                         ) : (
-                          <span className="text-red-500 flex items-center gap-1">⚠ Unverified / Failed</span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={handleVerifyRegistry}
+                              disabled={actionLoading}
+                              className="px-2.5 py-1 bg-purple-700 hover:bg-purple-800 text-white rounded-md text-[10px] font-bold cursor-pointer transition-colors shadow-xs"
+                            >
+                              {actionLoading ? 'Verifying...' : '🔍 Verify Land Registry Now'}
+                            </button>
+                            <span className="text-red-500 flex items-center gap-1">⚠ Unverified / Failed</span>
+                          </div>
                         )}
                       </div>
 
@@ -1199,9 +1232,51 @@ STATUS: COMPLETED MUTATION`;
                       </div>
                     </div>
 
+                    {/* Seller Uploaded Mutation Document Proofs Vault (Explicit Admin Inspection) */}
+                    <div className="p-3.5 bg-white rounded-xl border border-purple-200 space-y-3">
+                      <div className="flex items-center justify-between border-b border-purple-100 pb-2">
+                        <p className="text-xs font-bold text-purple-950 flex items-center gap-1.5 font-sans">
+                          <span>📂</span> Seller Mutation Document Proofs Vault
+                        </p>
+                        <span className="text-[10px] bg-purple-100 text-purple-800 font-extrabold px-2 py-0.5 rounded-full border border-purple-200">
+                          {transaction.mutationDocuments?.length || 0} File(s) Uploaded
+                        </span>
+                      </div>
+
+                      {(!transaction.mutationDocuments || transaction.mutationDocuments.length === 0) ? (
+                        <p className="text-xs text-slate-400 italic py-2 text-center">No mutation documents uploaded by seller yet.</p>
+                      ) : (
+                        <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                          {transaction.mutationDocuments.map((doc, idx) => (
+                            <div key={idx} className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between gap-3 hover:bg-slate-100/70 transition-colors">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="w-8 h-8 rounded bg-purple-100 border border-purple-200 text-purple-800 flex items-center justify-center font-bold text-xs shrink-0">
+                                  #{idx + 1}
+                                </div>
+                                <div className="min-w-0 leading-tight">
+                                  <p className="text-xs font-bold text-slate-800 truncate">{doc.description || `Mutation Proof File #${idx + 1}`}</p>
+                                  <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                                    {doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleString() : 'Uploaded'}
+                                  </p>
+                                </div>
+                              </div>
+                              <a
+                                href={resolveImageUrl(doc.documentUrl)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white font-bold text-[10px] rounded-md transition-colors cursor-pointer shrink-0 inline-flex items-center gap-1"
+                              >
+                                <span>🔗 Open / Inspect Document</span>
+                              </a>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
                     {/* Audit Notes Form */}
                     <div className="space-y-2">
-                      <label className="text-[10px] font-bold text-purple-900 uppercase">Audit Review Notes (Required)</label>
+                      <label className="text-[10px] font-bold text-purple-900 uppercase">Audit Review Notes (Required to Unlock Approve)</label>
                       <textarea
                         placeholder="Provide detailed admin review audit notes regarding deeds authenticity and ledger balance audits..."
                         className="input-field w-full text-xs !py-1.5 !px-3 h-20 resize-none font-medium"
@@ -1211,6 +1286,21 @@ STATUS: COMPLETED MUTATION`;
                         disabled={actionLoading}
                       />
                     </div>
+
+                    {/* Helper text explaining unlocked conditions */}
+                    {(!(validationReport && validationReport.registryRecordFound === 'VERIFIED' && validationReport.upiFormatMatch === 'VERIFIED') || !arbitrationNotes.trim()) && (
+                      <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-900 font-semibold space-y-1">
+                        <p className="font-bold flex items-center gap-1">💡 How to unlock the "Approve & Release Escrow" button:</p>
+                        <ul className="list-disc pl-4 space-y-0.5 text-[10px]">
+                          {!(validationReport && validationReport.registryRecordFound === 'VERIFIED' && validationReport.upiFormatMatch === 'VERIFIED') && (
+                            <li>Click the <strong>"🔍 Verify Land Registry Now"</strong> button in Item #1 above to complete the land registry verification.</li>
+                          )}
+                          {!arbitrationNotes.trim() && (
+                            <li>Type your admin audit review notes into the <strong>Audit Review Notes</strong> box above.</li>
+                          )}
+                        </ul>
+                      </div>
+                    )}
 
                     {/* Actions Row */}
                     <div className="grid grid-cols-2 gap-3 pt-1">
@@ -1246,21 +1336,32 @@ STATUS: COMPLETED MUTATION`;
              {/* 4.5 Awaiting Seller Receipt Confirmation */}
             {status === 'AWAITING_RECEIPT' && (
               <div className="p-4 bg-purple-50 border border-purple-200 rounded-xl leading-relaxed space-y-3">
-                <p className="text-xs font-bold text-purple-850 text-purple-800">Funds Released & Awaiting Seller Receipt</p>
+                <p className="text-xs font-bold text-purple-800">Funds Released & Awaiting Seller Receipt</p>
                 <p className="text-xs text-purple-700 leading-normal font-semibold">
                   The administrator has approved document audits and released the escrow funds. The transaction is pending the final confirmation signature of receipt from the seller to close the contract.
                 </p>
-                {isSeller ? (
-                  <button
-                    onClick={handleConfirmReceipt}
-                    disabled={actionLoading}
-                    className="btn-primary text-xs !bg-purple-600 hover:!bg-purple-700 cursor-pointer"
-                  >
-                    Confirm Receipt of Released Funds
-                  </button>
-                ) : (
-                  <p className="text-[10px] text-slate-400 font-bold italic">Waiting for Seller to acknowledge receipt of money...</p>
-                )}
+                <div className="flex flex-wrap items-center gap-3 pt-1">
+                  {isSeller && (
+                    <button
+                      onClick={handleConfirmReceipt}
+                      disabled={actionLoading}
+                      className="btn-primary text-xs !bg-purple-600 hover:!bg-purple-700 cursor-pointer"
+                    >
+                      Confirm Receipt of Released Funds
+                    </button>
+                  )}
+                  {transaction.contractDocumentUrl && (
+                    <a
+                      href={resolveImageUrl(transaction.contractDocumentUrl)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      download={`EscrowTrust_Contract_${transaction.transactionId || transaction.id}.pdf`}
+                      className="btn-secondary text-xs font-bold py-2 px-4 cursor-pointer inline-flex items-center gap-1.5 bg-white text-purple-800 border-purple-300 hover:bg-purple-100"
+                    >
+                      <span>📄 Download PDF Completion Contract</span>
+                    </a>
+                  )}
+                </div>
               </div>
             )}
 
@@ -1394,9 +1495,10 @@ STATUS: COMPLETED MUTATION`;
                   </button>
                   {transaction.contractDocumentUrl && (
                     <a
-                      href={transaction.contractDocumentUrl}
+                      href={resolveImageUrl(transaction.contractDocumentUrl)}
                       target="_blank"
                       rel="noopener noreferrer"
+                      download={`EscrowTrust_Contract_${transaction.transactionId || transaction.id}.pdf`}
                       className="btn-primary text-xs font-semibold py-1.5 px-4 cursor-pointer inline-flex items-center gap-1.5"
                     >
                       ↓ Download PDF Contract

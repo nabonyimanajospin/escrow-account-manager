@@ -13,6 +13,7 @@ const {
   confirmReceipt,
   confirmPropertyReceipt,
   verifyRegistryDeed,
+  resendOtp,
 } = require('../controllers/transactionController');
 const { raiseDispute, uploadEvidence, resolveDispute, mediateDispute } = require('../controllers/disputeController');
 const { acceptOffer } = require('../controllers/offerController');
@@ -33,6 +34,9 @@ router.post('/initiate', protect, roleCheck('BUYER'), requireKyc, initiateTransa
 
 // Submit consensus verification code
 router.post('/:id/consensus-verify', protect, verifyConsensusCode);
+
+// Resend OTP verification code to current requesting user
+router.post('/:id/resend-otp', protect, resendOtp);
 
 // Deposit funds (Buyer simulation)
 router.post('/:id/deposit', protect, roleCheck('BUYER'), requireKyc, depositFunds);

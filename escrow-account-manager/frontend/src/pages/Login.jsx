@@ -1,14 +1,18 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import toast from 'react-hot-toast';
 
 const Login = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const redirectFrom = location.state?.from;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -23,9 +27,13 @@ const Login = () => {
       setLoading(true);
       const res = await login(email, password);
       if (res.success) {
-        // Redirection based on role
         const storedUser = JSON.parse(localStorage.getItem('user'));
-        if (storedUser?.role === 'ADMIN') {
+        
+        // Preserve purchase intent if coming from a property page
+        if (redirectFrom) {
+          toast.success('Authenticated! Resuming your property transaction...');
+          navigate(redirectFrom, { replace: true });
+        } else if (storedUser?.role === 'ADMIN') {
           navigate('/admin');
         } else {
           navigate('/dashboard');
@@ -61,7 +69,7 @@ const Login = () => {
         </div>
 
         {/* Card Form */}
-        <div className="card p-8 bg-white">
+        <div className="card p-6 sm:p-8 bg-white max-w-full overflow-hidden">
           <form onSubmit={handleSubmit} className="space-y-6">
             
             {error && (
@@ -125,13 +133,50 @@ const Login = () => {
             </div>
           </form>
 
-          {/* Quick Info Box for Demo */}
-          <div className="mt-6 pt-5 border-t border-slate-100 text-center">
-            <p className="text-xs text-slate-500 font-semibold mb-2">Demo Admin Login Credentials</p>
-            <div className="bg-slate-50 border border-slate-200 rounded-lg p-2 font-mono text-[10px] text-slate-600 inline-block text-left">
-              <div>Email: <span className="font-bold text-slate-900">admin@escrowtrust.com</span></div>
-              <div>Pass:  <span className="font-bold text-slate-900">Admin@123</span></div>
+          {/* Quick Info & 1-Click Demo Login Buttons */}
+          <div className="mt-6 pt-5 border-t border-slate-100 text-center space-y-3">
+            <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Quick Demo Login (Click to Auto-fill)</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail('buyer@escrowtrust.com');
+                  setPassword('Buyer@123');
+                  setError('');
+                }}
+                className="p-2 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg text-left transition-colors cursor-pointer"
+              >
+                <span className="text-[10px] font-bold text-blue-800 block">🛒 Buyer</span>
+                <span className="text-[9px] text-blue-600 font-mono block truncate">buyer@...</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail('seller@escrowtrust.com');
+                  setPassword('Seller@123');
+                  setError('');
+                }}
+                className="p-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg text-left transition-colors cursor-pointer"
+              >
+                <span className="text-[10px] font-bold text-emerald-800 block">🏡 Seller</span>
+                <span className="text-[9px] text-emerald-600 font-mono block truncate">seller@...</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail('admin@escrowtrust.com');
+                  setPassword('Admin@123');
+                  setError('');
+                }}
+                className="p-2 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg text-left transition-colors cursor-pointer"
+              >
+                <span className="text-[10px] font-bold text-purple-800 block">🛡️ Admin</span>
+                <span className="text-[9px] text-purple-600 font-mono block truncate">admin@...</span>
+              </button>
             </div>
+            <p className="text-[10px] text-slate-400 font-medium">
+              Passwords: Buyer@123 | Seller@123 | Admin@123
+            </p>
           </div>
         </div>
 
