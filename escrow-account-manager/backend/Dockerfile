@@ -9,8 +9,8 @@ RUN npm ci --only=production
 # Copy source
 COPY . .
 
-# Create upload and log directories
-RUN mkdir -p uploads/properties uploads/mutations uploads/evidence uploads/kyc uploads/contracts logs
+# Create upload, log, contract, and artifact directories
+RUN mkdir -p uploads/properties uploads/mutations uploads/evidence uploads/kyc uploads/contracts logs artifacts contracts
 
 EXPOSE 5000
 
