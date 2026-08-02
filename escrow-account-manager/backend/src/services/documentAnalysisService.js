@@ -349,26 +349,37 @@ const analyzeDocument = async (filePath, propertyType = 'LAND', sellerName = '',
       const sellerWords = seller.split(' ').filter(Boolean);
       const matchedWords = sellerWords.filter((w) => docOwner.includes(w));
       const nameMatchRatio = matchedWords.length / sellerWords.length;
-      report.crossChecks.ownerNameMatch = nameMatchRatio >= 0.5;
+      report.crossChecks.ownerNameMatch = nameMatchRatio >= 0.85;
       report.crossChecks.ownerMatchRatio = `${Math.round(nameMatchRatio * 100)}%`;
 
-      if (nameMatchRatio < 0.5) {
+      if (nameMatchRatio < 0.85) {
         report.flags.push(`⚠ Owner name mismatch: document says "${findings.extractedOwner}", seller name is "${sellerName}"`);
-        report.confidence = Math.max(0, report.confidence - 15);
+        report.confidence = Math.max(0, report.confidence - 25);
       } else {
         report.crossChecks.ownerMatchNote = 'Owner name verified ✓';
       }
     }
 
-    // ── Final verdict ─────────────────────────────────────────────────────────
-    report.confidence = Math.max(0, Math.min(100, Math.round(report.confidence)));
+    // ── Automated Triage Pipeline Classification ────────────────────────────────
+    const hasFraudSignal = report.flags.some(f => 
+      f.includes('FRAUD') || f.includes('blank') || f.includes('Photoshop') || f.includes('SAMPLE') || f.includes('WATERMARK')
+    );
 
-    if (report.confidence >= 80) {
-      report.verdict = 'LIKELY_VALID';
-    } else if (report.confidence >= 50) {
-      report.verdict = 'NEEDS_REVIEW';
-    } else {
+    const hasUpiMatch = report.crossChecks.upiMatch === undefined || report.crossChecks.upiMatch === true;
+    const hasOwnerMatch = report.crossChecks.ownerNameMatch === undefined || report.crossChecks.ownerNameMatch === true;
+
+    if (hasFraudSignal || report.confidence < 40) {
+      report.triageCategory = 'RED'; // Fraud Alert & Lock
       report.verdict = 'SUSPICIOUS';
+      report.triageGuidance = '🚨 RED FRAUD ALERT: Photoshop modification, sample watermark, or invalid content detected. Transaction automatically frozen for Admin dispute mediation.';
+    } else if (report.flags.length > 0 || !hasUpiMatch || !hasOwnerMatch || report.confidence < 85) {
+      report.triageCategory = 'YELLOW'; // Self-Correction Prompt
+      report.verdict = 'NEEDS_REVIEW';
+      report.triageGuidance = '⚠️ YELLOW NOTICE: Minor discrepancy detected in seller name or UPI formatting. Seller can self-correct and re-upload the deed.';
+    } else {
+      report.triageCategory = 'GREEN'; // Fast Track
+      report.verdict = 'LIKELY_VALID';
+      report.triageGuidance = '🟢 GREEN FAST TRACK: Document passes AI multi-factor verification and is ready for automated Irembo registry clearance.';
     }
 
     report.status = 'COMPLETE';

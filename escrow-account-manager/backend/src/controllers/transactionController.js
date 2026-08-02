@@ -6,6 +6,8 @@ const otpService = require('../services/otpService');
 const notificationService = require('../services/notificationService');
 const paymentProvider = require('../services/paymentProvider');
 const registryService = require('../services/registryService');
+const blockchainProvider = require('../services/blockchainProvider');
+const { analyzeDocument } = require('../services/documentAnalysisService');
 const { generateEscrowContract } = require('../services/contractService');
 const logger = require('../utils/logger');
 
@@ -181,9 +183,13 @@ const initiateTransaction = async (req, res, next) => {
         status: 'PENDING',
       }, { transaction: t });
 
-      // Create Escrow account (contractAddress generated automatically)
+      // Deploy EVM Smart Contract Instance
+      const deployReceipt = await blockchainProvider.deployEscrowContract(transaction);
+
+      // Create Escrow account with EVM contract address
       const escrow = await Escrow.create({
         transactionId: transaction.id,
+        contractAddress: deployReceipt.contractAddress,
         balance: 0.00,
         status: 'ACTIVE',
       }, { transaction: t });
@@ -196,9 +202,9 @@ const initiateTransaction = async (req, res, next) => {
       // Set Property status to PENDING
       await property.update({ status: 'PENDING' }, { transaction: t });
 
-      // Log the actions in the Immutable Ledger
+      // Log the actions in the Immutable Ledger & On-Chain State
       await logAction(transaction.id, req, `Transaction agreement initialized by Buyer ${req.user.name}`, { transaction: t });
-      await logAction(transaction.id, req, `Cryptographic contract address created: ${escrow.contractAddress}`, { transaction: t });
+      await logAction(transaction.id, req, `EVM Smart Contract deployed on-chain: ${deployReceipt.contractAddress} (Deployment Tx: ${deployReceipt.deploymentTxHash})`, { transaction: t });
 
       return transaction.id;
     });
@@ -511,19 +517,64 @@ const uploadMutationDocument = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Cannot upload mutation documents at this state' });
     }
 
+    // Execute parallel instant AI Document Authenticity Scan
+    let aiReport = null;
+    try {
+      const txWithProps = await Transaction.findByPk(req.params.id, { include: transactionIncludes });
+      const propType = txWithProps?.property?.propertyType || 'LAND';
+      const sellerName = txWithProps?.seller?.name || '';
+      aiReport = await analyzeDocument(documentUrl, propType, sellerName);
+    } catch (aiErr) {
+      logger.warn(`[AI Document Scanner] Parallel scan notice: ${aiErr.message}`);
+    }
+
     await sequelize.transaction(async (t) => {
+      const sha256Checksum = blockchainProvider.generateDocumentChecksum(documentUrl);
       const currentDocs = transaction.mutationDocuments || [];
       const mutationDocuments = [...currentDocs, {
         documentUrl,
         description: description || 'Mutation certificate draft',
+        sha256Checksum,
+        aiAnalysisReport: aiReport,
         uploadedAt: new Date(),
       }];
 
-      await transaction.update({
-        mutationDocuments,
-      }, { transaction: t });
+      const updates = { mutationDocuments };
 
-      await logAction(transaction.id, req, `Seller uploaded document: ${description || 'Mutation certificate draft'}`, { transaction: t });
+      // Automated Triage Pipeline Actions
+      if (aiReport?.triageCategory === 'RED') {
+        updates.status = 'DISPUTED';
+        await Dispute.create({
+          transactionId: transaction.id,
+          initiatorId: req.user.id,
+          reason: `🚨 RED FRAUD ALERT: AI Scanner detected suspicious file modifications or sample watermark on deed file '${description || 'Mutation document'}'`,
+          status: 'OPEN',
+        }, { transaction: t });
+      } else if (aiReport?.triageCategory === 'GREEN') {
+        updates.status = 'UNDER_REVIEW';
+      }
+
+      await transaction.update(updates, { transaction: t });
+
+      const onChainTx = await blockchainProvider.recordOnChainState(
+        transaction.escrowAccount?.contractAddress || '0x0000000000000000000000000000000000000000',
+        aiReport?.triageCategory === 'RED' ? 'DEED_FRAUD_ALERT_LOCKED' : 'REGISTER_DEED_CHECKSUM',
+        { sha256Checksum, description, triageCategory: aiReport?.triageCategory }
+      );
+
+      const triageLabel = aiReport?.triageCategory ? ` [Triage: ${aiReport.triageCategory}]` : '';
+      await logAction(transaction.id, req, `Seller uploaded deed proof: ${description || 'Mutation certificate draft'}${triageLabel}. SHA-256 Checksum registered on-chain (${sha256Checksum ? sha256Checksum.slice(0, 16) + '...' : 'N/A'}, TxHash: ${onChainTx.txHash})`, { transaction: t });
+
+      // Notifications based on Triage
+      if (aiReport?.triageCategory === 'RED') {
+        await notificationService.createInAppNotification(transaction.sellerId, '🚨 Deed Fraud Alert', aiReport.triageGuidance);
+        await notificationService.createInAppNotification(transaction.buyerId, '⚠️ Transaction Frozen', 'A suspicious document edit was detected. Escrow locked for Admin dispute mediation.');
+      } else if (aiReport?.triageCategory === 'YELLOW') {
+        await notificationService.createInAppNotification(transaction.sellerId, '⚠️ Deed Self-Correction Prompt', aiReport.triageGuidance);
+      } else if (aiReport?.triageCategory === 'GREEN') {
+        await notificationService.createInAppNotification(transaction.sellerId, '🟢 Deed Fast-Tracked', aiReport.triageGuidance);
+        await notificationService.createInAppNotification(transaction.buyerId, '🟢 Deed Verified & Fast-Tracked', 'Seller deed document passed AI verification and is ready for automated registry sync.');
+      }
     });
 
     const result = await Transaction.findByPk(transaction.id, { include: transactionIncludes });

@@ -138,6 +138,7 @@ app.use('/api/currency',   require('./routes/currency'));
 app.use('/api/wallet',     require('./routes/wallet'));
 app.use('/api/ai',         require('./routes/ai'));
 app.use('/api/kyc',        require('./routes/kyc'));
+app.use('/api/integrations', require('./routes/integrations'));
 
 app.get('/health', (req, res) => res.json({ status: 'OK', version: '2.0.0' }));
 
