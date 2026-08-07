@@ -20,7 +20,7 @@ const PropertyList = () => {
     const fetchProperties = async () => {
       try {
         setLoading(true);
-        const response = await axios.get('/properties');
+        const response = await axios.get('/properties?status=AVAILABLE&limit=100');
         setProperties(response.data.data || []);
       } catch (err) {
         console.error(err);
@@ -34,7 +34,6 @@ const PropertyList = () => {
 
   // Filter application logic
   const filteredProperties = properties.filter((p) => {
-    if (p.status === 'SOLD') return false;
     if (typeFilter !== 'ALL' && p.propertyType !== typeFilter) return false;
     if (locationFilter) {
       const query = locationFilter.toLowerCase();
@@ -77,7 +76,7 @@ const PropertyList = () => {
       <div>
         <h1 className="text-3xl font-extrabold text-slate-900 font-sans">Available Properties</h1>
         <p className="text-sm text-slate-500 mt-1 font-semibold">
-          Browse real estate assets locked under secure three-way escrow agreements.
+          Browse available listings from all sellers on the platform.
         </p>
       </div>
 

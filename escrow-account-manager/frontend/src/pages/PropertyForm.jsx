@@ -131,7 +131,7 @@ const PropertyForm = () => {
     }
     try {
       setIsGeneratingDesc(true);
-      toast.loading('✨ AI is writing the description...', { id: 'ai-desc' });
+      toast.loading('Generating description...', { id: 'ai-desc' });
       const res = await axios.post('/properties/ai-description', {
         title, location, propertyType, price, area, bedrooms, bathrooms
       });
@@ -447,7 +447,7 @@ const PropertyForm = () => {
                 disabled={isGeneratingDesc || loading}
                 className="text-[10px] font-bold bg-purple-100 text-purple-700 hover:bg-purple-200 px-2 py-1 rounded transition-colors flex items-center gap-1 cursor-pointer"
               >
-                {isGeneratingDesc ? '✨ Generating...' : '✨ Auto-Generate with AI'}
+                {isGeneratingDesc ? 'Generating...' : 'Auto-generate description'}
               </button>
             </div>
             <textarea

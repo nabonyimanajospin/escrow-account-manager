@@ -133,9 +133,9 @@ const Login = () => {
             </div>
           </form>
 
-          {/* Quick Info & 1-Click Demo Login Buttons */}
+          {/* Panel demo quick-fill (passwords managed via seed script) */}
           <div className="mt-6 pt-5 border-t border-slate-100 text-center space-y-3">
-            <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Quick Demo Login (Click to Auto-fill)</p>
+            <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Panel Demo Accounts</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <button
                 type="button"
@@ -146,7 +146,7 @@ const Login = () => {
                 }}
                 className="p-2 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg text-left transition-colors cursor-pointer"
               >
-                <span className="text-[10px] font-bold text-blue-800 block">🛒 Buyer</span>
+                <span className="text-[10px] font-bold text-blue-800 block">Buyer</span>
                 <span className="text-[9px] text-blue-600 font-mono block truncate">buyer@...</span>
               </button>
               <button
@@ -158,7 +158,7 @@ const Login = () => {
                 }}
                 className="p-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg text-left transition-colors cursor-pointer"
               >
-                <span className="text-[10px] font-bold text-emerald-800 block">🏡 Seller</span>
+                <span className="text-[10px] font-bold text-emerald-800 block">Seller</span>
                 <span className="text-[9px] text-emerald-600 font-mono block truncate">seller@...</span>
               </button>
               <button
@@ -170,12 +170,12 @@ const Login = () => {
                 }}
                 className="p-2 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg text-left transition-colors cursor-pointer"
               >
-                <span className="text-[10px] font-bold text-purple-800 block">🛡️ Admin</span>
+                <span className="text-[10px] font-bold text-purple-800 block">Admin</span>
                 <span className="text-[9px] text-purple-600 font-mono block truncate">admin@...</span>
               </button>
             </div>
             <p className="text-[10px] text-slate-400 font-medium">
-              Passwords: Buyer@123 | Seller@123 | Admin@123
+              Demo credentials are provisioned by the database seed script for presentation environments.
             </p>
           </div>
         </div>

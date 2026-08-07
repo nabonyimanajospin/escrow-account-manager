@@ -39,7 +39,7 @@ export const AuthProvider = ({ children }) => {
 
   const checkAuth = async () => {
     try {
-      const response = await axios.get('/auth/me');
+      const response = await axios.get('/auth/me', { skipErrorToast: true });
       setUser(response.data.user);
       setIsAuthenticated(true);
     } catch (error) {
@@ -58,7 +58,7 @@ export const AuthProvider = ({ children }) => {
 
   const refreshUser = async () => {
     try {
-      const response = await axios.get('/auth/me');
+      const response = await axios.get('/auth/me', { skipErrorToast: true });
       setUser(response.data.user);
     } catch (err) {
       console.error('Failed to refresh profile info:', err.message);

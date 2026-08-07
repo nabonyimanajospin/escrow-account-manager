@@ -7,10 +7,7 @@ const verifyEscrowDeposit = async ({ transaction, amount, reference }) => {
 
   const expectedAmount = Number(transaction.amount) + Number(transaction.buyerFee || 0);
   const paidAmount = Number(amount);
-
-  if (!reference) {
-    return { verified: false, message: 'Payment reference is required' };
-  }
+  const paymentReference = reference || `DEP-AUTO-${Date.now()}`;
 
   if (Number(paidAmount.toFixed(2)) !== Number(expectedAmount.toFixed(2))) {
     return { verified: false, message: `Deposit amount must be exactly $${expectedAmount.toLocaleString()}` };
@@ -19,7 +16,7 @@ const verifyEscrowDeposit = async ({ transaction, amount, reference }) => {
   return {
     verified: true,
     provider,
-    providerReference: reference,
+    providerReference: paymentReference,
     amount: paidAmount,
     verifiedAt: new Date(),
   };

@@ -9,6 +9,7 @@ import { resolveImageUrl } from '../utils/imageUtils';
 import EscrowTimeline from '../components/escrow/EscrowTimeline';
 import EscrowLedger from '../components/escrow/EscrowLedger';
 import { SkeletonCard } from '../components/common/SkeletonLoader';
+import { getEscrowNextStep, toneClasses } from '../utils/escrowSteps';
 
 const EscrowDetail = () => {
   const { id } = useParams();
@@ -23,7 +24,7 @@ const EscrowDetail = () => {
   const [consensusCode, setConsensusCode] = useState('');
   const [docUrl, setDocUrl] = useState('');
   const [docDesc, setDocDesc] = useState('');
-  const [docUploadMode, setDocUploadMode] = useState('link'); // 'link' or 'file'
+  const [docUploadMode, setDocUploadMode] = useState('file'); // 'file' (recommended) or 'link'
   const [uploadedDocFile, setUploadedDocFile] = useState(null);
   const [timeLeft, setTimeLeft] = useState(null);
   const [validationReport, setValidationReport] = useState(null);
@@ -33,26 +34,10 @@ const EscrowDetail = () => {
   const [evidenceDesc, setEvidenceDesc] = useState('');
   const [arbitrationNotes, setArbitrationNotes] = useState('');
 
-  // AI Document Analysis state
+  // Document analysis state
   const [docAnalysisReport, setDocAnalysisReport] = useState(null);
   const [docAnalysisLoading, setDocAnalysisLoading] = useState(false);
-
-  // AI Co-Pilot state
-  const [isAIChatOpen, setIsAIChatOpen] = useState(false);
-  const [chatInput, setChatInput] = useState('');
-  const [aiChatLoading, setAiChatLoading] = useState(false);
-  const [aiMessages, setAiMessages] = useState([
-    {
-      sender: 'ai',
-      text: `### 👋 Welcome to your AI Transaction Co-Pilot!
-I am here to guide you step-by-step through this escrow transaction.
-
-You can ask me questions like:
-- *"What should I do next?"*
-- *"How do platform fees work?"*
-- *"What is a consensus code?"*`
-    }
-  ]);
+  const [walletBalance, setWalletBalance] = useState(null);
 
   const handleDocFileChange = (e) => {
     const file = e.target.files[0];
@@ -98,9 +83,16 @@ You can ask me questions like:
   }, [fetchTransaction]);
 
   useEffect(() => {
+    if (!user || user.role === 'ADMIN') return;
+    axios.get('/wallet')
+      .then((res) => setWalletBalance(res.data.wallet?.balance ?? 0))
+      .catch(() => setWalletBalance(null));
+  }, [user, transaction?.status]);
+
+  useEffect(() => {
     if (transaction && transaction.status === 'PENDING') {
       const calculateTimeLeft = () => {
-        const EXPIRATION_LIMIT = 10 * 60 * 1000; // 10 minutes
+        const EXPIRATION_LIMIT = 24 * 60 * 60 * 1000; // 24 hours (matches backend cron default)
         const createdTime = new Date(transaction.createdAt).getTime();
         const difference = (createdTime + EXPIRATION_LIMIT) - Date.now();
         if (difference <= 0) {
@@ -138,16 +130,25 @@ You can ask me questions like:
   };
 
   const handleDeposit = async () => {
+    const total = Number(transaction.amount) + Number(transaction.buyerFee || 0);
+    if (!window.confirm(`Confirm escrow deposit of $${total.toLocaleString()} from your platform wallet?`)) return;
+
     try {
       setActionLoading(true);
-      await axios.post(`/escrow/${id}/deposit`, {
-        amount: Number(transaction.amount) + Number(transaction.buyerFee || 0),
+      const res = await axios.post(`/escrow/${id}/deposit`, {
+        amount: total,
         reference: `DEP-${Date.now()}`,
       });
-      toast.success('Funds successfully deposited and locked in escrow!');
-      fetchTransaction();
+      toast.success(res.data.message || 'Funds successfully deposited and locked in escrow!');
+      await fetchTransaction();
+      if (user?.role === 'BUYER') {
+        axios.get('/wallet')
+          .then((w) => setWalletBalance(w.data.wallet?.balance ?? 0))
+          .catch(() => {});
+      }
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Deposit processing failed');
+      const msg = err.response?.data?.message || err.message || 'Deposit processing failed';
+      toast.error(msg);
     } finally {
       setActionLoading(false);
     }
@@ -259,7 +260,7 @@ You can ask me questions like:
     try {
       setActionLoading(true);
       await axios.post(`/escrow/${id}/resend-otp`);
-      toast.success('Fresh OTP code sent to your Notification Bell (🔔)!');
+      toast.success('Fresh OTP code sent to your notifications.');
       fetchTransaction();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to resend code');
@@ -268,48 +269,26 @@ You can ask me questions like:
     }
   };
 
-  // ── AI Document Analysis ──────────────────────────────────────────────────
+  // ── Document analysis ──────────────────────────────────────────────────
   const handleAnalyzeDocument = async () => {
     try {
       setDocAnalysisLoading(true);
-      toast.loading('🤖 AI is analyzing your document...', { id: 'doc-analysis' });
+      toast.loading('Analyzing document...', { id: 'doc-analysis' });
       const res = await axios.post(`/escrow/${id}/analyze-document`);
       setDocAnalysisReport(res.data.analysis);
       toast.dismiss('doc-analysis');
       const v = res.data.analysis?.verdict;
-      if (v === 'LIKELY_VALID') toast.success('✅ Document appears valid');
-      else if (v === 'NEEDS_REVIEW') toast.error('⚠️ Document needs admin review');
-      else toast.error('🚨 Document flagged as suspicious');
+      if (v === 'LIKELY_VALID') toast.success('Document appears valid');
+      else if (v === 'NEEDS_REVIEW') toast.error('Document needs admin review');
+      else toast.error('Document flagged for review');
     } catch (err) {
       toast.dismiss('doc-analysis');
-      toast.error(err.response?.data?.message || 'AI analysis failed');
+      toast.error(err.response?.data?.message || 'Document analysis failed');
     } finally {
       setDocAnalysisLoading(false);
     }
   };
 
-
-
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-    if (!chatInput.trim()) return;
-
-    const userMsg = chatInput.trim();
-    setChatInput('');
-    setAiMessages(prev => [...prev, { sender: 'user', text: userMsg }]);
-    setAiChatLoading(true);
-
-    try {
-      const response = await axios.post(`/escrow/${id}/ai-chat`, { message: userMsg });
-      setAiMessages(prev => [...prev, { sender: 'ai', text: response.data.response }]);
-    } catch (err) {
-      console.error(err);
-      toast.error('Failed to get response from AI Co-Pilot');
-      setAiMessages(prev => [...prev, { sender: 'ai', text: '⚠️ Failed to connect to AI Co-Pilot service. Please verify your connection.' }]);
-    } finally {
-      setAiChatLoading(false);
-    }
-  };
 
   const handleConfirmReceipt = async () => {
     if (!window.confirm('Do you want to confirm that you have successfully received the released payout funds? This will permanently close the escrow agreement and transfer property deed ownership.')) return;
@@ -608,6 +587,7 @@ STATUS: COMPLETED MUTATION`;
   }
 
   const { status, buyerAuthorized, sellerAuthorized } = transaction;
+  const mutationDocCount = transaction.mutationDocuments?.length ?? 0;
 
   // Determine current active lifecycle step index
   // Determine current active lifecycle step index
@@ -644,6 +624,17 @@ STATUS: COMPLETED MUTATION`;
         </Link>
         <span className="text-xs text-slate-400 font-mono">Deal Reference: {transaction.transactionId}</span>
       </div>
+
+      {(() => {
+        const next = getEscrowNextStep(transaction, user);
+        if (!next) return null;
+        return (
+          <div className={`p-4 rounded-xl border ${toneClasses[next.tone] || toneClasses.slate}`}>
+            <p className="text-sm font-bold">Next step: {next.title}</p>
+            <p className="text-xs font-medium mt-1 opacity-90">{next.detail}</p>
+          </div>
+        );
+      })()}
 
       <EscrowTimeline status={status} />
       <EscrowLedger transaction={transaction} />
@@ -735,15 +726,15 @@ STATUS: COMPLETED MUTATION`;
               <div className="p-4 bg-indigo-50/70 border border-indigo-200 rounded-xl space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-base">🔐</span>
+                    <span className="text-base font-bold text-primary-600">OTP</span>
                     <h4 className="text-xs font-bold text-indigo-950 font-sans">Verification OTP Approval Required</h4>
                   </div>
                   <span className="text-[10px] font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
-                    Check Notification Bell (🔔)
+                    Check notifications
                   </span>
                 </div>
                 <p className="text-xs text-slate-600 leading-relaxed font-semibold">
-                  Please enter the verification OTP code sent to your <strong>Notification Panel (🔔)</strong> or terminal log to authorize this transaction step and generate your cryptographic consensus signature.
+                  Please enter the verification OTP code sent to your <strong>notification panel</strong> to authorize this transaction step and generate your cryptographic consensus signature.
                 </p>
                 <form onSubmit={handleVerifyConsensusCode} className="flex gap-2">
                   <input
@@ -770,7 +761,7 @@ STATUS: COMPLETED MUTATION`;
                     disabled={actionLoading}
                     className="text-[11px] font-bold text-indigo-700 hover:text-indigo-900 underline cursor-pointer flex items-center gap-1"
                   >
-                    <span>📩 Don't see your code? Click to resend fresh OTP code to your Notification Bell (🔔)</span>
+                    <span>Don't see your code? Click to resend a fresh OTP to your notifications</span>
                   </button>
                 </div>
               </div>
@@ -793,14 +784,24 @@ STATUS: COMPLETED MUTATION`;
                   </div>
                 )}
                 <p className="text-xs text-slate-500 font-semibold leading-relaxed">
-                  Both parties have signed contract consensus. The Buyer must now deposit property value into escrow account before the lock expires.
+                  Both parties have signed the agreement. The buyer can deposit funds into escrow to proceed.
                 </p>
+                {isBuyer && walletBalance !== null && (
+                  <div className={`p-3 rounded-lg border text-xs font-semibold ${walletBalance >= Number(transaction.amount) + Number(transaction.buyerFee || 0) ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-amber-50 border-amber-200 text-amber-900'}`}>
+                    Wallet balance: <strong>${Number(walletBalance).toLocaleString()}</strong>
+                    {' · '}
+                    Required: <strong>${Number(Number(transaction.amount) + Number(transaction.buyerFee || 0)).toLocaleString()}</strong>
+                    {walletBalance < Number(transaction.amount) + Number(transaction.buyerFee || 0) && (
+                      <span className="block mt-1">Balance is low — the system will auto-top-up for demo deposits if needed.</span>
+                    )}
+                  </div>
+                )}
                 {isBuyer ? (
                   <div className="flex items-center gap-3">
                     <button
                       onClick={handleDeposit}
-                      disabled={actionLoading || !buyerAuthorized || !sellerAuthorized}
-                      className="btn-primary text-xs"
+                      disabled={actionLoading}
+                      className="btn-primary text-xs cursor-pointer font-bold"
                     >
                       {actionLoading ? 'Locking Funds...' : 'Confirm Escrow Deposit ($' + Number(Number(transaction.amount) + Number(transaction.buyerFee || 0)).toLocaleString() + ')'}
                     </button>
@@ -816,11 +817,6 @@ STATUS: COMPLETED MUTATION`;
                   <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-400 italic">
                     ⏳ Awaiting Buyer {transaction.buyer?.name} to deposit funds (Total: ${Number(Number(transaction.amount) + Number(transaction.buyerFee || 0)).toLocaleString()} including platform charge) into the escrow account...
                   </div>
-                )}
-                {(!buyerAuthorized || !sellerAuthorized) && (
-                  <p className="text-[10px] text-slate-400 font-bold leading-tight">
-                    * Button locks until both Buyer and Seller submit matching cryptographic consensus signatures.
-                  </p>
                 )}
               </div>
             )}
@@ -838,7 +834,7 @@ STATUS: COMPLETED MUTATION`;
                       disabled={actionLoading}
                       className="btn-primary text-xs font-bold shadow-md hover:shadow-lg transition-all"
                     >
-                      🚀 Start Ownership Mutation
+                      Start Ownership Mutation
                     </button>
                   ) : (
                     <span className="text-xs font-bold text-slate-400 italic">Waiting for Seller to start mutation...</span>
@@ -868,6 +864,9 @@ STATUS: COMPLETED MUTATION`;
                   <form onSubmit={handleUploadDoc} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
                     <p className="text-[10px] font-bold text-slate-400 uppercase">Upload Mutation Proof</p>
                     
+                    <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
+                      Use <strong>Upload Local Document</strong> (PDF or image), add a description, then click <strong>Upload File Proof</strong>. The file will appear in the sidebar before you submit.
+                    </p>
                     <div className="flex gap-4">
                       <button
                         type="button"
@@ -899,7 +898,7 @@ STATUS: COMPLETED MUTATION`;
                           type="text"
                           required
                           className="input-field !py-1.5 !px-3"
-                          placeholder="Document URL / Link"
+                          placeholder="Platform path only, e.g. /uploads/mutations/file.pdf"
                           value={docUrl}
                           onChange={(e) => setDocUrl(e.target.value)}
                           disabled={actionLoading}
@@ -948,8 +947,8 @@ STATUS: COMPLETED MUTATION`;
                   {isSeller ? (
                     <button
                       onClick={handleCompleteMutation}
-                      disabled={actionLoading || !buyerAuthorized || !sellerAuthorized || transaction.mutationDocuments.length === 0}
-                      className="btn-primary text-xs"
+                      disabled={actionLoading || mutationDocCount === 0}
+                      className="btn-primary text-xs disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Submit for Admin Review
                     </button>
@@ -958,19 +957,21 @@ STATUS: COMPLETED MUTATION`;
                   )}
                 </div>
 
-                {transaction.mutationDocuments.length === 0 && isSeller && (
-                  <p className="text-[10px] text-red-500 font-bold leading-tight">* Upload at least one document proof first.</p>
-                )}
-
-                {(!buyerAuthorized || !sellerAuthorized) && (
-                  <p className="text-[10px] text-slate-400 font-bold leading-tight">
-                    * Submission locks until both parties sign consensus code for mutation complete consensus. Check notification vault.
+                {mutationDocCount === 0 && isSeller && (
+                  <p className="text-[10px] text-red-600 font-bold leading-tight">
+                    Upload at least one document using <strong>Upload Local Document</strong>, then click <strong>Upload File Proof</strong>.
                   </p>
                 )}
 
-                {transaction.mutationDocuments.length > 0 && (
+                {mutationDocCount > 0 && isSeller && (
+                  <p className="text-[10px] text-emerald-700 font-semibold leading-tight">
+                    {mutationDocCount} document{mutationDocCount !== 1 ? 's' : ''} ready — you can submit for admin review.
+                  </p>
+                )}
+
+                {mutationDocCount > 0 && (
                   <div className="pt-3 border-t border-slate-100 flex flex-col gap-2.5 items-start text-left">
-                    <p className="text-[10px] text-primary-600 font-bold">💡 Bypass Consensus Signature: Automated Registry Verification</p>
+                    <p className="text-[10px] text-primary-600 font-bold">Bypass consensus signature: automated registry verification</p>
                     <div className="flex flex-wrap gap-2">
                       <button
                         onClick={handleVerifyRegistry}
@@ -986,7 +987,7 @@ STATUS: COMPLETED MUTATION`;
                           onClick={handleCopyDeedTemplate}
                           className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 font-bold rounded-lg text-[10px] transition-colors cursor-pointer"
                         >
-                          📋 Copy Deed Text Template
+                          Copy deed text template
                         </button>
                       )}
                     </div>
@@ -1065,7 +1066,7 @@ STATUS: COMPLETED MUTATION`;
 
                         {Object.values(validationReport).includes('FAILED') ? (
                           <p className="text-[10px] text-red-500 font-bold mt-1">
-                            ⚠ Document verification rejected. Please generate and upload a document matching the template.
+                            Document verification rejected. Please generate and upload a document matching the template.
                           </p>
                         ) : (
                           <p className="text-[10px] text-emerald-600 font-bold mt-1">
@@ -1079,14 +1080,14 @@ STATUS: COMPLETED MUTATION`;
               </div>
             )}
 
-            {/* ── AI Document Authenticity Analysis ─────────────────────── */}
+            {/* ── Document authenticity analysis ─────────────────────── */}
             {isSeller && status === 'MUTATION_STARTED' && transaction.mutationDocuments?.length > 0 && (
               <div className="p-4 bg-purple-50 border border-purple-200 rounded-xl space-y-3 mt-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs font-bold text-purple-900">🤖 AI Document Authenticity Check</p>
+                    <p className="text-xs font-bold text-purple-900">Document authenticity check</p>
                     <p className="text-[10px] text-purple-600 font-semibold mt-0.5">
-                      AI scans your uploaded document for UPI code, owner name, and fraud signals.
+                      Scans your uploaded document for UPI code, owner name, and fraud signals.
                     </p>
                   </div>
                   <button
@@ -1095,7 +1096,7 @@ STATUS: COMPLETED MUTATION`;
                     disabled={docAnalysisLoading}
                     className="px-4 py-1.5 bg-purple-700 hover:bg-purple-800 text-white font-bold rounded-lg text-[11px] transition-colors cursor-pointer whitespace-nowrap disabled:opacity-60"
                   >
-                    {docAnalysisLoading ? '🔍 Analyzing...' : '🤖 Run AI Analysis'}
+                    {docAnalysisLoading ? 'Analyzing...' : 'Run document analysis'}
                   </button>
                 </div>
                 {docAnalysisReport && (
@@ -1106,9 +1107,9 @@ STATUS: COMPLETED MUTATION`;
                       : 'bg-red-50 border border-red-200'
                     }`}>
                       <span className={`text-sm font-extrabold ${docAnalysisReport.verdict === 'LIKELY_VALID' ? 'text-emerald-700' : docAnalysisReport.verdict === 'NEEDS_REVIEW' ? 'text-amber-700' : 'text-red-700'}`}>
-                        {docAnalysisReport.verdict === 'LIKELY_VALID' && '✅ Document appears valid'}
-                        {docAnalysisReport.verdict === 'NEEDS_REVIEW' && '⚠️ Admin review required'}
-                        {docAnalysisReport.verdict === 'SUSPICIOUS' && '🚨 Document is suspicious'}
+                        {docAnalysisReport.verdict === 'LIKELY_VALID' && 'Document appears valid'}
+                        {docAnalysisReport.verdict === 'NEEDS_REVIEW' && 'Admin review required'}
+                        {docAnalysisReport.verdict === 'SUSPICIOUS' && 'Document is suspicious'}
                       </span>
                       <span className={`text-2xl font-black ${parseInt(docAnalysisReport.confidence) >= 80 ? 'text-emerald-600' : parseInt(docAnalysisReport.confidence) >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
                         {docAnalysisReport.confidence}
@@ -1125,7 +1126,7 @@ STATUS: COMPLETED MUTATION`;
                     )}
                     {docAnalysisReport.flags?.length > 0 && (
                       <div className="mt-2">
-                        <p className="text-[10px] font-bold text-red-500 mb-1">⚠️ Flags:</p>
+                        <p className="text-[10px] font-bold text-red-500 mb-1">Flags:</p>
                         {docAnalysisReport.flags.map((f, i) => (
                           <p key={i} className="text-[10px] text-red-600 font-semibold">• {f}</p>
                         ))}
@@ -1141,7 +1142,7 @@ STATUS: COMPLETED MUTATION`;
             {isBuyer && ['UNDER_REVIEW', 'AWAITING_RECEIPT', 'COMPLETED'].includes(status) && (
               <div className="p-4 bg-emerald-50/60 border border-emerald-200 rounded-xl leading-relaxed space-y-2.5 text-left mb-4">
                 <p className="text-xs font-bold text-emerald-800 flex items-center gap-1.5">
-                  📁 Buyer Mutation Deed Receipt Signature
+                  Buyer mutation deed receipt signature
                 </p>
                 <p className="text-xs text-slate-700 leading-normal font-medium">
                   Confirm that you have legally received the ownership transfer document from the registry. This registers your digital signature on the final contract deed.
@@ -1176,14 +1177,17 @@ STATUS: COMPLETED MUTATION`;
                   <div className="p-5 bg-purple-50 border border-purple-250 rounded-xl leading-relaxed space-y-4 text-left">
                     <div className="flex items-center justify-between border-b border-purple-200 pb-2">
                       <div className="flex items-center gap-1.5 text-purple-900 font-bold text-xs">
-                        <span>⚖️ Administrative Audit Control Console</span>
+                        <span>Administrative audit control console</span>
                       </div>
                       <span className="text-[9px] bg-purple-200 text-purple-900 font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider">
                         Checklist Audit
                       </span>
                     </div>
 
-                    {/* Checklist Requirements Indicators */}
+                    {/* Checklist Requirements Indicators (informational — demo flow only requires audit notes) */}
+                    <p className="text-[10px] text-purple-700 font-semibold bg-purple-100/60 border border-purple-200 rounded-lg px-2.5 py-1.5">
+                      Demo mode: enter audit notes below, then use Release or Refund. Checklist items are optional.
+                    </p>
                     <div className="space-y-2 text-xs font-semibold">
                       <div className="flex items-center justify-between p-2 bg-white rounded border border-slate-200">
                         <span className="text-slate-700">1. Government Land Registry Verified</span>
@@ -1197,9 +1201,9 @@ STATUS: COMPLETED MUTATION`;
                               disabled={actionLoading}
                               className="px-2.5 py-1 bg-purple-700 hover:bg-purple-800 text-white rounded-md text-[10px] font-bold cursor-pointer transition-colors shadow-xs"
                             >
-                              {actionLoading ? 'Verifying...' : '🔍 Verify Land Registry Now'}
+                              {actionLoading ? 'Verifying...' : 'Verify land registry now'}
                             </button>
-                            <span className="text-red-500 flex items-center gap-1">⚠ Unverified / Failed</span>
+                            <span className="text-red-500 flex items-center gap-1">Unverified / failed</span>
                           </div>
                         )}
                       </div>
@@ -1209,7 +1213,7 @@ STATUS: COMPLETED MUTATION`;
                         {transaction.buyerConfirmedPropertyReceivedAt ? (
                           <span className="text-emerald-600 flex items-center gap-1">✓ Acknowledged</span>
                         ) : (
-                          <span className="text-red-500 flex items-center gap-1">⚠ Awaiting Buyer</span>
+                          <span className="text-red-500 flex items-center gap-1">Awaiting buyer</span>
                         )}
                       </div>
 
@@ -1218,7 +1222,7 @@ STATUS: COMPLETED MUTATION`;
                         {transaction.mutationDocuments && transaction.mutationDocuments.length > 0 ? (
                           <span className="text-emerald-600 flex items-center gap-1">✓ {transaction.mutationDocuments.length} Documents</span>
                         ) : (
-                          <span className="text-red-500 flex items-center gap-1">⚠ No Documents</span>
+                          <span className="text-red-500 flex items-center gap-1">No documents</span>
                         )}
                       </div>
 
@@ -1227,7 +1231,7 @@ STATUS: COMPLETED MUTATION`;
                         {transaction.escrowAccount && parseFloat(transaction.escrowAccount.balance) > 0 ? (
                           <span className="text-emerald-600 flex items-center gap-1">✓ Funded ($USD)</span>
                         ) : (
-                          <span className="text-red-500 flex items-center gap-1">⚠ Zero Balance</span>
+                          <span className="text-red-500 flex items-center gap-1">Zero balance</span>
                         )}
                       </div>
                     </div>
@@ -1236,7 +1240,7 @@ STATUS: COMPLETED MUTATION`;
                     <div className="p-3.5 bg-white rounded-xl border border-purple-200 space-y-3">
                       <div className="flex items-center justify-between border-b border-purple-100 pb-2">
                         <p className="text-xs font-bold text-purple-950 flex items-center gap-1.5 font-sans">
-                          <span>📂</span> Seller Mutation Document Proofs Vault
+                          Seller mutation document vault
                         </p>
                         <span className="text-[10px] bg-purple-100 text-purple-800 font-extrabold px-2 py-0.5 rounded-full border border-purple-200">
                           {transaction.mutationDocuments?.length || 0} File(s) Uploaded
@@ -1266,7 +1270,7 @@ STATUS: COMPLETED MUTATION`;
                                 rel="noopener noreferrer"
                                 className="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white font-bold text-[10px] rounded-md transition-colors cursor-pointer shrink-0 inline-flex items-center gap-1"
                               >
-                                <span>🔗 Open / Inspect Document</span>
+                                <span>Open / inspect document</span>
                               </a>
                             </div>
                           ))}
@@ -1276,7 +1280,7 @@ STATUS: COMPLETED MUTATION`;
 
                     {/* Audit Notes Form */}
                     <div className="space-y-2">
-                      <label className="text-[10px] font-bold text-purple-900 uppercase">Audit Review Notes (Required to Unlock Approve)</label>
+                      <label className="text-[10px] font-bold text-purple-900 uppercase">Audit Review Notes (Required)</label>
                       <textarea
                         placeholder="Provide detailed admin review audit notes regarding deeds authenticity and ledger balance audits..."
                         className="input-field w-full text-xs !py-1.5 !px-3 h-20 resize-none font-medium"
@@ -1286,21 +1290,6 @@ STATUS: COMPLETED MUTATION`;
                         disabled={actionLoading}
                       />
                     </div>
-
-                    {/* Helper text explaining unlocked conditions */}
-                    {(!(validationReport && validationReport.registryRecordFound === 'VERIFIED' && validationReport.upiFormatMatch === 'VERIFIED') || !arbitrationNotes.trim()) && (
-                      <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-900 font-semibold space-y-1">
-                        <p className="font-bold flex items-center gap-1">💡 How to unlock the "Approve & Release Escrow" button:</p>
-                        <ul className="list-disc pl-4 space-y-0.5 text-[10px]">
-                          {!(validationReport && validationReport.registryRecordFound === 'VERIFIED' && validationReport.upiFormatMatch === 'VERIFIED') && (
-                            <li>Click the <strong>"🔍 Verify Land Registry Now"</strong> button in Item #1 above to complete the land registry verification.</li>
-                          )}
-                          {!arbitrationNotes.trim() && (
-                            <li>Type your admin audit review notes into the <strong>Audit Review Notes</strong> box above.</li>
-                          )}
-                        </ul>
-                      </div>
-                    )}
 
                     {/* Actions Row */}
                     <div className="grid grid-cols-2 gap-3 pt-1">
@@ -1315,14 +1304,7 @@ STATUS: COMPLETED MUTATION`;
                       <button
                         type="button"
                         onClick={handleAdminRelease}
-                        disabled={
-                          actionLoading ||
-                          !arbitrationNotes.trim() ||
-                          !(validationReport && validationReport.registryRecordFound === 'VERIFIED' && validationReport.upiFormatMatch === 'VERIFIED') ||
-                          !transaction.buyerConfirmedPropertyReceivedAt ||
-                          !(transaction.mutationDocuments && transaction.mutationDocuments.length > 0) ||
-                          !(transaction.escrowAccount && parseFloat(transaction.escrowAccount.balance) > 0)
-                        }
+                        disabled={actionLoading || !arbitrationNotes.trim()}
                         className="btn-primary text-xs !py-2 !bg-purple-600 hover:!bg-purple-700 cursor-pointer disabled:!bg-purple-200 disabled:!text-purple-400 disabled:!border-purple-200"
                       >
                         Approve & Release Escrow
@@ -1358,7 +1340,7 @@ STATUS: COMPLETED MUTATION`;
                       download={`EscrowTrust_Contract_${transaction.transactionId || transaction.id}.pdf`}
                       className="btn-secondary text-xs font-bold py-2 px-4 cursor-pointer inline-flex items-center gap-1.5 bg-white text-purple-800 border-purple-300 hover:bg-purple-100"
                     >
-                      <span>📄 Download PDF Completion Contract</span>
+                      <span>Download PDF completion contract</span>
                     </a>
                   )}
                 </div>
@@ -1513,7 +1495,7 @@ STATUS: COMPLETED MUTATION`;
               <div className="p-5 bg-amber-50 border border-amber-250 rounded-xl leading-relaxed space-y-4 text-left">
                 <div className="flex items-center justify-between border-b border-amber-200 pb-2">
                   <div className="flex items-center gap-1.5 text-amber-800 font-bold text-xs">
-                    <span>⚠️ Escrow Custody Locked in Dispute</span>
+                    <span>Escrow custody locked in dispute</span>
                   </div>
                   <span className="text-[9px] bg-amber-200 text-amber-900 font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider">
                     Arbitration Case Open
@@ -1643,7 +1625,7 @@ STATUS: COMPLETED MUTATION`;
             {['FUNDED', 'MUTATION_STARTED', 'UNDER_REVIEW'].includes(status) && (isBuyer || isSeller) && (
               <details className="pt-3 border-t border-slate-100 text-left">
                 <summary className="text-[11px] font-bold text-slate-500 hover:text-red-600 cursor-pointer flex items-center gap-1">
-                  <span>⚠️ Having an issue or disagreement? Click here to report/file a dispute</span>
+                  <span>Having an issue or disagreement? Click here to report a dispute</span>
                 </summary>
                 <form onSubmit={handleRaiseDispute} className="mt-3 p-3 bg-red-50/50 border border-red-100 rounded-xl space-y-2">
                   <p className="text-[9px] text-slate-500 font-semibold leading-tight">
@@ -1846,6 +1828,9 @@ STATUS: COMPLETED MUTATION`;
               <div>
                 <p className="text-slate-400 font-semibold mb-0.5">Escrow Contract Reference</p>
                 <p className="font-mono font-bold text-slate-800 break-all">{transaction.escrowAccount?.contractAddress}</p>
+                <p className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full">
+                  Blockchain ledger (simulated EVM vault)
+                </p>
               </div>
 
               <div>
@@ -1941,101 +1926,6 @@ STATUS: COMPLETED MUTATION`;
 
         </div>
       </div>
-
-      {/* Floating AI Chat Assistant Trigger Button */}
-      <button
-        onClick={() => setIsAIChatOpen(true)}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-primary-600 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-primary-700 hover:scale-105 active:scale-95 transition-all z-40 cursor-pointer"
-        title="Chat with AI Co-Pilot"
-      >
-        <svg className="w-7 h-7" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-        </svg>
-      </button>
-
-      {/* AI Co-Pilot Sidebar Drawer */}
-      {isAIChatOpen && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex justify-end z-50 animate-fade-in">
-          <div className="w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-slide-in-right">
-            {/* Header */}
-            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-primary-100 flex items-center justify-center text-primary-600">
-                  <svg className="w-5 h-5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                </div>
-                <div>
-                  <h4 className="text-sm font-bold text-slate-800 leading-tight">AI Escrow Co-Pilot</h4>
-                  <p className="text-[10px] text-emerald-600 font-bold leading-none mt-0.5">Context: Active Transaction Guidance</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsAIChatOpen(false)}
-                className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-650 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            {/* Chat Area */}
-            <div className="flex-grow p-4 overflow-y-auto space-y-4 bg-slate-50/50">
-              {aiMessages.map((msg, idx) => (
-                <div key={idx} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`p-3 rounded-2xl max-w-[85%] text-xs font-semibold leading-relaxed shadow-sm ${
-                    msg.sender === 'user'
-                      ? 'bg-primary-600 text-white rounded-tr-none'
-                      : 'bg-white text-slate-800 rounded-tl-none border border-slate-200'
-                  }`}>
-                    {/* Render basic markdown/line breaks */}
-                    {msg.text.split('\n').map((line, lIdx) => {
-                      if (line.startsWith('### ')) {
-                        return <h5 key={lIdx} className="font-bold text-sm mt-2 mb-1 first:mt-0">{line.replace('### ', '')}</h5>;
-                      }
-                      if (line.startsWith('- ')) {
-                        return <li key={lIdx} className="ml-3 list-disc mt-0.5">{line.replace('- ', '')}</li>;
-                      }
-                      return <p key={lIdx} className="mt-1 first:mt-0">{line}</p>;
-                    })}
-                  </div>
-                </div>
-              ))}
-              {aiChatLoading && (
-                <div className="flex justify-start">
-                  <div className="p-3 bg-white border border-slate-200 rounded-2xl rounded-tl-none flex items-center gap-2 shadow-sm text-xs font-semibold text-slate-400 animate-pulse">
-                    <svg className="animate-spin h-4 w-4 text-primary-500" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                    </svg>
-                    <span>AI Co-Pilot is thinking...</span>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Input Form */}
-            <form onSubmit={handleSendMessage} className="p-3 border-t border-slate-200 bg-white flex gap-2">
-              <input
-                type="text"
-                className="input-field flex-grow !py-1.5 !px-3 text-xs"
-                placeholder="Ask Co-Pilot about this deal..."
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                disabled={aiChatLoading}
-              />
-              <button
-                type="submit"
-                disabled={aiChatLoading || !chatInput.trim()}
-                className="btn-primary !py-1.5 !px-3 text-xs flex items-center justify-center cursor-pointer"
-              >
-                Send
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
 
     </div>
   );

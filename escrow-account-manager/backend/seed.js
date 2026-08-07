@@ -18,6 +18,7 @@ const ADMIN_DATA = {
   address: 'EscrowTrust HQ, Kigali, Rwanda',
   isKycVerified: true,
   kycVerifiedAt: new Date(),
+  walletBalance: 500000.00,
 };
 
 const SELLER_DATA = {
@@ -29,6 +30,7 @@ const SELLER_DATA = {
   address: 'Kimihurura Estate, Kigali, Rwanda',
   isKycVerified: true,
   kycVerifiedAt: new Date(),
+  walletBalance: 0.00,
 };
 
 const BUYER_DATA = {
@@ -40,6 +42,7 @@ const BUYER_DATA = {
   address: 'Kiyovu Heights, Kigali, Rwanda',
   isKycVerified: true,
   kycVerifiedAt: new Date(),
+  walletBalance: 1000000.00,
 };
 
 const seed = async () => {
@@ -72,7 +75,12 @@ const seed = async () => {
       bathrooms: 4,
       area: 520.00,
       propertyType: 'VILLA',
-      images: ['https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80'],
+      images: [
+        'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=1200&q=80',
+        'https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=1200&q=80',
+        'https://images.unsplash.com/photo-1616594039964-ae9021a400a0?auto=format&fit=crop&w=1200&q=80',
+        'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80'
+      ],
       status: 'AVAILABLE',
       listingType: 'AUCTION',
       biddingDeadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
@@ -89,7 +97,12 @@ const seed = async () => {
       bathrooms: 2,
       area: 160.00,
       propertyType: 'APARTMENT',
-      images: ['https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80'],
+      images: [
+        'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80',
+        'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1200&q=80',
+        'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1200&q=80',
+        'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=1200&q=80'
+      ],
       status: 'AVAILABLE',
       listingType: 'FIXED_PRICE',
       upiCode: '1/03/01/04/2000',

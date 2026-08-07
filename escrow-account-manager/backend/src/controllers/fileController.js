@@ -1,0 +1,85 @@
+const path = require('path');
+const fs = require('fs');
+const { Transaction, Property, Dispute, DisputeEvidence } = require('../models');
+
+const UPLOAD_ROOT = path.join(__dirname, '..', 'uploads');
+const SENSITIVE_CATEGORIES = new Set(['kyc', 'mutations', 'evidence', 'contracts']);
+
+const canAccessFile = async (category, req) => {
+  if (!SENSITIVE_CATEGORIES.has(category)) {
+    return true;
+  }
+
+  if (req.user.role === 'ADMIN') {
+    return true;
+  }
+
+  if (category === 'kyc') {
+    const expectedSuffix = `/uploads/kyc/${req.params.filename}`;
+    return req.user.kycDocumentUrl === expectedSuffix;
+  }
+
+  if (category === 'mutations' || category === 'contracts') {
+    const suffix = `/uploads/${category}/${req.params.filename}`;
+    const transactions = await Transaction.findAll({
+      attributes: ['id', 'buyerId', 'sellerId', 'mutationDocuments', 'contractDocumentUrl'],
+    });
+
+    return transactions.some((tx) => {
+      const isParticipant = tx.buyerId === req.user.id || tx.sellerId === req.user.id;
+      if (!isParticipant) return false;
+      if (category === 'contracts' && tx.contractDocumentUrl === suffix) return true;
+      const docs = tx.mutationDocuments || [];
+      return category === 'mutations' && docs.some((d) => d.documentUrl === suffix);
+    });
+  }
+
+  if (category === 'evidence') {
+    const suffix = `/uploads/evidence/${req.params.filename}`;
+    const evidence = await DisputeEvidence.findOne({ where: { fileUrl: suffix } });
+    if (!evidence) return false;
+    const dispute = await Dispute.findByPk(evidence.disputeId);
+    if (!dispute) return false;
+    const tx = await Transaction.findByPk(dispute.transactionId);
+    if (!tx) return false;
+    return tx.buyerId === req.user.id || tx.sellerId === req.user.id;
+  }
+
+  return false;
+};
+
+exports.serveFile = async (req, res, next) => {
+  try {
+    const { category, filename } = req.params;
+
+    if (!filename || filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      return res.status(400).json({ success: false, message: 'Invalid filename' });
+    }
+
+    const allowed = await canAccessFile(category, req);
+    if (!allowed) {
+      return res.status(403).json({ success: false, message: 'Not authorized to access this file' });
+    }
+
+    const filePath = path.join(UPLOAD_ROOT, category, filename);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ success: false, message: 'File not found' });
+    }
+
+    return res.sendFile(filePath);
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.servePropertyImage = (req, res) => {
+  const { filename } = req.params;
+  if (!filename || filename.includes('..')) {
+    return res.status(400).json({ success: false, message: 'Invalid filename' });
+  }
+  const filePath = path.join(UPLOAD_ROOT, 'properties', filename);
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ success: false, message: 'File not found' });
+  }
+  return res.sendFile(filePath);
+};

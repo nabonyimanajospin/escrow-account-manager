@@ -1,6 +1,6 @@
 
 
-const StatusBadge = ({ status }) => {
+const StatusBadge = ({ status, variant = 'transaction' }) => {
   const getBadgeClass = (stat) => {
     switch (stat) {
       case 'PENDING':
@@ -15,10 +15,13 @@ const StatusBadge = ({ status }) => {
         return 'bg-amber-100 text-amber-800 border border-amber-300';
       case 'AWAITING_RECEIPT':
         return 'bg-purple-100 text-purple-800 border border-purple-300';
+      case 'AWAITING_BUYER':
+        return 'bg-sky-50 text-sky-800 border border-sky-200';
       case 'COMPLETED':
       case 'FUNDS_RELEASED':
         return 'badge-completed';
       case 'REFUNDED':
+      case 'CANCELLED':
       case 'FAILED':
         return 'badge-refunded';
       case 'AVAILABLE':
@@ -31,6 +34,19 @@ const StatusBadge = ({ status }) => {
   };
 
   const getStatusText = (stat) => {
+    if (variant === 'property') {
+      switch (stat) {
+        case 'AVAILABLE':
+          return 'Available';
+        case 'PENDING':
+          return 'In Escrow';
+        case 'SOLD':
+          return 'Sold';
+        default:
+          return stat;
+      }
+    }
+
     switch (stat) {
       case 'PENDING':
         return 'Pending Agreement';
@@ -44,11 +60,14 @@ const StatusBadge = ({ status }) => {
         return 'Disputed';
       case 'AWAITING_RECEIPT':
         return 'Awaiting Receipt';
+      case 'AWAITING_BUYER':
+        return 'Awaiting Buyer';
       case 'COMPLETED':
       case 'FUNDS_RELEASED':
         return 'Completed';
       case 'REFUNDED':
-        return 'Refunded';
+      case 'CANCELLED':
+        return 'Cancelled / Refunded';
       case 'AVAILABLE':
         return 'Available';
       case 'SOLD':

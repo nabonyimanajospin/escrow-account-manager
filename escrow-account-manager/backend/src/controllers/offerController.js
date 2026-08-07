@@ -2,6 +2,38 @@ const { Offer, Property, User, Transaction, Escrow, AuditLog } = require('../mod
 const { sequelize } = require('../config/database');
 const otpService = require('../services/otpService');
 const notificationService = require('../services/notificationService');
+const blockchainProvider = require('../services/blockchainProvider');
+
+/** Rank pending offers: price weight, settlement days, KYC bonus. */
+const computeRankedPendingOffers = (offers, targetPrice) => {
+  const pending = offers.filter((o) => o.status === 'PENDING');
+  const ranked = pending.map((o) => {
+    const oPrice = parseFloat(o.price);
+    const days = o.paymentPeriodDays || 30;
+    let systemScore = ((oPrice / targetPrice) * 100) - (days * 0.5);
+    if (o.buyer && o.buyer.isKycVerified) {
+      systemScore += 5;
+    }
+    const offerJson = typeof o.toJSON === 'function' ? o.toJSON() : { ...o };
+    offerJson.systemScore = parseFloat(systemScore.toFixed(2));
+    return offerJson;
+  });
+
+  ranked.sort((a, b) => b.systemScore - a.systemScore);
+
+  ranked.forEach((offer, index) => {
+    const rankNum = index + 1;
+    offer.rank = rankNum;
+    offer.aiRank = rankNum;
+    offer.isSystemChoice = index === 0;
+    offer.aiRecommendation =
+      index === 0
+        ? `Top-ranked offer: $${Number(offer.price).toLocaleString()} with ${offer.paymentPeriodDays}-day settlement.`
+        : `Rank #${rankNum}: $${Number(offer.price).toLocaleString()} with ${offer.paymentPeriodDays}-day settlement.`;
+  });
+
+  return ranked;
+};
 
 // @desc    Place a bid/offer on a property
 // @route   POST /api/properties/:id/offers
@@ -67,39 +99,23 @@ exports.createOffer = async (req, res, next) => {
     });
 
     try {
-      // Calculate System Rank to notify buyer
       const allOffers = await Offer.findAll({
         where: { propertyId },
         include: [{ model: User, as: 'buyer', attributes: ['id', 'isKycVerified'] }],
       });
-      const rankedOffers = allOffers.map(o => {
-        const oPrice = parseFloat(o.price);
-        const days = o.paymentPeriodDays || 30;
-        let systemScore = ((oPrice / targetPrice) * 100) - (days * 0.5);
-        if (o.buyer && o.buyer.isKycVerified) systemScore += 5;
-        return { id: o.id, systemScore: parseFloat(systemScore.toFixed(2)) };
-      });
-      rankedOffers.sort((a, b) => b.systemScore - a.systemScore);
-      
-      const rankIndex = rankedOffers.findIndex(o => o.id === offer.id);
-      const rank = rankIndex + 1;
-      
-      const getOrdinal = (n) => {
-        const s = ["th", "st", "nd", "rd"];
-        const v = n % 100;
-        return n + (s[(v - 20) % 10] || s[v] || s[0]);
-      };
-      const rankText = getOrdinal(rank);
+      const rankedOffers = computeRankedPendingOffers(allOffers, targetPrice);
+      const myRanked = rankedOffers.find((o) => o.id === offer.id);
+      const rank = myRanked?.rank || rankedOffers.length;
 
       await notificationService.createInAppNotification(
         req.user.id,
-        'Bid Placed & AI Ranked',
-        `Your offer of $${offerPrice.toLocaleString()} has been placed. You are currently AI Ranked #${rank} (${rankText} place) out of ${rankedOffers.length} buyer(s).`
+        'Bid placed',
+        `Your offer of $${offerPrice.toLocaleString()} was submitted. You are ranked #${rank} of ${rankedOffers.length} bidder${rankedOffers.length !== 1 ? 's' : ''}.`
       );
       await notificationService.createInAppNotification(
         property.sellerId,
-        'New Buyer Offer Received (AI Ranked)',
-        `A new offer of $${offerPrice.toLocaleString()} was placed. Check AI Buyer Rankings to pick your buyer.`
+        'New buyer offer',
+        `A new offer of $${offerPrice.toLocaleString()} was placed. Review buyer rankings on the listing page.`
       );
     } catch (notifErr) {
       console.error('Failed to send bid notifications', notifErr);
@@ -122,52 +138,55 @@ exports.getOffersByProperty = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Property not found' });
     }
 
+    const isSellerOrAdmin =
+      property.sellerId === req.user.id || req.user.role === 'ADMIN';
+
     const offers = await Offer.findAll({
       where: { propertyId },
-      include: [{ model: User, as: 'buyer', attributes: ['id', 'name', 'email', 'phone', 'isKycVerified', 'walletBalance'] }],
+      include: [{ model: User, as: 'buyer', attributes: ['id', 'name', 'isKycVerified'] }],
       order: [['price', 'DESC']],
     });
 
     const targetPrice = parseFloat(property.price);
+    const rankedPending = computeRankedPendingOffers(offers, targetPrice);
+    const rankByOfferId = new Map(rankedPending.map((o) => [o.id, o]));
 
-    // Compute System Matching Score for each offer
-    // Score Formula: (Offer Price / Target Price) * 100 - (Payment Period Days * 0.5) + (KYC Verified ? 5 : 0)
-    const rankedOffers = offers.map(o => {
-      const oPrice = parseFloat(o.price);
-      const days = o.paymentPeriodDays || 30;
-      let systemScore = ((oPrice / targetPrice) * 100) - (days * 0.5);
-      if (o.buyer && o.buyer.isKycVerified) {
-        systemScore += 5;
+    // Buyers see only their own pending offer + rank (not other bidders' details)
+    if (!isSellerOrAdmin) {
+      if (req.user.role !== 'BUYER') {
+        return res.status(403).json({ success: false, message: 'Not authorized to view offer rankings' });
       }
-      systemScore = parseFloat(systemScore.toFixed(2));
-      
-      const offerJson = o.toJSON();
-      offerJson.systemScore = systemScore;
-      return offerJson;
+      const myOffer = rankedPending.find((o) => o.buyerId === req.user.id) || null;
+      return res.status(200).json({
+        success: true,
+        count: rankedPending.length,
+        totalBidders: rankedPending.length,
+        myRank: myOffer?.rank ?? null,
+        targetPrice,
+        data: myOffer ? [myOffer] : [],
+      });
+    }
+
+    // Seller / admin: full list with ranks on pending offers
+    const rankedOffers = offers.map((o) => {
+      const json = o.toJSON();
+      const ranked = rankByOfferId.get(o.id);
+      if (ranked) {
+        json.rank = ranked.rank;
+        json.aiRank = ranked.aiRank;
+        json.systemScore = ranked.systemScore;
+        json.isSystemChoice = ranked.isSystemChoice;
+        json.aiRecommendation = ranked.aiRecommendation;
+      }
+      return json;
     });
 
-    // Sort by System Score descending
-    rankedOffers.sort((a, b) => b.systemScore - a.systemScore);
-
-    // Assign explicit integer rank (1, 2, 3...) and AI recommendation rationale
-    rankedOffers.forEach((offer, index) => {
-      const rankNum = index + 1;
-      offer.rank = rankNum;
-      offer.aiRank = rankNum;
-      offer.isSystemChoice = (index === 0);
-      
-      if (index === 0) {
-        offer.aiRecommendation = `🏆 Rank #1 Top AI Pick: Outstanding offer of $${Number(offer.price).toLocaleString()} with ${offer.paymentPeriodDays}-day settlement timeline.`;
-      } else {
-        offer.aiRecommendation = `Rank #${rankNum}: Offer of $${Number(offer.price).toLocaleString()} with ${offer.paymentPeriodDays}-day settlement timeline.`;
-      }
-    });
-
-    res.status(200).json({ 
-      success: true, 
-      count: rankedOffers.length, 
-      targetPrice, 
-      data: rankedOffers 
+    res.status(200).json({
+      success: true,
+      count: rankedPending.length,
+      totalBidders: rankedPending.length,
+      targetPrice,
+      data: rankedOffers,
     });
   } catch (error) {
     next(error);
@@ -200,6 +219,17 @@ exports.acceptOffer = async (req, res, next) => {
 
     if (property.status !== 'AVAILABLE') {
       return res.status(400).json({ success: false, message: 'Property listing is already locked' });
+    }
+
+    const activeStates = ['PENDING', 'FUNDED', 'MUTATION_STARTED', 'UNDER_REVIEW'];
+    const buyerActiveCount = await Transaction.count({
+      where: { buyerId: offer.buyerId, status: activeStates },
+    });
+    if (buyerActiveCount >= 2) {
+      return res.status(400).json({
+        success: false,
+        message: 'This buyer already has the maximum of 2 active escrow transactions.',
+      });
     }
 
     const bidPrice = parseFloat(offer.price);
@@ -250,9 +280,12 @@ exports.acceptOffer = async (req, res, next) => {
         status: 'PENDING',
       }, { transaction: t });
 
+      const deployReceipt = await blockchainProvider.deployEscrowContract(transaction);
+
       // 6. Create the Escrow Account
       const escrow = await Escrow.create({
         transactionId: transaction.id,
+        contractAddress: deployReceipt.contractAddress,
         balance: 0.00,
         status: 'ACTIVE',
       }, { transaction: t });
@@ -263,12 +296,8 @@ exports.acceptOffer = async (req, res, next) => {
       // 8. Set Property status to PENDING
       await property.update({ status: 'PENDING' }, { transaction: t });
 
-      // 8.5. Issue OTP to buyer to proceed
-      const otp = await otpService.issueConsensusCode(transaction, t);
-      const buyerUser = await User.findByPk(activeOffer.buyerId, { transaction: t });
-      if (buyerUser) {
-        await notificationService.sendConsensusCode({ user: buyerUser, transaction, ...otp });
-      }
+      // 8.5. Issue OTP to both parties to proceed with deposit
+      await issueAndDeliverConsensusOtp(transaction, t, 'BOTH');
 
       // 9. Log to audit trail
       await AuditLog.create({

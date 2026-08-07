@@ -6,6 +6,7 @@ import StatusBadge from '../components/StatusBadge';
 import toast from 'react-hot-toast';
 import EmptyState from '../components/common/EmptyState';
 import { SkeletonCard, SkeletonTable } from '../components/common/SkeletonLoader';
+import OnboardingChecklist from '../components/common/OnboardingChecklist';
 
 const StatCard = ({ label, value, sub }) => (
   <div className="stat-card p-6 animate-fade-in bg-white">
@@ -15,28 +16,94 @@ const StatCard = ({ label, value, sub }) => (
   </div>
 );
 
+const ACTIVE_TXN_STATES = ['PENDING', 'FUNDED', 'MUTATION_STARTED', 'UNDER_REVIEW', 'DISPUTED', 'AWAITING_RECEIPT'];
+
+const buildSellerDealRows = (properties, transactions) => {
+  const rows = [];
+  const propertyIdsWithActiveTxn = new Set();
+
+  transactions.forEach((t) => {
+    rows.push({
+      type: 'transaction',
+      key: `txn-${t.id}`,
+      dealId: t.transactionId,
+      propertyTitle: t.property?.title || 'Property listing deleted',
+      propertyId: t.propertyId,
+      price: t.amount,
+      status: t.status,
+      escrowId: t.id,
+      sortDate: new Date(t.updatedAt || t.createdAt),
+    });
+    if (ACTIVE_TXN_STATES.includes(t.status)) {
+      propertyIdsWithActiveTxn.add(t.propertyId);
+    }
+  });
+
+  properties
+    .filter((p) => p.status === 'AVAILABLE' && !propertyIdsWithActiveTxn.has(p.id))
+    .forEach((p) => {
+      rows.push({
+        type: 'listing',
+        key: `listing-${p.id}`,
+        dealId: '—',
+        propertyTitle: p.title,
+        propertyId: p.id,
+        price: p.price,
+        status: 'AWAITING_BUYER',
+        listingType: p.listingType,
+        sortDate: new Date(p.createdAt),
+      });
+    });
+
+  return rows.sort((a, b) => b.sortDate - a.sortDate);
+};
+
 const Dashboard = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ active: 0, escrowLocked: 0, totalEarned: 0, totalSpent: 0, properties: 0, completed: 0 });
   const [recentTxns, setRecentTxns] = useState([]);
   const [myProperties, setMyProperties] = useState([]);
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [txnByPropertyId, setTxnByPropertyId] = useState({});
+  const [sellerDealRows, setSellerDealRows] = useState([]);
 
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const [propRes, escrowRes] = await Promise.all([
-        axios.get('/properties'),
-        axios.get('/escrow/my'),
-      ]);
+      const isSeller = user?.role === 'SELLER';
+      const requests = [
+        isSeller
+          ? axios.get('/properties/mine')
+          : axios.get('/properties?limit=100'),
+        axios.get('/escrow/my?limit=100'),
+      ];
+      if (user?.role !== 'ADMIN') {
+        requests.push(axios.get('/wallet').catch(() => ({ data: { wallet: { balance: user?.walletBalance || 0 } } })));
+      }
+      const [propRes, escrowRes, walletRes] = await Promise.all(requests);
 
       const propsList = propRes.data.data || [];
       const txnsList = escrowRes.data.data || [];
+      if (walletRes?.data?.wallet) {
+        setWalletBalance(walletRes.data.wallet.balance || 0);
+      }
 
-      setRecentTxns(txnsList.slice(0, 5));
+      setRecentTxns(txnsList);
 
-      const sellerProps = propsList.filter((p) => p.sellerId === user?.id);
-      setMyProperties(sellerProps);
+      const propertyTxnMap = {};
+      txnsList.forEach((t) => {
+        if (t.propertyId) propertyTxnMap[t.propertyId] = t;
+      });
+      setTxnByPropertyId(propertyTxnMap);
+
+      if (isSeller) {
+        setMyProperties(propsList);
+        setSellerDealRows(buildSellerDealRows(propsList, txnsList));
+      } else {
+        setMyProperties([]);
+        setSellerDealRows([]);
+      }
 
       let active = 0, escrowLocked = 0, totalEarned = 0, totalSpent = 0, completed = 0;
       txnsList.forEach((t) => {
@@ -57,7 +124,7 @@ const Dashboard = () => {
         escrowLocked,
         totalEarned,
         totalSpent,
-        properties: user?.role === 'SELLER' ? sellerProps.length : propsList.length,
+        properties: isSeller ? propsList.length : propsList.filter((p) => p.status === 'AVAILABLE').length,
         completed,
       });
     } catch (err) {
@@ -118,8 +185,8 @@ const Dashboard = () => {
           </h1>
           <p className="text-slate-500 mt-1 text-sm font-semibold">
             {user?.role === 'SELLER'
-              ? '🏡 Seller Control Portal — Manage your property listings, buyer bids & escrow payouts'
-              : '🛒 Buyer Escrow Workspace — Track active transactions & secured property purchases'}
+              ? 'Seller portal — manage listings, buyer bids, and escrow payouts'
+              : 'Buyer workspace — track active transactions and secured purchases'}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -139,9 +206,34 @@ const Dashboard = () => {
         </div>
       </div>
 
+      {!user?.isKycVerified && user?.role !== 'ADMIN' && (
+        <div className="card p-4 bg-amber-50 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-bold text-amber-900">Identity verification required</p>
+            <p className="text-xs text-amber-800 font-medium mt-0.5">Complete KYC to buy, sell, or receive escrow payouts.</p>
+          </div>
+          <Link to="/kyc" className="btn-primary text-xs whitespace-nowrap">Complete KYC →</Link>
+        </div>
+      )}
+
+      <OnboardingChecklist
+        user={user}
+        walletBalance={walletBalance}
+        hasActiveDeal={stats.active > 0}
+        hasListedProperty={myProperties.length > 0}
+      />
+
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
         <StatCard label="Active Escrow Deals" value={stats.active} sub="Transactions in progress" />
+
+        {user?.role !== 'ADMIN' && (
+          <StatCard
+            label="Wallet Balance"
+            value={`$${Number(walletBalance).toLocaleString()}`}
+            sub={user?.role === 'BUYER' ? 'Available for escrow deposits' : 'Available for withdrawal'}
+          />
+        )}
         
         {user?.role === 'SELLER' ? (
           <StatCard
@@ -184,11 +276,69 @@ const Dashboard = () => {
         {/* Left Side: Recent Escrow Deals */}
         <div className="card p-6 lg:col-span-2 bg-white">
           <div className="flex items-center justify-between mb-5 pb-3 border-b border-slate-100">
-            <h2 className="text-lg font-bold text-slate-900 font-sans">Recent Escrow Workspace</h2>
-            <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Active Deals</span>
+            <h2 className="text-lg font-bold text-slate-900 font-sans">
+              {user?.role === 'SELLER' ? 'My Escrow Deals' : 'Recent Escrow Workspace'}
+            </h2>
+            <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">
+              {user?.role === 'SELLER'
+                ? `${sellerDealRows.length} item${sellerDealRows.length !== 1 ? 's' : ''}`
+                : `${recentTxns.length} deal${recentTxns.length !== 1 ? 's' : ''}`}
+            </span>
           </div>
 
-          {recentTxns.length === 0 ? (
+          {user?.role === 'SELLER' ? (
+            sellerDealRows.length === 0 ? (
+              <EmptyState
+                title="No listings or deals yet"
+                description="Add a property listing. It will appear here as awaiting buyer interest until someone starts an escrow deal."
+                actionText="Create Listing"
+                actionLink="/properties/create"
+              />
+            ) : (
+              <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
+                <table className="min-w-full">
+                  <thead>
+                    <tr className="text-left text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">
+                      <th className="pb-3 pr-4">Deal ID</th>
+                      <th className="pb-3 pr-4">Property</th>
+                      <th className="pb-3 pr-4">Price</th>
+                      <th className="pb-3 pr-4">Lifecycle Status</th>
+                      <th className="pb-3">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {sellerDealRows.map((row) => (
+                      <tr key={row.key} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="py-4 pr-4 font-mono text-xs font-bold text-slate-500">
+                          {row.dealId}
+                        </td>
+                        <td className="py-4 pr-4 text-sm font-semibold text-slate-900 max-w-[150px] truncate">
+                          {row.propertyTitle}
+                        </td>
+                        <td className="py-4 pr-4 text-sm font-extrabold text-slate-900">
+                          ${Number(row.price || 0).toLocaleString()}
+                        </td>
+                        <td className="py-4 pr-4">
+                          <StatusBadge status={row.status} />
+                        </td>
+                        <td className="py-4">
+                          {row.type === 'transaction' ? (
+                            <Link to={`/escrow/${row.escrowId}`} className="text-xs font-bold text-primary-600 hover:text-primary-700">
+                              Workspace &rarr;
+                            </Link>
+                          ) : (
+                            <Link to={`/properties/${row.propertyId}`} className="text-xs font-bold text-slate-600 hover:text-primary-600">
+                              View listing &rarr;
+                            </Link>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )
+          ) : recentTxns.length === 0 ? (
             <EmptyState
               title="No active escrow deals"
               description="Browse properties to start a secure middleman contract and track it here."
@@ -196,7 +346,7 @@ const Dashboard = () => {
               actionLink="/properties"
             />
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
               <table className="min-w-full">
                 <thead>
                   <tr className="text-left text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">
@@ -241,7 +391,12 @@ const Dashboard = () => {
             <>
               <div className="flex items-center justify-between mb-5 pb-3 border-b border-slate-100">
                 <h2 className="text-lg font-bold text-slate-900 font-sans">My Listed Properties</h2>
-                <Link to="/properties/create" className="text-xs font-bold text-primary-600 hover:underline">+ Add New</Link>
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    {myProperties.length} total
+                  </span>
+                  <Link to="/properties/create" className="text-xs font-bold text-primary-600 hover:underline">+ Add New</Link>
+                </div>
               </div>
 
               {myProperties.length === 0 ? (
@@ -252,23 +407,39 @@ const Dashboard = () => {
                   actionLink="/properties/create"
                 />
               ) : (
-                <div className="space-y-3.5 max-h-[350px] overflow-y-auto pr-1">
-                  {myProperties.map((p) => (
+                <div className="space-y-3.5 max-h-[420px] overflow-y-auto pr-1">
+                  {myProperties.map((p) => {
+                    const activeTxn = txnByPropertyId[p.id];
+                    return (
                     <div key={p.id} className="flex items-center justify-between p-3 rounded-xl border border-slate-100 hover:border-slate-200 bg-slate-50/50 transition-colors">
                       <div className="min-w-0 pr-2">
                         <Link to={`/properties/${p.id}`} className="text-sm font-bold text-slate-800 truncate block hover:text-primary-600">
                           {p.title}
                         </Link>
                         <p className="text-[10px] text-slate-400 font-semibold mt-0.5">{p.location}</p>
+                        <p className="text-[10px] text-slate-500 font-medium mt-0.5">
+                          {p.listingType === 'AUCTION' ? 'Auction listing' : 'Fixed price'}
+                          {p.status === 'AVAILABLE' && ' · Open for offers'}
+                          {p.status === 'PENDING' && ' · Active escrow in progress'}
+                          {p.status === 'SOLD' && ' · Sale completed'}
+                        </p>
                       </div>
                       <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
                         <p className="text-sm font-extrabold text-slate-900">${Number(p.price).toLocaleString()}</p>
-                        <div className="flex gap-2 items-center">
-                          <StatusBadge status={p.status} />
+                        <div className="flex gap-2 items-center flex-wrap justify-end">
+                          <StatusBadge status={p.status} variant="property" />
+                          {activeTxn && (
+                            <Link
+                              to={`/escrow/${activeTxn.id}`}
+                              className="text-[10px] font-bold text-primary-600 hover:underline"
+                            >
+                              View deal
+                            </Link>
+                          )}
                           {p.status === 'AVAILABLE' && (
                             <button
                               onClick={() => handleDeleteProperty(p.id, p.title)}
-                              className="text-[10px] font-bold text-red-500 hover:text-red-700 transition-colors ml-1 cursor-pointer"
+                              className="text-[10px] font-bold text-red-500 hover:text-red-700 transition-colors cursor-pointer"
                             >
                               Delete
                             </button>
@@ -276,7 +447,8 @@ const Dashboard = () => {
                         </div>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </>

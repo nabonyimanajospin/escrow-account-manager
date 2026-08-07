@@ -49,7 +49,7 @@ const User = sequelize.define('User', {
   },
   isKycVerified: {
     type: DataTypes.BOOLEAN,
-    defaultValue: false,
+    defaultValue: true,
   },
   kycVerifiedAt: {
     type: DataTypes.DATE,

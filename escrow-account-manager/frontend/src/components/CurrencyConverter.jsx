@@ -92,7 +92,7 @@ export default function CurrencyConverter({ defaultUSD = '', compact = false }) 
         </div>
         {rate && (
           <p style={cs.liveRate}>
-            {isFallback ? '⚠ Fallback rate:' : '📡 Live:'} 1 USD = {rate.toLocaleString()} RWF
+            {isFallback ? 'Fallback rate:' : 'Live rate:'} 1 USD = {rate.toLocaleString()} RWF
             {rateDate && ` (${rateDate})`}
           </p>
         )}
@@ -103,12 +103,12 @@ export default function CurrencyConverter({ defaultUSD = '', compact = false }) 
   return (
     <div style={cs.card}>
       <div style={cs.cardHeader}>
-        <h3 style={cs.title}>💱 Currency Converter</h3>
+        <h3 style={cs.title}>Currency converter</h3>
         {loading ? (
           <span style={cs.liveTag}>Loading rate...</span>
         ) : (
           <span style={{ ...cs.liveTag, background: isFallback ? 'rgba(245,158,11,0.15)' : 'rgba(16,185,129,0.15)', color: isFallback ? '#f59e0b' : '#10b981' }}>
-            {isFallback ? '⚠ Offline Rate' : '📡 Live Rate'}
+            {isFallback ? 'Offline rate' : 'Live rate'}
           </span>
         )}
       </div>
@@ -123,7 +123,7 @@ export default function CurrencyConverter({ defaultUSD = '', compact = false }) 
       <div style={cs.converterRow}>
         {/* USD Input */}
         <div style={cs.inputGroup}>
-          <div style={cs.currencyFlag}>🇺🇸</div>
+          <div style={cs.currencyFlag}>USD</div>
           <div style={cs.inputWrap}>
             <label style={cs.inputLabel}>US Dollar (USD)</label>
             <div style={cs.inputInner}>
@@ -146,7 +146,7 @@ export default function CurrencyConverter({ defaultUSD = '', compact = false }) 
 
         {/* RWF Input */}
         <div style={cs.inputGroup}>
-          <div style={cs.currencyFlag}>🇷🇼</div>
+          <div style={cs.currencyFlag}>RWF</div>
           <div style={cs.inputWrap}>
             <label style={cs.inputLabel}>Rwandan Franc (RWF)</label>
             <div style={cs.inputInner}>
@@ -166,8 +166,8 @@ export default function CurrencyConverter({ defaultUSD = '', compact = false }) 
 
       <p style={cs.disclaimer}>
         {isFallback
-          ? '⚠ Showing fallback rate. Live rate unavailable.'
-          : '✓ Exchange rate sourced from frankfurter.app (European Central Bank).'}
+          ? 'Showing fallback rate. Live rate unavailable.'
+          : 'Exchange rate sourced from frankfurter.app (European Central Bank).'}
       </p>
     </div>
   );

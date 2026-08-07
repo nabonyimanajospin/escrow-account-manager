@@ -53,31 +53,33 @@ app.use(cors({
 }));
 
 // ─── Rate Limiters ────────────────────────────────────────────────────────────
-// General API rate limit
+const isProduction = process.env.NODE_ENV === 'production';
+
+// General API rate limit (relaxed in dev/demo so buyer/admin flows are not blocked)
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 200,
+  max: isProduction ? 200 : 5000,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { success: false, error: 'Too many requests. Please try again in 15 minutes.' },
+  message: { success: false, message: 'Too many requests. Please try again in a few minutes.', error: 'Too many requests. Please try again in a few minutes.' },
 });
 
 // Strict limiter for sensitive auth endpoints
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10, // 10 attempts per 15 min
+  max: isProduction ? 10 : 200,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { success: false, error: 'Too many login attempts. Please wait 15 minutes.' },
+  message: { success: false, message: 'Too many login attempts. Please wait a few minutes.', error: 'Too many login attempts. Please wait a few minutes.' },
 });
 
 // OTP verification limiter
 const otpLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: isProduction ? 10 : 100,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { success: false, error: 'Too many OTP attempts. Please wait 15 minutes.' },
+  message: { success: false, message: 'Too many OTP attempts. Please wait a few minutes.', error: 'Too many OTP attempts. Please wait a few minutes.' },
 });
 
 app.use('/api', generalLimiter);
@@ -96,11 +98,11 @@ app.use(hpp());
 // ─── Static File Serving (uploaded files) ────────────────────────────────────
 const { protect } = require('./middleware/auth');
 
-// Publicly accessible uploaded files (properties, contracts, mutations)
-app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
+// Public property images only (sensitive docs require authenticated /api/files routes)
+app.use('/uploads/properties', express.static(path.join(__dirname, '..', 'uploads', 'properties')));
 
 // Contract download fallback route for generated PDF certificates
-app.get('/uploads/contracts/:filename', async (req, res) => {
+app.get('/uploads/contracts/:filename', protect, async (req, res) => {
   const contractsDir = path.join(__dirname, '..', 'uploads', 'contracts');
   const fs = require('fs');
   if (!fs.existsSync(contractsDir)) fs.mkdirSync(contractsDir, { recursive: true });
@@ -113,9 +115,21 @@ app.get('/uploads/contracts/:filename', async (req, res) => {
     const { Transaction } = require('./models');
     const { generateEscrowContract } = require('./services/contractService');
     const { transactionIncludes } = require('./utils/transactionHelpers');
-    
-    // Find transaction to generate contract on-the-fly
-    const tx = await Transaction.findOne({ order: [['id', 'DESC']], include: transactionIncludes });
+
+    const txIdMatch = req.params.filename.match(/TXN-([A-Z0-9-]+)/i);
+    let tx = null;
+    if (txIdMatch) {
+      tx = await Transaction.findOne({
+        where: { transactionId: txIdMatch[0].toUpperCase() },
+        include: transactionIncludes,
+      });
+    }
+    if (!tx) {
+      tx = await Transaction.findOne({
+        where: { contractDocumentUrl: `/uploads/contracts/${req.params.filename}` },
+        include: transactionIncludes,
+      });
+    }
     if (tx) {
       await generateEscrowContract(tx, req.params.filename);
       if (fs.existsSync(requestedFile)) {
@@ -129,6 +143,7 @@ app.get('/uploads/contracts/:filename', async (req, res) => {
 });
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
+app.use('/api/files',     require('./routes/files'));
 app.use('/api/auth',       require('./routes/auth'));
 app.use('/api/properties', require('./routes/properties'));
 app.use('/api/escrow',     require('./routes/escrow'));

@@ -19,9 +19,11 @@ const PropertyDetail = () => {
 
   // Offers and bidding states
   const [offers, setOffers] = useState([]);
+  const [totalBidders, setTotalBidders] = useState(0);
   const [offersLoading, setOffersLoading] = useState(false);
   const [bidPrice, setBidPrice] = useState('');
   const [bidPeriod, setBidPeriod] = useState('');
+  const [walletBalance, setWalletBalance] = useState(null);
 
   const fetchOffers = useCallback(async () => {
     if (!isAuthenticated) return;
@@ -29,6 +31,7 @@ const PropertyDetail = () => {
       setOffersLoading(true);
       const response = await axios.get(`/properties/${id}/offers`);
       setOffers(response.data.data || []);
+      setTotalBidders(response.data.totalBidders ?? response.data.count ?? (response.data.data || []).length);
     } catch (err) {
       console.error('Failed to load offers:', err);
     } finally {
@@ -54,6 +57,13 @@ const PropertyDetail = () => {
     fetchOffers();
   }, [id, navigate, fetchOffers]);
 
+  useEffect(() => {
+    if (!isAuthenticated || user?.role !== 'BUYER') return;
+    axios.get('/wallet')
+      .then((res) => setWalletBalance(res.data.wallet?.balance ?? 0))
+      .catch(() => setWalletBalance(null));
+  }, [isAuthenticated, user?.role]);
+
   const handlePlaceBid = async (e) => {
     e.preventDefault();
     if (!isAuthenticated) {
@@ -61,6 +71,7 @@ const PropertyDetail = () => {
       navigate('/login', { state: { from: `/properties/${id}`, action: 'BID' } });
       return;
     }
+
 
     if (!bidPrice || !bidPeriod) {
       toast.error('Please fill in both bid price and payment period');
@@ -78,7 +89,7 @@ const PropertyDetail = () => {
         price: parseFloat(bidPrice),
         paymentPeriodDays: parseInt(bidPeriod, 10),
       });
-      toast.success('Your bidding offer was successfully submitted!');
+      toast.success('Your bid was submitted. Check your rank below.');
       setBidPrice('');
       setBidPeriod('');
       fetchOffers();
@@ -109,6 +120,7 @@ const PropertyDetail = () => {
       navigate('/login', { state: { from: `/properties/${id}`, action: 'BUY' } });
       return;
     }
+
     if (!window.confirm(`Initiate direct purchase for $${Number(property.price).toLocaleString()}? This will lock the property into escrow for your review.`)) return;
 
     try {
@@ -271,7 +283,7 @@ const PropertyDetail = () => {
 
             {/* Live RWF Currency Converter */}
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-3">💱 Convert to Rwandan Francs</p>
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-3">Convert to Rwandan Francs</p>
               <CurrencyConverter defaultUSD={property.price} compact={true} />
             </div>
 
@@ -279,6 +291,14 @@ const PropertyDetail = () => {
 
             {showEscrowBtn && (
               <div className="space-y-4">
+                {user?.role === 'BUYER' && walletBalance !== null && (
+                  <div className={`p-3 rounded-lg border text-xs font-semibold ${walletBalance >= Number(property.price) * 1.01 ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-amber-50 border-amber-200 text-amber-900'}`}>
+                    Your wallet: <strong>${Number(walletBalance).toLocaleString()}</strong>
+                    {walletBalance < Number(property.price) * 1.01 && (
+                      <span className="block mt-1">You may need additional wallet funds to cover the 1% platform fee on deposit.</span>
+                    )}
+                  </div>
+                )}
                 {property.listingType === 'FIXED_PRICE' ? (
                   <div className="space-y-4">
                     <button
@@ -287,7 +307,7 @@ const PropertyDetail = () => {
                       disabled={actionLoading}
                       className="btn-primary w-full py-3 font-bold text-sm cursor-pointer shadow-md hover:shadow-lg transition-all"
                     >
-                      {actionLoading ? 'Initiating Escrow...' : '🔒 Buy Now & Lock Escrow'}
+                      {actionLoading ? 'Initiating Escrow...' : 'Buy now & lock escrow'}
                     </button>
                     <p className="text-[10px] text-slate-400 font-semibold text-center">
                       Instant purchase at list price. Locks funds securely in Escrow Trust.
@@ -437,25 +457,36 @@ const PropertyDetail = () => {
             </div>
           </div>
 
-          {/* AI Buyer Ranking & Recommendation Panel */}
-          {isAuthenticated && (isOwner || isAdmin || user?.role === 'BUYER') && (
+          {/* Buyer offer ranking (auction listings) */}
+          {isAuthenticated && property.listingType === 'AUCTION' && (isOwner || isAdmin || user?.role === 'BUYER') && (
             <div className="card p-5 bg-white space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div>
-                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5 font-sans">
-                    <span>🤖</span> AI Buyer Ranking & Recommendation
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider font-sans">
+                    Buyer offer ranking
                   </h3>
-                  <p className="text-[10px] text-slate-400 font-medium">Dynamic multi-factor offer analysis engine</p>
+                  <p className="text-[10px] text-slate-400 font-medium">Ranked by price, settlement period, and KYC status</p>
                 </div>
                 <span className="text-[10px] bg-indigo-100 text-indigo-700 font-extrabold px-2 py-0.5 rounded-full border border-indigo-200">
-                  {offers.length} Buyer{offers.length !== 1 ? 's' : ''} Ranked
+                  {totalBidders} Bidder{totalBidders !== 1 ? 's' : ''}
                 </span>
               </div>
 
-              {/* My Rank Summary Card for Logged-in Buyer */}
-              {user?.role === 'BUYER' && offers.length > 0 && (() => {
-                const myOffer = offers.find(o => o.buyerId === user.id);
-                if (!myOffer) return null;
+              {/* My rank — buyers */}
+              {user?.role === 'BUYER' && !isOwner && (() => {
+                const myOffer = offers.find((o) => o.buyerId === user.id);
+                if (offersLoading) {
+                  return (
+                    <p className="text-xs text-slate-400 text-center py-3">Calculating your rank...</p>
+                  );
+                }
+                if (!myOffer) {
+                  return (
+                    <p className="text-xs text-slate-500 text-center py-3 font-medium leading-relaxed">
+                      You have not placed a bid yet. Submit an auction bid above — the first bidder is ranked #1.
+                    </p>
+                  );
+                }
                 const isRank1 = myOffer.rank === 1;
                 return (
                   <div className={`p-3.5 rounded-xl border leading-relaxed space-y-1 ${
@@ -464,29 +495,32 @@ const PropertyDetail = () => {
                       : 'bg-amber-50/80 border-amber-200 text-amber-950'
                   }`}>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-extrabold flex items-center gap-1">
-                        {isRank1 ? '🏆 Rank #1 (Top Pick)' : `🥈 Rank #${myOffer.rank} of ${offers.length} Buyers`}
+                      <span className="text-xs font-extrabold">
+                        {isRank1 ? 'Rank #1 of ' : `Rank #${myOffer.rank} of `}{totalBidders} bidder{totalBidders !== 1 ? 's' : ''}
                       </span>
                       <span className="text-[10px] font-mono font-bold bg-white/80 px-2 py-0.5 rounded border border-current">
-                        AI Match Score: {myOffer.systemScore}%
+                        Score: {myOffer.systemScore}%
                       </span>
                     </div>
                     <p className="text-[11px] font-medium leading-snug">
                       {isRank1
-                        ? 'Congratulations! Your offer is currently ranked #1 by our AI evaluation model.'
-                        : 'Tip: Lowering your payment duration (days) or increasing your offer amount will improve your AI Rank score to reach #1.'}
+                        ? 'You are currently the top-ranked bidder on this listing.'
+                        : 'Increase your offer or shorten the settlement period to improve your rank.'}
                     </p>
                   </div>
                 );
               })()}
 
-              {offersLoading ? (
-                <p className="text-xs text-slate-400 italic text-center py-4">Analyzing and ranking buyer offers...</p>
-              ) : offers.length === 0 ? (
-                <p className="text-xs text-slate-400 italic text-center py-4">No buyer offers placed yet. The first buyer to submit an offer will immediately be ranked #1!</p>
-              ) : (
-                <div className="space-y-3 pt-1 max-h-[380px] overflow-y-auto pr-1">
-                  {offers.map((offer) => {
+              {/* Full list — seller / admin only */}
+              {(isOwner || isAdmin) && (
+                <>
+                  {offersLoading ? (
+                    <p className="text-xs text-slate-400 italic text-center py-4">Loading offers...</p>
+                  ) : totalBidders === 0 ? (
+                    <p className="text-xs text-slate-400 italic text-center py-4">No pending bids yet.</p>
+                  ) : (
+                    <div className="space-y-3 pt-1 max-h-[380px] overflow-y-auto pr-1">
+                      {offers.filter((o) => o.status === 'PENDING').map((offer) => {
                     const isMyOffer = user?.id === offer.buyerId;
                     const rankNum = offer.rank || offer.aiRank || 1;
                     const isRank1 = rankNum === 1;
@@ -512,7 +546,7 @@ const PropertyDetail = () => {
                                 ? 'bg-slate-700 text-white'
                                 : 'bg-slate-200 text-slate-700'
                             }`}>
-                              {isRank1 ? '🏆 Rank #1 Top AI Choice' : `#${rankNum} Ranked Buyer`}
+                              {isRank1 ? 'Rank #1 — Top offer' : `#${rankNum} ranked buyer`}
                             </span>
                             {offer.buyer?.isKycVerified && (
                               <span className="text-[9px] bg-emerald-100 text-emerald-800 font-extrabold px-1.5 py-0.5 rounded border border-emerald-200">
@@ -541,10 +575,10 @@ const PropertyDetail = () => {
                           </div>
                         </div>
 
-                        {/* AI Rationale text */}
+                        {/* Offer rationale */}
                         {offer.aiRecommendation && (
                           <div className="text-[10px] text-slate-600 bg-white/80 p-2 rounded-lg border border-slate-100 italic leading-snug">
-                            💡 {offer.aiRecommendation}
+                            {offer.aiRecommendation}
                           </div>
                         )}
 
@@ -578,6 +612,8 @@ const PropertyDetail = () => {
                     );
                   })}
                 </div>
+                  )}
+                </>
               )}
             </div>
           )}

@@ -4,12 +4,13 @@ const { Transaction, Property, AuditLog, sequelize, Dispute, Escrow, User, Walle
 const ledgerService = require('./ledgerService');
 const notificationService = require('./notificationService');
 
-// Runs every minute to auto-expire PENDING transactions older than 10 minutes
+// Runs every minute to auto-expire stale PENDING transactions (default: 24h for demos; was 10 min)
+const PENDING_EXPIRY_MS = Number(process.env.PENDING_ESCROW_EXPIRY_MINUTES || 1440) * 60 * 1000;
+
 const startCronJobs = () => {
   cron.schedule('* * * * *', async () => {
     try {
-      const EXPIRATION_LIMIT = 10 * 60 * 1000;
-      const expirationThreshold = new Date(Date.now() - EXPIRATION_LIMIT);
+      const expirationThreshold = new Date(Date.now() - PENDING_EXPIRY_MS);
 
       const pendingTransactions = await Transaction.findAll({
         where: {

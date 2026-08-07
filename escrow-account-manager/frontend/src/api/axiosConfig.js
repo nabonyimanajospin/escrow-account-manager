@@ -12,6 +12,11 @@ const axiosInstance = axios.create({
   withCredentials: true,
 });
 
+const getErrorMessage = (error) => {
+  const data = error.response?.data;
+  return data?.message || data?.error || error.message || 'Something went wrong';
+};
+
 axiosInstance.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
@@ -29,10 +34,20 @@ axiosInstance.interceptors.request.use(
 axiosInstance.interceptors.response.use(
   (response) => response,
   (error) => {
-    const message = error.response?.data?.message || 'Something went wrong';
-    
+    const config = error.config || {};
+    const message = getErrorMessage(error);
+    const status = error.response?.status;
+    const isSilentAuthProbe =
+      config.skipErrorToast ||
+      (config.url && String(config.url).includes('/auth/me'));
+
+    if (isSilentAuthProbe) {
+      return Promise.reject(error);
+    }
+
     // Handle authentication errors
-    if (error.response?.status === 401) {
+    if (status === 401) {
+      localStorage.removeItem('token');
       localStorage.removeItem('user');
       if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
         toast.error('Session expired. Please login again.');
@@ -40,10 +55,12 @@ axiosInstance.interceptors.response.use(
       } else {
         toast.error(message);
       }
-    } else {
+    } else if (status === 429) {
+      toast.error(message);
+    } else if (!config.skipErrorToast) {
       toast.error(message);
     }
-    
+
     return Promise.reject(error);
   }
 );

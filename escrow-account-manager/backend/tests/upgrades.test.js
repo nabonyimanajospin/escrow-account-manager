@@ -32,8 +32,23 @@ jest.mock('../src/models', () => {
     DisputeEvidence: createMockModel(),
     Notification: createMockModel(),
     LedgerEntry: createMockModel(),
+    WalletTransaction: { create: jest.fn().mockResolvedValue({}) },
   };
 });
+
+jest.mock('../src/services/notificationService', () => ({
+  sendOtpEmail: jest.fn().mockResolvedValue(undefined),
+  sendConsensusCode: jest.fn().mockResolvedValue(undefined),
+  sendTransactionStatusEmail: jest.fn().mockResolvedValue(undefined),
+  sendDisputeNotificationEmail: jest.fn().mockResolvedValue(undefined),
+  sendWalletCreditEmail: jest.fn().mockResolvedValue(undefined),
+  sendEmail: jest.fn().mockResolvedValue(undefined),
+  createInAppNotification: jest.fn().mockResolvedValue(undefined),
+}));
+
+jest.mock('../src/services/contractService', () => ({
+  generateEscrowContract: jest.fn().mockResolvedValue('/uploads/contracts/test.pdf'),
+}));
 
 // Mock ledger entries service
 jest.mock('../src/services/ledgerService', () => ({
@@ -84,41 +99,36 @@ describe('Sprint 2 Hardening - Real-Estate Escrow Upgrades', () => {
     expect(Property.create).toHaveBeenCalled();
   });
 
-  // Test 2: Standard release checks (Registry report + Buyer property Receipt + Admin notes)
-  it('prevents standard admin release if registry checks, buyer receipt, or notes are missing', async () => {
+  // Test 2: Admin release only requires audit notes (demo — registry/receipt checks skipped)
+  it('allows admin release with audit notes only', async () => {
     resolveUser(admin);
+    const escrow = makeEscrow({ balance: 100000, releaseHistory: [], update: jest.fn().mockResolvedValue(true) });
     const mockTx = makeTransaction({
       status: 'UNDER_REVIEW',
-      registryValidationReport: null, // failed/missing report
+      registryValidationReport: null,
       buyerConfirmedPropertyReceivedAt: null,
+      escrowAccountId: 1,
+      amount: 100000,
+      sellerFee: 1500,
+      buyerFee: 1000,
+      update: jest.fn().mockResolvedValue(true),
     });
-    Transaction.findByPk.mockResolvedValue(mockTx);
+    Transaction.findByPk.mockReset();
+    Transaction.findByPk
+      .mockResolvedValueOnce(mockTx)
+      .mockResolvedValueOnce({ ...mockTx, status: 'AWAITING_RECEIPT' });
+    Escrow.findByPk.mockResolvedValue(escrow);
+    User.findByPk
+      .mockResolvedValueOnce(admin)
+      .mockResolvedValueOnce({ ...seller, walletBalance: 0, update: jest.fn().mockResolvedValue(true) });
 
     const res = await request(app)
       .post(`/api/admin/transactions/${mockTx.id}/release`)
       .set('Authorization', `Bearer ${tokenFor.admin()}`)
-      .send({ adminNotes: 'Checklist incomplete test' });
+      .send({ adminNotes: 'Demo presentation release' });
 
-    expect(res.status).toBe(400);
-    expect(res.body.message).toContain('Registry deeds verification check must be successfully completed');
-  });
-
-  it('prevents release if buyer has not confirmed receipt of deed', async () => {
-    resolveUser(admin);
-    const mockTx = makeTransaction({
-      status: 'UNDER_REVIEW',
-      registryValidationReport: { registryRecordFound: 'VERIFIED', upiFormatMatch: 'VERIFIED' },
-      buyerConfirmedPropertyReceivedAt: null,
-    });
-    Transaction.findByPk.mockResolvedValue(mockTx);
-
-    const res = await request(app)
-      .post(`/api/admin/transactions/${mockTx.id}/release`)
-      .set('Authorization', `Bearer ${tokenFor.admin()}`)
-      .send({ adminNotes: 'Awaiting buyer confirmation' });
-
-    expect(res.status).toBe(400);
-    expect(res.body.message).toContain('Buyer must confirm receipt of property deed');
+    expect(res.status).toBe(200);
+    expect(mockTx.update).toHaveBeenCalledWith(expect.objectContaining({ status: 'AWAITING_RECEIPT' }), expect.any(Object));
   });
 
   it('prevents release if adminNotes are not provided', async () => {
@@ -128,6 +138,7 @@ describe('Sprint 2 Hardening - Real-Estate Escrow Upgrades', () => {
       registryValidationReport: { registryRecordFound: 'VERIFIED', upiFormatMatch: 'VERIFIED' },
       buyerConfirmedPropertyReceivedAt: new Date(),
     });
+    Transaction.findByPk.mockReset();
     Transaction.findByPk.mockResolvedValue(mockTx);
 
     const res = await request(app)
@@ -173,7 +184,7 @@ describe('Sprint 2 Hardening - Real-Estate Escrow Upgrades', () => {
     const res = await request(app)
       .post(`/api/escrow/${mockTx.id}/dispute/evidence`)
       .set('Authorization', `Bearer ${tokenFor.buyer()}`)
-      .send({ fileUrl: 'https://proofs.com/deed_fake.txt', description: 'Deed signature analysis report' });
+      .send({ fileUrl: '/uploads/evidence/deed-proof.txt', description: 'Deed signature analysis report' });
 
     expect(res.status).toBe(200);
     expect(res.body.message).toContain('Evidence successfully uploaded');

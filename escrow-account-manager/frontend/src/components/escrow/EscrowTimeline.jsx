@@ -24,7 +24,7 @@ const EscrowTimeline = ({ status }) => {
       <div className="card p-6 bg-white border border-slate-200">
         <h2 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-6">Escrow Transaction Progress</h2>
         <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-center">
-          <p className="text-sm font-bold text-amber-800">⚠️ Active Dispute Filed</p>
+          <p className="text-sm font-bold text-amber-800">Active dispute filed</p>
           <p className="text-xs text-amber-600 mt-1">This transaction is currently frozen under active dispute mediation. No funds will be released until the arbitrator resolves this case.</p>
         </div>
       </div>

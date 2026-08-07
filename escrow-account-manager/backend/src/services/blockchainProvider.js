@@ -57,7 +57,7 @@ class BlockchainProvider {
       const deploymentTxHash = `0x${crypto.randomBytes(32).toString('hex')}`;
       const timestamp = new Date();
 
-      logger.info(`[Blockchain EVM] Deployed EscrowVault Smart Contract for TX ${transaction.id} at ${contractAddress}`);
+      logger.info(`[Blockchain EVM] Deployed simulated EscrowVault contract for TX ${transaction.id} at ${contractAddress}`);
 
       return {
         success: true,

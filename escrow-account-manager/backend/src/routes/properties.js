@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const {
   getProperties,
+  getMyProperties,
   getProperty,
   createProperty,
   updateProperty,
@@ -16,6 +17,7 @@ const { uploadPropertyImage } = require('../middleware/upload');
 
 // Public routes
 router.post('/ai-description', protect, roleCheck('SELLER'), requireKyc, generateDescription);
+router.get('/mine', protect, roleCheck('SELLER', 'ADMIN'), getMyProperties);
 router.get('/', getProperties);
 router.get('/:id', getProperty);
 

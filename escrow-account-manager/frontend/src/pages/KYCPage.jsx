@@ -106,7 +106,7 @@ const KYCPage = () => {
         <div className="card p-6 bg-white space-y-5">
           {user?.isKycVerified ? (
             <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3">
-              <span className="text-2xl">✅</span>
+              <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Verified</span>
               <div>
                 <p className="text-sm font-bold text-emerald-800">Identity Verified</p>
                 <p className="text-xs text-emerald-600 font-semibold mt-0.5">
@@ -117,7 +117,7 @@ const KYCPage = () => {
           ) : (
             <>
               <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
-                <p className="text-xs font-bold text-amber-800">⚠ KYC Verification Pending</p>
+                <p className="text-xs font-bold text-amber-800">KYC verification pending</p>
                 <p className="text-xs text-amber-700 font-semibold mt-1 leading-relaxed">
                   To participate in escrow transactions, you must verify your identity. Upload a clear photo or scan of a government-issued ID (National ID, Passport, or Driving License).
                 </p>

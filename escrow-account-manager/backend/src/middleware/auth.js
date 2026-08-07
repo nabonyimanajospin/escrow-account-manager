@@ -49,3 +49,28 @@ exports.authorize = (...roles) => {
     next();
   };
 };
+
+/** Attach user when a valid token is present; continue as guest when not. */
+exports.optionalProtect = async (req, res, next) => {
+  let token;
+
+  if (req.cookies && req.cookies.escrowtrust_token) {
+    token = req.cookies.escrowtrust_token;
+  } else if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+    token = req.headers.authorization.split(' ')[1];
+  }
+
+  if (!token) {
+    req.user = null;
+    return next();
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = await User.findByPk(decoded.id);
+  } catch {
+    req.user = null;
+  }
+
+  return next();
+};

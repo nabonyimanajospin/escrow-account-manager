@@ -81,6 +81,29 @@ exports.getProperty = async (req, res, next) => {
   }
 };
 
+// @desc    Get current seller's own property listings (all statuses)
+// @route   GET /api/properties/mine
+// @access  Private (SELLER, ADMIN)
+exports.getMyProperties = async (req, res, next) => {
+  try {
+    const where = { sellerId: req.user.id };
+
+    const rows = await Property.findAll({
+      where,
+      include: [{ model: User, as: 'seller', attributes: ['id', 'name'] }],
+      order: [['createdAt', 'DESC']],
+    });
+
+    res.status(200).json({
+      success: true,
+      count: rows.length,
+      data: rows,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Create new property
 // @route   POST /api/properties
 // @access  Private (SELLER, ADMIN)

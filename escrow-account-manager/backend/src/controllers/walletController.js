@@ -140,7 +140,7 @@ const rejectWithdrawal = async (req, res) => {
     const user = await User.findByPk(walletTx.userId, { transaction: t, lock: t.LOCK.UPDATE });
     await user.update({ walletBalance: parseFloat(user.walletBalance || 0) + parseFloat(walletTx.amount) }, { transaction: t });
     
-    await walletTx.update({ status: 'FAILED' }, { transaction: t });
+    await walletTx.update({ status: 'REJECTED' }, { transaction: t });
     await t.commit();
     res.json({ success: true, message: 'Withdrawal rejected and funds refunded.' });
   } catch (error) {

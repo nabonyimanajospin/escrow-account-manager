@@ -194,7 +194,7 @@ const Navbar = () => {
                       className="text-xs font-semibold text-slate-600 hover:text-slate-900 px-2 py-1 rounded hover:bg-slate-100 transition-all"
                       title="My Profile"
                     >
-                      👤 Profile
+                      Profile
                     </Link>
                     {(user?.role === 'BUYER' || user?.role === 'SELLER') && (
                       <Link
@@ -205,13 +205,13 @@ const Navbar = () => {
                         🪪 KYC
                       </Link>
                     )}
-                    {(user?.role === 'SELLER' || user?.role === 'ADMIN') && (
+                    {(user?.role === 'BUYER' || user?.role === 'SELLER' || user?.role === 'ADMIN') && (
                       <Link
                         to="/wallet"
                         className="text-xs font-semibold text-emerald-600 hover:text-emerald-800 px-2 py-1 rounded hover:bg-emerald-50 transition-all"
-                        title="Seller Wallet"
+                        title="Wallet"
                       >
-                        💰 Wallet
+                        Wallet
                       </Link>
                     )}
                     <button
@@ -303,6 +303,24 @@ const Navbar = () => {
                   🪪 KYC Verification
                 </Link>
               )}
+
+              {(user?.role === 'BUYER' || user?.role === 'SELLER' || user?.role === 'ADMIN') && (
+                <Link
+                  to="/wallet"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="block px-3 py-2 rounded-lg text-base font-semibold text-emerald-600 hover:bg-emerald-50"
+                >
+                  Wallet
+                </Link>
+              )}
+
+              <Link
+                to="/profile"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block px-3 py-2 rounded-lg text-base font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Profile
+              </Link>
 
               <div className="border-t border-slate-100 my-2 pt-2" />
               <div className="px-3 py-2 flex items-center justify-between">

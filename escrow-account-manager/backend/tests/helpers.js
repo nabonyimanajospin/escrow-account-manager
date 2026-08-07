@@ -30,6 +30,7 @@ const makeUser = (overrides = {}) => ({
   isKycVerified: true,
   phone: null,
   address: null,
+  walletBalance: 500000,
   matchPassword: jest.fn().mockResolvedValue(true),
   update: jest.fn().mockImplementation(function (data) {
     Object.assign(this, data);

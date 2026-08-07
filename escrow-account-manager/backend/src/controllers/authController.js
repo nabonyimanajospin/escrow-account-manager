@@ -29,6 +29,13 @@ exports.register = async (req, res, next) => {
       });
     }
 
+    if (!['BUYER', 'SELLER'].includes(role)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Role must be either BUYER or SELLER',
+      });
+    }
+
     const cleanEmail = email.toLowerCase().trim();
     const existingUser = await User.findOne({ where: { email: cleanEmail } });
     if (existingUser) {

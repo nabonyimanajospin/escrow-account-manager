@@ -16,8 +16,8 @@ import EscrowDetail from './pages/EscrowDetail';
 import AdminPanel from './pages/AdminPanel';
 import Profile from './pages/Profile';
 import SellerWallet from './pages/SellerWallet';
-import AIChatWidget from './components/AIChatWidget';
 import KYCPage from './pages/KYCPage';
+import AIChatWidget from './components/AIChatWidget';
 
 function App() {
   return (
@@ -68,7 +68,13 @@ function App() {
                 <Route path="/transactions/:id" element={<EscrowDetail />} />
                 {/* Profile & Wallet */}
                 <Route path="/profile" element={<Profile />} />
+              </Route>
+
+              <Route element={<ProtectedRoute allowedRoles={['BUYER', 'SELLER', 'ADMIN']} />}>
                 <Route path="/wallet" element={<SellerWallet />} />
+              </Route>
+
+              <Route element={<ProtectedRoute allowedRoles={['BUYER', 'SELLER', 'ADMIN']} />}>
                 <Route path="/kyc" element={<KYCPage />} />
               </Route>
 
@@ -82,9 +88,9 @@ function App() {
               <Route path="*" element={<Navigate to="/404" replace />} />
             </Routes>
           </main>
-          <AIChatWidget />
-        <Footer />
+          <Footer />
         </div>
+        <AIChatWidget />
       </AuthProvider>
     </Router>
   );

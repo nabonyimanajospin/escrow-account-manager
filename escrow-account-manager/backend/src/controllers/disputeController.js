@@ -1,4 +1,4 @@
-const { Dispute, DisputeEvidence, Transaction, Escrow, Property, User, LedgerEntry, AuditLog } = require('../models');
+const { Dispute, DisputeEvidence, Transaction, Escrow, Property, User, LedgerEntry, AuditLog, WalletTransaction } = require('../models');
 const { sequelize } = require('../config/database');
 const ledgerService = require('../services/ledgerService');
 const notificationService = require('../services/notificationService');
@@ -32,7 +32,12 @@ exports.raiseDispute = async (req, res, next) => {
     }
 
     // Check if there is already an active dispute
-    const activeDispute = await Dispute.findOne({ where: { transactionId: transaction.id, status: 'OPEN' } });
+    const activeDispute = await Dispute.findOne({
+      where: {
+        transactionId: transaction.id,
+        status: ['OPEN', 'EVIDENCE_SUBMITTED', 'UNDER_MEDIATION'],
+      },
+    });
     if (activeDispute) {
       return res.status(400).json({ success: false, message: 'A dispute case is already open for this transaction' });
     }
@@ -88,6 +93,9 @@ exports.uploadEvidence = async (req, res, next) => {
     } else if (req.file) {
       fileUrls = [`/uploads/evidence/${req.file.filename}`];
     } else if (req.body.fileUrl) {
+      if (!req.body.fileUrl.startsWith('/uploads/evidence/')) {
+        return res.status(400).json({ success: false, message: 'Evidence file URL must be an uploaded path under /uploads/evidence/' });
+      }
       fileUrls = [req.body.fileUrl];
     }
 
@@ -225,6 +233,21 @@ exports.resolveDispute = async (req, res, next) => {
           description: 'Arbitrator credit platform service commissions',
         }, t);
 
+        const seller = await User.findByPk(transaction.sellerId, { transaction: t, lock: t.LOCK.UPDATE });
+        if (seller) {
+          const sellerNetPayout = parseFloat(transaction.amount) - parseFloat(transaction.sellerFee);
+          const newBalance = parseFloat(seller.walletBalance || 0) + sellerNetPayout;
+          await seller.update({ walletBalance: newBalance }, { transaction: t });
+          await WalletTransaction.create({
+            userId: seller.id,
+            type: 'CREDIT',
+            amount: sellerNetPayout,
+            reference: transaction.transactionId || `TXN-${transaction.id}`,
+            notes: `Dispute resolved in seller favor. Net payout after seller fee.`,
+            status: 'COMPLETED',
+          }, { transaction: t });
+        }
+
         await logAction(transaction.id, req, `Arbitrator resolved dispute in favor of Seller. Funds released. Status set to AWAITING_RECEIPT. Ruling: ${mediatorNotes}`, { transaction: t });
       } else {
         // Refund to Buyer
@@ -250,6 +273,20 @@ exports.resolveDispute = async (req, res, next) => {
           accountType: 'BUYER_CASH',
           description: 'Arbitrator credit refund of deposit to buyer account',
         }, t);
+
+        const buyerUser = await User.findByPk(transaction.buyerId, { transaction: t, lock: t.LOCK.UPDATE });
+        if (buyerUser) {
+          await buyerUser.update({
+            walletBalance: parseFloat(buyerUser.walletBalance || 0) + balance,
+          }, { transaction: t });
+          await WalletTransaction.create({
+            userId: buyerUser.id,
+            type: 'CREDIT',
+            amount: balance,
+            notes: `Refund from dispute resolution on transaction ${transaction.id}`,
+            status: 'COMPLETED',
+          }, { transaction: t });
+        }
 
         await logAction(transaction.id, req, `Arbitrator resolved dispute in favor of Buyer. Full refund issued. Listing set to AVAILABLE. Ruling: ${mediatorNotes}`, { transaction: t });
       }

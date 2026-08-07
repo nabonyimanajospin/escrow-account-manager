@@ -6,6 +6,7 @@ import AuditLog from '../components/AuditLog';
 import toast from 'react-hot-toast';
 import EmptyState from '../components/common/EmptyState';
 import { SkeletonCard, SkeletonTable } from '../components/common/SkeletonLoader';
+import { openSecureDocument } from '../utils/imageUtils';
 
 const AdminPanel = () => {
   const [loading, setLoading] = useState(true);
@@ -81,6 +82,21 @@ const AdminPanel = () => {
   const handleRefund = (id, code) => {
     setModalNotes('');
     setModal({ type: 'refund', txId: id, txCode: code });
+  };
+
+  const modalTxn = modal ? txnsList.find((t) => t.id === modal.txId) : null;
+  const modalDocs = modalTxn?.mutationDocuments || [];
+
+  const handleOpenDocument = async (documentUrl) => {
+    try {
+      setActionLoading(true);
+      await openSecureDocument(documentUrl);
+    } catch (err) {
+      console.error(err);
+      toast.error('Could not open document. Try opening the full deal room.');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const handleModalConfirm = async () => {
@@ -292,21 +308,34 @@ const AdminPanel = () => {
                     </td>
                     <td className="py-4">
                       {t.status === 'UNDER_REVIEW' || t.status === 'DISPUTED' ? (
-                        <div className="flex gap-1.5">
-                          <button
-                            onClick={() => handleRelease(t.id, t.transactionId)}
-                            disabled={actionLoading}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] px-2.5 py-1 rounded transition-colors cursor-pointer"
+                        <div className="flex flex-col gap-1.5 min-w-[140px]">
+                          <Link
+                            to={`/escrow/${t.id}`}
+                            className="text-center bg-purple-600 hover:bg-purple-700 text-white font-bold text-[10px] px-2.5 py-1 rounded transition-colors"
                           >
-                            Release
-                          </button>
-                          <button
-                            onClick={() => handleRefund(t.id, t.transactionId)}
-                            disabled={actionLoading}
-                            className="bg-red-600 hover:bg-red-700 text-white font-bold text-[10px] px-2.5 py-1 rounded transition-colors cursor-pointer"
-                          >
-                            Refund
-                          </button>
+                            Review documents
+                          </Link>
+                          {(t.mutationDocuments?.length ?? 0) > 0 && (
+                            <span className="text-[9px] text-slate-500 font-semibold text-center">
+                              {t.mutationDocuments.length} mutation file{t.mutationDocuments.length === 1 ? '' : 's'} uploaded
+                            </span>
+                          )}
+                          <div className="flex gap-1.5">
+                            <button
+                              onClick={() => handleRelease(t.id, t.transactionId)}
+                              disabled={actionLoading}
+                              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] px-2.5 py-1 rounded transition-colors cursor-pointer"
+                            >
+                              Release
+                            </button>
+                            <button
+                              onClick={() => handleRefund(t.id, t.transactionId)}
+                              disabled={actionLoading}
+                              className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold text-[10px] px-2.5 py-1 rounded transition-colors cursor-pointer"
+                            >
+                              Refund
+                            </button>
+                          </div>
                         </div>
                       ) : ['PENDING', 'COMPLETED', 'REFUNDED'].includes(t.status) ? (
                         <button
@@ -396,7 +425,7 @@ const AdminPanel = () => {
       {/* ── Release / Refund Confirmation Modal ── */}
       {modal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4 animate-scale-in">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-4 animate-scale-in">
             <div className="flex items-center gap-3">
               <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-lg ${
                 modal.type === 'release' ? 'bg-emerald-600' : 'bg-red-600'
@@ -416,17 +445,58 @@ const AdminPanel = () => {
                 : 'You are about to refund the full escrow balance to the buyer and reset the property to AVAILABLE. Please provide your audit review notes below.'}
             </p>
 
+            <div className="p-3.5 bg-purple-50 border border-purple-200 rounded-xl space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-bold text-purple-950">Seller mutation documents</p>
+                <Link
+                  to={`/escrow/${modal.txId}`}
+                  className="text-[10px] font-bold text-purple-700 hover:text-purple-900 underline shrink-0"
+                >
+                  Open full deal room
+                </Link>
+              </div>
+              {modalDocs.length === 0 ? (
+                <p className="text-xs text-slate-500 italic">No mutation documents uploaded yet.</p>
+              ) : (
+                <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
+                  {modalDocs.map((doc, idx) => (
+                    <div
+                      key={idx}
+                      className="p-2 bg-white border border-purple-100 rounded-lg flex items-center justify-between gap-2"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-bold text-slate-800 truncate">
+                          {doc.description || `Mutation proof #${idx + 1}`}
+                        </p>
+                        <p className="text-[10px] text-slate-400 font-mono">
+                          {doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleString() : 'Uploaded'}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenDocument(doc.documentUrl)}
+                        disabled={actionLoading}
+                        className="shrink-0 px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white font-bold text-[10px] rounded-md transition-colors disabled:opacity-50"
+                      >
+                        View
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <button
               onClick={async () => {
                 try {
                   setActionLoading(true);
-                  const toastId = toast.loading('✨ AI Co-Pilot is analyzing the dispute evidence...');
+                  const toastId = toast.loading('Analyzing dispute evidence...');
                   const res = await axios.post(`/ai/analyze-dispute/${modal.txId}`);
                   setModalNotes(res.data.analysis);
-                  toast.success('AI Analysis Complete', { id: toastId });
+                  toast.success('Analysis complete', { id: toastId });
                 } catch (err) {
                   console.error(err);
-                  toast.error(err.response?.data?.message || 'Failed to fetch AI analysis');
+                  toast.error(err.response?.data?.message || 'Failed to analyze evidence');
                 } finally {
                   setActionLoading(false);
                 }
@@ -435,7 +505,7 @@ const AdminPanel = () => {
               className="w-full py-2 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 text-xs font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-              Ask AI Co-Pilot to Analyze Evidence
+              Generate evidence summary
             </button>
 
             <div className="space-y-1.5">

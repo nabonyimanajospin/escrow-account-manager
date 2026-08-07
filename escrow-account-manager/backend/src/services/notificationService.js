@@ -12,6 +12,9 @@ const transporter = nodemailer.createTransport({
     user: process.env.EMAIL_FROM,
     pass: process.env.EMAIL_APP_PASSWORD,
   },
+  connectionTimeout: 2500, // 2.5 second max connect timeout
+  greetingTimeout: 2500,   // 2.5 second max greeting timeout
+  socketTimeout: 2500,     // 2.5 second max socket timeout
 });
 
 /**
@@ -35,14 +38,12 @@ const sendEmail = async (to, subject, html, text = '') => {
     text: text || html.replace(/<[^>]+>/g, ''),
   };
 
-  try {
-    const info = await transporter.sendMail(mailOptions);
-    logger.info(`[Email] Sent to ${to} — MessageId: ${info.messageId}`);
-    return info;
-  } catch (err) {
-    logger.error(`[Email] Failed to send to ${to}:`, err.message);
-    // Do not throw — email failure should not crash the API
-  }
+  // Fire-and-forget background execution so API requests return instantly
+  setImmediate(() => {
+    transporter.sendMail(mailOptions)
+      .then((info) => logger.info(`[Email] Sent to ${to} — MessageId: ${info?.messageId}`))
+      .catch((err) => logger.error(`[Email] Failed to send to ${to}:`, err.message));
+  });
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -160,13 +161,6 @@ const sendWalletCreditEmail = async (toEmail, toName, amount, newBalance, transa
 const sendConsensusCode = async ({ user, transaction, code, expiresAt }) => {
   const ref = transaction.reference || `TXN-${transaction.id}`;
   
-  // Log it to the terminal so we can test without an email server configured!
-  console.log(`\n===========================================`);
-  console.log(`🔐 OTP CONSENSUS CODE for ${user.email}`);
-  console.log(`Transaction: ${ref}`);
-  console.log(`CODE: >>> ${code} <<<`);
-  console.log(`===========================================\n`);
-
   // Create in-app notification so user sees code in notification bell panel
   await createInAppNotification(
     user.id,

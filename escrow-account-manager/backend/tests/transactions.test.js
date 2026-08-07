@@ -181,8 +181,8 @@ describe('POST /api/escrow/initiate', () => {
 
 describe('POST /api/escrow/:id/deposit', () => {
   it('deposits the exact amount and moves status to FUNDED', async () => {
-    asUser(buyer);
-    const { txn, escrow } = fullTxn({ status: 'PENDING', buyerId: 1, amount: 100000 });
+    asUser({ ...buyer, walletBalance: 500000, update: jest.fn().mockResolvedValue(true) });
+    const { txn, escrow } = fullTxn({ status: 'PENDING', buyerId: 1, amount: 100000, buyerFee: 0, sellerFee: 0 });
     Transaction.findByPk
       .mockResolvedValueOnce(txn)                                    // first call in controller
       .mockResolvedValueOnce({ ...txn, status: 'FUNDED' }); // final result fetch
@@ -294,11 +294,11 @@ describe('POST /api/escrow/:id/upload-document', () => {
     const res = await request(app)
       .post('/api/escrow/5/upload-document')
       .set('Authorization', `Bearer ${tokenFor.seller(2)}`)
-      .send({ documentUrl: 'https://example.com/doc.pdf', description: 'Land certificate' });
+      .send({ documentUrl: '/uploads/mutations/doc.pdf', description: 'Land certificate' });
 
     expect(res.status).toBe(200);
     expect(txn.update).toHaveBeenCalledWith(expect.objectContaining({
-      mutationDocuments: expect.arrayContaining([expect.objectContaining({ documentUrl: 'https://example.com/doc.pdf' })])
+      mutationDocuments: expect.arrayContaining([expect.objectContaining({ documentUrl: '/uploads/mutations/doc.pdf' })])
     }), expect.any(Object));
   });
 
@@ -324,7 +324,8 @@ describe('POST /api/escrow/:id/complete-mutation', () => {
     const { txn } = fullTxn({
       status: 'MUTATION_STARTED',
       sellerId: 2,
-      mutationDocuments: [{ documentUrl: 'http://doc.pdf', description: 'proof' }]
+      sellerAuthorized: true,
+      mutationDocuments: [{ documentUrl: '/uploads/mutations/doc.pdf', description: 'proof' }]
     });
     Transaction.findByPk
       .mockResolvedValueOnce(txn)
@@ -357,7 +358,15 @@ describe('POST /api/admin/transactions/:id/release', () => {
   it('releases funds to seller changing status to AWAITING_RECEIPT', async () => {
     asUser(admin);
     const escrow = makeEscrow({ balance: 100000 });
-    const { txn } = fullTxn({ status: 'UNDER_REVIEW', propertyId: 10, sellerId: 2 });
+    const { txn } = fullTxn({
+      status: 'UNDER_REVIEW',
+      propertyId: 10,
+      sellerId: 2,
+      buyerFee: 1000,
+      sellerFee: 1500,
+      registryValidationReport: { registryRecordFound: 'VERIFIED', upiFormatMatch: 'VERIFIED' },
+      buyerConfirmedPropertyReceivedAt: new Date(),
+    });
     Transaction.findByPk
       .mockResolvedValueOnce(txn)
       .mockResolvedValueOnce({ ...txn, status: 'AWAITING_RECEIPT' });

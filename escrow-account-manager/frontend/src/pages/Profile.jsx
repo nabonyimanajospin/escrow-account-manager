@@ -90,16 +90,16 @@ export default function Profile() {
           <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-1">
             {user.isKycVerified ? (
               <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold flex items-center gap-1">
-                ✅ KYC Verified
+                KYC Verified
               </span>
             ) : (
               <span className="px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg text-xs font-bold flex items-center gap-1">
-                ⚠️ KYC Pending
+                KYC Pending
               </span>
             )}
             {user.walletBalance !== undefined && (
               <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-bold font-mono">
-                💳 Wallet Balance: ${Number(user.walletBalance).toLocaleString(undefined, { minimumFractionDigits: 2 })} USD
+                Wallet balance: ${Number(user.walletBalance).toLocaleString(undefined, { minimumFractionDigits: 2 })} USD
               </span>
             )}
           </div>
@@ -116,7 +116,7 @@ export default function Profile() {
               : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}
         >
-          👤 Edit Profile Details
+          Edit profile details
         </button>
         <button
           onClick={() => setActiveTab('password')}
@@ -126,7 +126,7 @@ export default function Profile() {
               : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}
         >
-          🔒 Security & Password
+          Security & password
         </button>
       </div>
 
@@ -196,7 +196,7 @@ export default function Profile() {
 
             <div className="flex justify-end pt-4 border-t border-slate-100">
               <button type="submit" disabled={saving} className="btn-primary text-xs font-bold py-2.5 px-6">
-                {saving ? 'Saving...' : '💾 Save Profile Changes'}
+                {saving ? 'Saving...' : 'Save profile changes'}
               </button>
             </div>
           </form>
@@ -245,7 +245,7 @@ export default function Profile() {
 
             <div className="pt-4 border-t border-slate-100">
               <button type="submit" disabled={savingPw} className="btn-primary text-xs font-bold py-2.5 px-6 w-full sm:w-auto">
-                {savingPw ? 'Updating Password...' : '🔒 Update Password'}
+                {savingPw ? 'Updating Password...' : 'Update password'}
               </button>
             </div>
           </form>

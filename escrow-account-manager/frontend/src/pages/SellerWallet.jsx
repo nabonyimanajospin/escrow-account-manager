@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../api/axiosConfig';
+import { useAuth } from '../context/AuthContext';
 import StatusBadge from '../components/StatusBadge';
 import toast from 'react-hot-toast';
 import EmptyState from '../components/common/EmptyState';
 import { SkeletonCard, SkeletonTable } from '../components/common/SkeletonLoader';
 
 export default function SellerWallet() {
+  const { user } = useAuth();
+  const isBuyer = user?.role === 'BUYER';
   const [wallet, setWallet] = useState(null);
   const [history, setHistory] = useState([]);
   const [withdrawAmount, setWithdrawAmount] = useState('');
@@ -83,8 +86,10 @@ export default function SellerWallet() {
       
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold text-slate-900 font-sans">Seller Wallet</h1>
-          <p className="text-slate-500 text-sm font-semibold mt-1">Manage your escrow earnings and withdrawals</p>
+          <h1 className="text-3xl font-extrabold text-slate-900 font-sans">{isBuyer ? 'My Wallet' : 'Seller Wallet'}</h1>
+          <p className="text-slate-500 text-sm font-semibold mt-1">
+            {isBuyer ? 'Funds used for escrow deposits and refunds' : 'Manage your escrow earnings and withdrawals'}
+          </p>
         </div>
       </div>
 
@@ -96,7 +101,7 @@ export default function SellerWallet() {
           <div className="relative z-10">
             <p className="text-xs font-bold text-primary-100 uppercase tracking-wider mb-2">Available Balance</p>
             <p className="text-4xl font-black">${Number(wallet?.balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-            <p className="text-xs text-primary-200 mt-2 font-medium">Ready for withdrawal</p>
+            <p className="text-xs text-primary-200 mt-2 font-medium">{isBuyer ? 'Available for escrow deposits' : 'Ready for withdrawal'}</p>
           </div>
           {/* Decorative graphic */}
           <div className="absolute -right-6 -bottom-6 w-32 h-32 bg-white opacity-5 rounded-full blur-2xl"></div>
@@ -130,12 +135,14 @@ export default function SellerWallet() {
           >
             Transaction History
           </button>
+          {!isBuyer && (
           <button 
             onClick={() => setActiveTab('withdraw')}
             className={`flex-1 py-4 text-sm font-bold transition-colors ${activeTab === 'withdraw' ? 'text-primary-600 border-b-2 border-primary-600 bg-white' : 'text-slate-500 hover:text-slate-700'}`}
           >
             Request Withdrawal
           </button>
+          )}
         </div>
 
         <div className="p-0">
@@ -198,7 +205,7 @@ export default function SellerWallet() {
             </div>
           )}
 
-          {activeTab === 'withdraw' && (
+          {activeTab === 'withdraw' && !isBuyer && (
             <div className="p-6 md:p-8 max-w-2xl">
               <div className="p-4 bg-primary-50 border border-primary-100 rounded-xl mb-6">
                 <h4 className="text-xs font-bold text-primary-800 uppercase tracking-widest flex items-center gap-1.5 mb-2">
