@@ -54,6 +54,21 @@
 ### 5. 🛒 Preserving Buyer Purchase Intent
 * Remembers target property page when an unauthenticated user signs in, returning them directly to complete their purchase.
 
+### 6. 🔒 Automatic Property Listing Hiding on Active Bids
+* When a buyer places a bid or starts an escrow on a property, that listing is automatically hidden from other buyers browsing the public catalog.
+
+### 7. 📊 Auditable Double-Entry Accounting Journal
+* Deal-level and platform-wide double-entry bookkeeping journal tracking `DEBIT` (-) and `CREDIT` (+) balance shifts across `BUYER_CASH`, `ESCROW_CUSTODY`, `SELLER_CASH`, and `PLATFORM_REVENUE`.
+
+### 8. 🧠 Interactive AI Contract Interpretation ("Highlight & Ask AI")
+* Users can highlight/select ANY paragraph or clause in the contract to trigger a floating `✨ Ask AI to Explain` button powered by Gemini AI.
+
+### 9. 📜 Stamped Contract Preview with Scannable QR Code & Barcode
+* Features an official glowing Rwanda Land Vault seal stamp, Code128 barcode, and real `qrcode.react` SVG QR code encoding live verification links.
+
+### 10. 🔍 Public Contract Verification Certificate
+* Scanning the contract's QR code opens a public certificate portal (`/verify-contract/:checksum`) with backend database verification against deed checksums and signatures.
+
 ---
 
 ## 🛠️ Technology Stack

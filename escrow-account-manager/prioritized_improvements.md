@@ -38,6 +38,21 @@ This document tracks all prioritized architectural and feature improvements for 
 8. ✅ **Seller Operating Hub Scoping**
    * Scoped seller dashboard to listings, bids, active escrow sales, and wallet balances.
 
+9. ✅ **Automatic Property Listing Hiding on Bids**
+   * Properties with active bids or pending escrow are automatically hidden from other buyers browsing the marketplace.
+
+10. ✅ **Auditable Double-Entry Accounting Journal**
+    * Deal-level and platform-wide accounting general journal with Debit/Credit tracking and running balances.
+
+11. ✅ **Interactive AI Contract Interpretation**
+    * Text-selection listener allowing users to highlight any contract clause to trigger an instant plain-language AI legal explanation.
+
+12. ✅ **Stamped Contract Preview & Real Scannable QR Code**
+    * Official Rwanda Land Vault seal stamp, Code128 barcode, and real `qrcode.react` SVG QR code.
+
+13. ✅ **Public Contract Verification Portal**
+    * Live public verification route `/verify-contract/:checksum` querying backend database deed hashes with strict validation.
+
 ---
 
 ## 🟡 Priority Level 3: Phase 2 National Rollout Roadmap

@@ -106,6 +106,29 @@ EscrowTrust resolves these challenges by combining:
 - **Scoring Algorithm**: `Score = ((OfferPrice / TargetPrice) * 100) - (PaymentPeriodDays * 0.5) + (KYC Verified Bonus ? 5 : 0)`
 - **Functionality**: Ranks all incoming property bids and displays **🏆 Rank #1 Top Pick** recommendations on seller property views.
 
+### Module E: Auditable Double-Entry Accounting Journal
+- **Location**: [backend/src/controllers/transactionController.js](file:///c:/Users/FH%20Technology%20Ltd/Desktop/Escrow%20Management%20System/escrow-account-manager/backend/src/controllers/transactionController.js), [TransactionJournal.jsx](file:///c:/Users/FH%20Technology%20Ltd/Desktop/Escrow%20Management%20System/escrow-account-manager/frontend/src/components/escrow/TransactionJournal.jsx), [GlobalAccountingJournal.jsx](file:///c:/Users/FH%20Technology%20Ltd/Desktop/Escrow%20Management%20System/escrow-account-manager/frontend/src/components/escrow/GlobalAccountingJournal.jsx)
+- **Endpoints**: `GET /api/escrow/:id/journal` (per-deal), `GET /api/escrow/my-global-journal` (platform-wide)
+- **Functionality**: Records double-entry bookkeeping ledger items (`DEBIT`/`CREDIT`) across `BUYER_CASH`, `ESCROW_CUSTODY`, `SELLER_CASH`, and `PLATFORM_REVENUE` with printable financial audit reports.
+
+### Module F: Interactive AI Contract Text Interpreter ("Highlight & Ask AI")
+- **Location**: [backend/src/services/aiService.js](file:///c:/Users/FH%20Technology%20Ltd/Desktop/Escrow%20Management%20System/escrow-account-manager/backend/src/services/aiService.js) & [ContractPreviewModal.jsx](file:///c:/Users/FH%20Technology%20Ltd/Desktop/Escrow%20Management%20System/escrow-account-manager/frontend/src/components/escrow/ContractPreviewModal.jsx)
+- **Endpoint**: `POST /api/escrow/contract/explain`
+- **Functionality**: Text-selection listener detects when a user highlights any contract clause, rendering a floating `✨ Ask AI to Explain` button that invokes Gemini AI for plain-language legal interpretations.
+
+### Module G: Stamped Contract Preview with Scannable QR Code & Barcode
+- **Location**: [ContractPreviewModal.jsx](file:///c:/Users/FH%20Technology%20Ltd/Desktop/Escrow%20Management%20System/escrow-account-manager/frontend/src/components/escrow/ContractPreviewModal.jsx)
+- **Functionality**: Pre-signing contract viewer with official glowing Rwanda Land Vault seal stamp, Code128 barcode, and real `qrcode.react` SVG QR code encoding verification links.
+
+### Module H: Public Contract Verification Certificate Portal
+- **Location**: [ContractVerification.jsx](file:///c:/Users/FH%20Technology%20Ltd/Desktop/Escrow%20Management%20System/escrow-account-manager/frontend/src/pages/ContractVerification.jsx)
+- **Endpoint**: `GET /api/escrow/verify-deed/:checksum`
+- **Functionality**: Public route verifying deed checksums, on-chain state, and cryptographic signatures, with strict rejection (RED certificate) for invalid/unknown hashes.
+
+### Module I: Automatic Listing Hiding on Active Bids
+- **Location**: [propertyController.js](file:///c:/Users/FH%20Technology%20Ltd/Desktop/Escrow%20Management%20System/escrow-account-manager/backend/src/controllers/propertyController.js)
+- **Functionality**: Marketplace catalog search automatically excludes properties with active pending bids from other buyers.
+
 ---
 
 ## 🏃 6. Developer Setup & Execution Guide
