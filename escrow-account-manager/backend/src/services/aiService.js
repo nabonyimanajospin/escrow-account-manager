@@ -126,3 +126,52 @@ Do NOT include any greetings or pleasantries. Be extremely professional and anal
   const result = await model.generateContent(prompt);
   return result.response.text();
 };
+
+/**
+ * Wise AI Interpretation of highlighted contract text/paragraphs
+ */
+exports.explainContractText = async (selectedText, contractContext = {}) => {
+  const ai = getGenAI();
+  if (!ai) {
+    return `### 🧠 AI Legal Interpretation
+
+**Selected Clause**: _"${selectedText}"_
+
+- **Plain English Summary**: This clause outlines the mutual binding commitments between buyer and seller during property transfer.
+- **Escrow Safeguard**: Your money stays securely locked in smart contract custody. Funds cannot be withdrawn or released until all conditions and verification signatures are verified.
+- **System Workflow**: Protects both parties against fraud or non-delivery through automated state verification and document checksum matching.`;
+  }
+
+  try {
+    const model = ai.getGenerativeModel({ model: 'gemini-flash-latest' });
+    const prompt = `You are a wise legal AI assistant for a secure real estate escrow system.
+A user highlighted the following excerpt/clause from their property contract:
+"${selectedText}"
+
+Property Context:
+- Title: ${contractContext.propertyTitle || 'Real Estate Property'}
+- Price: $${contractContext.amount || 'N/A'}
+- User Role: ${contractContext.userRole || 'Buyer/Seller'}
+
+Provide a wise, simple, and reassuring explanation of what this excerpt means.
+Use this structure (Markdown):
+### 🧠 AI Legal Interpretation
+- **Plain English Summary**: (Clear explanation)
+- **Legal Implication**: (What it means for buyer & seller)
+- **Escrow System Safeguard**: (How the system protects them)
+
+Keep it under 180 words, concise, professional, and clear.`;
+
+    const result = await model.generateContent(prompt);
+    return result.response.text();
+  } catch (err) {
+    return `### 🧠 AI Legal Interpretation
+
+**Selected Clause**: _"${selectedText}"_
+
+- **Plain English Summary**: This section specifies the formal terms of agreement between transacting parties.
+- **Escrow Safeguard**: Funds remain held in dual-signature escrow until title transfer documents are officially verified.
+- **Next Steps**: Follow the system prompts to complete consensus verification and deposit/mutation steps.`;
+  }
+};
+

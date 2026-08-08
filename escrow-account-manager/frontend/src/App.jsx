@@ -17,6 +17,7 @@ import AdminPanel from './pages/AdminPanel';
 import Profile from './pages/Profile';
 import SellerWallet from './pages/SellerWallet';
 import KYCPage from './pages/KYCPage';
+import ContractVerification from './pages/ContractVerification';
 import AIChatWidget from './components/AIChatWidget';
 
 function App() {
@@ -53,6 +54,8 @@ function App() {
               <Route path="/register" element={<Register />} />
               <Route path="/properties" element={<PropertyList />} />
               <Route path="/properties/:id" element={<PropertyDetail />} />
+              <Route path="/verify-contract/:checksum" element={<ContractVerification />} />
+              <Route path="/verify-contract" element={<ContractVerification />} />
 
               {/* Protected Seller & Admin Property Creation */}
               <Route element={<ProtectedRoute allowedRoles={['SELLER', 'ADMIN']} />}>

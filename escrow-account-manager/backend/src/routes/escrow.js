@@ -14,6 +14,10 @@ const {
   confirmPropertyReceipt,
   verifyRegistryDeed,
   resendOtp,
+  getAccountingJournal,
+  explainContractClause,
+  verifyContractByChecksum,
+  getMyGlobalJournal,
 } = require('../controllers/transactionController');
 const { raiseDispute, uploadEvidence, resolveDispute, mediateDispute } = require('../controllers/disputeController');
 const { acceptOffer } = require('../controllers/offerController');
@@ -23,8 +27,20 @@ const roleCheck = require('../middleware/roleCheck');
 const requireKyc = require('../middleware/kycRequired');
 const { uploadEvidence: uploadEvidenceFile, uploadMutationDoc } = require('../middleware/upload');
 
+// Public contract verification route
+router.get('/verify-deed/:checksum', verifyContractByChecksum);
+
+// Platform-wide global accounting journal
+router.get('/my-global-journal', protect, getMyGlobalJournal);
+
 // Get user's active/past escrow transactions
 router.get('/my', protect, roleCheck('BUYER', 'SELLER', 'ADMIN'), getMyTransactions);
+
+// Explain highlighted contract clause with AI
+router.post('/contract/explain', protect, explainContractClause);
+
+// Get transaction accounting journal
+router.get('/:id/journal', protect, getAccountingJournal);
 
 // Get single transaction details
 router.get('/:id', protect, getTransaction);

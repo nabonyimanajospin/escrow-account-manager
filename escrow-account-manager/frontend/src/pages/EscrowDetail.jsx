@@ -8,6 +8,8 @@ import toast from 'react-hot-toast';
 import { resolveImageUrl } from '../utils/imageUtils';
 import EscrowTimeline from '../components/escrow/EscrowTimeline';
 import EscrowLedger from '../components/escrow/EscrowLedger';
+import ContractPreviewModal from '../components/escrow/ContractPreviewModal';
+import TransactionJournal from '../components/escrow/TransactionJournal';
 import { SkeletonCard } from '../components/common/SkeletonLoader';
 import { getEscrowNextStep, toneClasses } from '../utils/escrowSteps';
 
@@ -19,6 +21,8 @@ const EscrowDetail = () => {
   const [transaction, setTransaction] = useState(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [isContractModalOpen, setIsContractModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('overview');
 
   // Form states
   const [consensusCode, setConsensusCode] = useState('');
@@ -639,28 +643,68 @@ STATUS: COMPLETED MUTATION`;
       <EscrowTimeline status={status} />
       <EscrowLedger transaction={transaction} />
 
-      {/* 2. TRANSACTION AND ACCOUNT DETAILS SPLIT */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Left Side: Escrow Account details & action items */}
-        <div className="lg:col-span-2 space-y-6">
+      {/* Top Workspace Tab Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-3">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setActiveTab('overview')}
+            className={`px-4 py-2 text-xs font-extrabold rounded-xl transition-all ${
+              activeTab === 'overview'
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            Escrow Overview & Actions
+          </button>
 
-          {/* DIGITAL AGREEMENT CONTRACT CARD */}
-          <div className="card p-6 bg-white relative overflow-hidden">
-            {status === 'COMPLETED' && (
-              <div className="absolute inset-0 bg-emerald-50/10 border-2 border-emerald-500 rounded-xl pointer-events-none flex items-center justify-center">
-                <span className="transform -rotate-12 border-4 border-emerald-500 text-emerald-500 font-extrabold uppercase px-6 py-2 tracking-widest text-2xl bg-white rounded-xl shadow-md">
-                  Cryptographically Sealed
-                </span>
+          <button
+            onClick={() => setActiveTab('journal')}
+            className={`px-4 py-2 text-xs font-extrabold rounded-xl transition-all flex items-center gap-1.5 ${
+              activeTab === 'journal'
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            <span>📊 Auditable Accounting Journal</span>
+          </button>
+        </div>
+
+        <button
+          onClick={() => setIsContractModalOpen(true)}
+          className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold text-xs px-4 py-2 rounded-xl border border-amber-300 transition-all shadow-sm flex items-center gap-1.5 transform hover:scale-[1.02]"
+        >
+          <span>✨ View Stamped Contract & AI Explainer</span>
+        </button>
+      </div>
+
+      {activeTab === 'journal' ? (
+        <TransactionJournal transactionId={transaction.id} />
+      ) : (
+        /* 2. TRANSACTION AND ACCOUNT DETAILS SPLIT */
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          {/* Left Side: Escrow Account details & action items */}
+          <div className="lg:col-span-2 space-y-6">
+
+            {/* DIGITAL AGREEMENT CONTRACT CARD */}
+            <div className="card p-6 bg-white relative overflow-hidden">
+              {status === 'COMPLETED' && (
+                <div className="absolute inset-0 bg-emerald-50/10 border-2 border-emerald-500 rounded-xl pointer-events-none flex items-center justify-center">
+                  <span className="transform -rotate-12 border-4 border-emerald-500 text-emerald-500 font-extrabold uppercase px-6 py-2 tracking-widest text-2xl bg-white rounded-xl shadow-md">
+                    Cryptographically Sealed
+                  </span>
+                </div>
+              )}
+
+              <div className="flex justify-between items-center border-b border-slate-100 pb-3 mb-4">
+                <h3 className="text-md font-bold text-slate-900 font-sans">Digital Escrow Agreement</h3>
+                <button
+                  onClick={() => setIsContractModalOpen(true)}
+                  className="text-[11px] font-extrabold bg-amber-500/10 text-amber-800 border border-amber-300 px-3 py-1 rounded-lg hover:bg-amber-500/20 transition flex items-center gap-1"
+                >
+                  <span>✨ Open Contract Explainer & QR</span>
+                </button>
               </div>
-            )}
-
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3 mb-4">
-              <h3 className="text-md font-bold text-slate-900 font-sans">Digital Escrow Agreement</h3>
-              <span className="text-[10px] font-mono bg-slate-100 border border-slate-200 text-slate-500 px-2 py-0.5 rounded font-bold">
-                Online Contract Version 1.0
-              </span>
-            </div>
 
             {/* Contract terms content */}
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 font-semibold space-y-2 leading-relaxed max-h-[160px] overflow-y-auto">
@@ -1924,8 +1968,16 @@ STATUS: COMPLETED MUTATION`;
             )}
           </div>
 
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* STAMPED CONTRACT & AI EXPLAINER MODAL */}
+      <ContractPreviewModal
+        isOpen={isContractModalOpen}
+        onClose={() => setIsContractModalOpen(false)}
+        transaction={transaction}
+      />
 
     </div>
   );

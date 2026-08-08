@@ -23,6 +23,7 @@ const normalizePropertySpecs = ({ propertyType, bedrooms, bathrooms, area }) => 
 // @access  Private
 exports.getProperties = async (req, res, next) => {
   try {
+    const { Offer } = require('../models');
     const where = {};
     const { status, location, minPrice, maxPrice, propertyType, listingType, bedrooms } = req.query;
 
@@ -43,19 +44,33 @@ exports.getProperties = async (req, res, next) => {
 
     const { count, rows } = await Property.findAndCountAll({
       where,
-      include: [{ model: User, as: 'seller', attributes: ['id', 'name'] }],
+      include: [
+        { model: User, as: 'seller', attributes: ['id', 'name'] },
+        { model: Offer, as: 'offers', attributes: ['id', 'buyerId', 'status'] },
+      ],
       order: [['createdAt', 'DESC']],
+      distinct: true,
       limit,
       offset,
     });
 
+    // Filter out properties with active PENDING bids for general buyers browsing available listings
+    const isSellerOrAdmin = req.user && (req.user.role === 'SELLER' || req.user.role === 'ADMIN');
+    const filteredRows = rows.filter((property) => {
+      if (isSellerOrAdmin) return true;
+      // If filtering for available properties or general catalog, hide properties with active pending bids
+      const hasActivePendingBid = Array.isArray(property.offers) && property.offers.some((o) => o.status === 'PENDING');
+      if (hasActivePendingBid) return false;
+      return true;
+    });
+
     res.status(200).json({
       success: true,
-      count: rows.length,
+      count: filteredRows.length,
       total: count,
       totalPages: Math.ceil(count / limit),
       currentPage: page,
-      data: rows
+      data: filteredRows
     });
   } catch (error) {
     next(error);

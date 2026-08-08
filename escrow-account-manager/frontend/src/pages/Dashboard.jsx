@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import EmptyState from '../components/common/EmptyState';
 import { SkeletonCard, SkeletonTable } from '../components/common/SkeletonLoader';
 import OnboardingChecklist from '../components/common/OnboardingChecklist';
+import GlobalAccountingJournal from '../components/escrow/GlobalAccountingJournal';
 
 const StatCard = ({ label, value, sub }) => (
   <div className="stat-card p-6 animate-fade-in bg-white">
@@ -198,23 +199,56 @@ const Dashboard = () => {
                 </svg>
                 + Add Property
               </Link>
-              <Link to="/properties" className="btn-secondary text-sm font-semibold">Public Marketplace</Link>
+              <Link to="/wallet" className="btn-secondary text-sm font-semibold">
+                Seller Wallet
+              </Link>
             </>
           ) : (
-            <Link to="/properties" className="btn-primary text-sm font-semibold">Browse Listings Catalog</Link>
+            <Link to="/properties" className="btn-primary text-sm font-semibold">
+              Browse Listings Catalog &rarr;
+            </Link>
           )}
         </div>
       </div>
 
-      {!user?.isKycVerified && user?.role !== 'ADMIN' && (
-        <div className="card p-4 bg-amber-50 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-bold text-amber-900">Identity verification required</p>
-            <p className="text-xs text-amber-800 font-medium mt-0.5">Complete KYC to buy, sell, or receive escrow payouts.</p>
-          </div>
-          <Link to="/kyc" className="btn-primary text-xs whitespace-nowrap">Complete KYC →</Link>
-        </div>
-      )}
+      {/* Dashboard View Mode Tabs */}
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-3">
+        <button
+          onClick={() => setDashTab('dashboard')}
+          className={`px-4 py-2 text-xs font-extrabold rounded-xl transition-all ${
+            dashTab === 'dashboard'
+              ? 'bg-slate-900 text-white shadow-xs'
+              : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+          }`}
+        >
+          My Dashboard Overview
+        </button>
+
+        <button
+          onClick={() => setDashTab('journal')}
+          className={`px-4 py-2 text-xs font-extrabold rounded-xl transition-all flex items-center gap-1.5 ${
+            dashTab === 'journal'
+              ? 'bg-slate-900 text-white shadow-xs'
+              : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+          }`}
+        >
+          <span>📊 Platform Accounting Journal</span>
+        </button>
+      </div>
+
+      {dashTab === 'journal' ? (
+        <GlobalAccountingJournal />
+      ) : (
+        <>
+          {!user?.isKycVerified && user?.role !== 'ADMIN' && (
+            <div className="card p-4 bg-amber-50 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-bold text-amber-900">Identity verification required</p>
+                <p className="text-xs text-amber-800 font-medium mt-0.5">Complete KYC to buy, sell, or receive escrow payouts.</p>
+              </div>
+              <Link to="/kyc" className="btn-primary text-xs whitespace-nowrap">Complete KYC →</Link>
+            </div>
+          )}
 
       <OnboardingChecklist
         user={user}
@@ -478,6 +512,8 @@ const Dashboard = () => {
         </div>
 
       </div>
+      </>
+      )}
     </div>
   );
 };
