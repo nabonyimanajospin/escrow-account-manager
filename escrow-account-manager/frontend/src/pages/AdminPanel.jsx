@@ -15,6 +15,7 @@ const AdminPanel = () => {
   const [txnsList, setTxnsList] = useState([]);
   const [usersList, setUsersList] = useState([]);
   const [ledgerLogs, setLedgerLogs] = useState([]);
+  const [pendingDeposits, setPendingDeposits] = useState([]);
   const [actionLoading, setActionLoading] = useState(false);
   // Modal state for release/refund audit notes
   const [modal, setModal] = useState(null); // { type: 'release'|'refund', txId, txCode }
@@ -23,17 +24,19 @@ const AdminPanel = () => {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const [propRes, txnRes, userRes, logRes] = await Promise.all([
+      const [propRes, txnRes, userRes, logRes, depositRes] = await Promise.all([
         axios.get('/properties'),
         axios.get('/admin/transactions'),
         axios.get('/auth/users'),
         axios.get('/admin/audit-logs'),
+        axios.get('/admin/wallet/pending-deposits').catch(() => ({ data: { data: [] } })),
       ]);
 
       setPropsList(propRes.data.data || []);
       setTxnsList(txnRes.data.data || []);
       setUsersList(userRes.data.data || []);
       setLedgerLogs(logRes.data.data || []);
+      setPendingDeposits(depositRes.data.data || []);
     } catch (err) {
       console.error(err);
       toast.error('Failed to load administrative console data');
@@ -55,6 +58,59 @@ const AdminPanel = () => {
       fetchData();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to delete property');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleSimulateIrembo = async (txId) => {
+    try {
+      setActionLoading(true);
+      const res = await axios.post(`/admin/simulate/irembo/${txId}`);
+      toast.success(res.data.message || 'Simulated Irembo Title Deed Approval!');
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Irembo simulation failed');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleSimulateMomo = async (txId) => {
+    try {
+      setActionLoading(true);
+      const res = await axios.post(`/admin/simulate/momo/${txId}`);
+      toast.success(res.data.message || 'Simulated MTN MoMo Deposit!');
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'MoMo simulation failed');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleApproveDeposit = async (depositId) => {
+    try {
+      setActionLoading(true);
+      const res = await axios.post(`/admin/wallet/deposits/${depositId}/approve`);
+      toast.success(res.data.message || 'Wallet credited');
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to approve deposit');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRejectDeposit = async (depositId) => {
+    const reason = window.prompt('Reason for rejection (optional):');
+    try {
+      setActionLoading(true);
+      await axios.post(`/admin/wallet/deposits/${depositId}/reject`, { reason });
+      toast.success('Deposit request rejected');
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to reject deposit');
     } finally {
       setActionLoading(false);
     }
@@ -203,7 +259,7 @@ const AdminPanel = () => {
             <p className="text-xs text-slate-400 mt-0.5 font-bold">Select tab categories to manage properties, deals, users or ledger entries.</p>
           </div>
           <div className="flex flex-wrap gap-1.5">
-            {['properties', 'transactions', 'users', 'ledger'].map((tab) => (
+            {['properties', 'transactions', 'wallet', 'users', 'ledger'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -213,7 +269,7 @@ const AdminPanel = () => {
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
-                {tab}
+                {tab}{tab === 'wallet' && pendingDeposits.length > 0 ? ` (${pendingDeposits.length})` : ''}
               </button>
             ))}
           </div>
@@ -307,49 +363,70 @@ const AdminPanel = () => {
                       <span className="block"><strong className="text-slate-700">Seller:</strong> {t.seller?.name || 'N/A'}</span>
                     </td>
                     <td className="py-4">
-                      {t.status === 'UNDER_REVIEW' || t.status === 'DISPUTED' ? (
-                        <div className="flex flex-col gap-1.5 min-w-[140px]">
-                          <Link
-                            to={`/escrow/${t.id}`}
-                            className="text-center bg-purple-600 hover:bg-purple-700 text-white font-bold text-[10px] px-2.5 py-1 rounded transition-colors"
+                      <div className="flex flex-col gap-1.5 min-w-[140px]">
+                        {t.status === 'PENDING' && (
+                          <button
+                            onClick={() => handleSimulateMomo(t.id)}
+                            disabled={actionLoading}
+                            className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-extrabold text-[10px] px-2.5 py-1 rounded transition-colors cursor-pointer shadow-2xs"
                           >
-                            Review documents
+                            ⚡ Simulate MoMo Deposit
+                          </button>
+                        )}
+                        {(t.status === 'FUNDED' || t.status === 'MUTATION_STARTED') && (
+                          <button
+                            onClick={() => handleSimulateIrembo(t.id)}
+                            disabled={actionLoading}
+                            className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-[10px] px-2.5 py-1 rounded transition-colors cursor-pointer shadow-2xs"
+                          >
+                            ⚡ Simulate Irembo Approval
+                          </button>
+                        )}
+
+                        {t.status === 'UNDER_REVIEW' || t.status === 'DISPUTED' ? (
+                          <>
+                            <Link
+                              to={`/escrow/${t.id}`}
+                              className="text-center bg-purple-600 hover:bg-purple-700 text-white font-bold text-[10px] px-2.5 py-1 rounded transition-colors"
+                            >
+                              Review documents
+                            </Link>
+                            {(t.mutationDocuments?.length ?? 0) > 0 && (
+                              <span className="text-[9px] text-slate-500 font-semibold text-center">
+                                {t.mutationDocuments.length} mutation file{t.mutationDocuments.length === 1 ? '' : 's'} uploaded
+                              </span>
+                            )}
+                            <div className="flex gap-1.5">
+                              <button
+                                onClick={() => handleRelease(t.id, t.transactionId)}
+                                disabled={actionLoading}
+                                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] px-2.5 py-1 rounded transition-colors cursor-pointer"
+                              >
+                                Release
+                              </button>
+                              <button
+                                onClick={() => handleRefund(t.id, t.transactionId)}
+                                disabled={actionLoading}
+                                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold text-[10px] px-2.5 py-1 rounded transition-colors cursor-pointer"
+                              >
+                                Refund
+                              </button>
+                            </div>
+                          </>
+                        ) : ['COMPLETED', 'REFUNDED'].includes(t.status) ? (
+                          <button
+                            onClick={() => handleDeleteTransaction(t.id, t.transactionId)}
+                            disabled={actionLoading}
+                            className="btn-secondary !px-2.5 !py-1 text-xs hover:!border-red-200 hover:!text-red-600 hover:bg-red-50/50 cursor-pointer"
+                          >
+                            Delete
+                          </button>
+                        ) : (
+                          <Link to={`/escrow/${t.id}`} className="text-xs font-bold text-primary-600 hover:underline block text-center">
+                            View Workspace
                           </Link>
-                          {(t.mutationDocuments?.length ?? 0) > 0 && (
-                            <span className="text-[9px] text-slate-500 font-semibold text-center">
-                              {t.mutationDocuments.length} mutation file{t.mutationDocuments.length === 1 ? '' : 's'} uploaded
-                            </span>
-                          )}
-                          <div className="flex gap-1.5">
-                            <button
-                              onClick={() => handleRelease(t.id, t.transactionId)}
-                              disabled={actionLoading}
-                              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] px-2.5 py-1 rounded transition-colors cursor-pointer"
-                            >
-                              Release
-                            </button>
-                            <button
-                              onClick={() => handleRefund(t.id, t.transactionId)}
-                              disabled={actionLoading}
-                              className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold text-[10px] px-2.5 py-1 rounded transition-colors cursor-pointer"
-                            >
-                              Refund
-                            </button>
-                          </div>
-                        </div>
-                      ) : ['PENDING', 'COMPLETED', 'REFUNDED'].includes(t.status) ? (
-                        <button
-                          onClick={() => handleDeleteTransaction(t.id, t.transactionId)}
-                          disabled={actionLoading}
-                          className="btn-secondary !px-2.5 !py-1 text-xs hover:!border-red-200 hover:!text-red-600 hover:bg-red-50/50 cursor-pointer"
-                        >
-                          Delete
-                        </button>
-                      ) : (
-                        <Link to={`/escrow/${t.id}`} className="text-xs font-bold text-primary-600 hover:underline">
-                          View Workspace
-                        </Link>
-                      )}
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -357,6 +434,49 @@ const AdminPanel = () => {
                   <tr>
                     <td colSpan="6" className="p-0 border-none">
                       <EmptyState title="No transactions found" description="There are no active escrow deals on the platform." />
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {activeTab === 'wallet' && (
+          <div className="overflow-x-auto">
+            <p className="text-xs text-slate-500 font-semibold mb-4">
+              Verify buyer MoMo/bank payments and credit wallets before they can lock escrow deposits.
+            </p>
+            <table className="min-w-full">
+              <thead>
+                <tr className="text-left text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">
+                  <th className="pb-3 pr-4">User</th>
+                  <th className="pb-3 pr-4">Amount</th>
+                  <th className="pb-3 pr-4">Reference</th>
+                  <th className="pb-3 pr-4">Submitted</th>
+                  <th className="pb-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {pendingDeposits.map((d) => (
+                  <tr key={d.id} className="hover:bg-slate-50/50">
+                    <td className="py-4 pr-4">
+                      <span className="text-sm font-bold text-slate-900 block">{d.user?.name || 'User'}</span>
+                      <span className="text-[10px] text-slate-400">{d.user?.email}</span>
+                    </td>
+                    <td className="py-4 pr-4 font-extrabold text-slate-900">${Number(d.amount).toLocaleString()}</td>
+                    <td className="py-4 pr-4 font-mono text-xs text-slate-600">{d.reference}</td>
+                    <td className="py-4 pr-4 text-xs text-slate-500">{new Date(d.createdAt).toLocaleString()}</td>
+                    <td className="py-4 flex gap-2">
+                      <button type="button" onClick={() => handleApproveDeposit(d.id)} disabled={actionLoading} className="btn-primary !py-1 !px-3 text-xs">Approve</button>
+                      <button type="button" onClick={() => handleRejectDeposit(d.id)} disabled={actionLoading} className="btn-secondary !py-1 !px-3 text-xs text-red-600">Reject</button>
+                    </td>
+                  </tr>
+                ))}
+                {pendingDeposits.length === 0 && (
+                  <tr>
+                    <td colSpan="5" className="p-0 border-none">
+                      <EmptyState title="No pending wallet deposits" description="Buyer funding requests will appear here for verification." />
                     </td>
                   </tr>
                 )}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import axios from '../api/axiosConfig';
 import { useAuth } from '../context/AuthContext';
 import StatusBadge from '../components/StatusBadge';
@@ -13,8 +14,13 @@ export default function SellerWallet() {
   const [history, setHistory] = useState([]);
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawNotes, setWithdrawNotes] = useState('');
+  const [depositAmount, setDepositAmount] = useState('');
+  const [depositReference, setDepositReference] = useState('');
+  const [depositMethod, setDepositMethod] = useState('MTN MoMo');
+  const [depositNotes, setDepositNotes] = useState('');
   const [loading, setLoading] = useState(true);
   const [withdrawing, setWithdrawing] = useState(false);
+  const [depositing, setDepositing] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
 
   const fetchWallet = async () => {
@@ -34,6 +40,37 @@ export default function SellerWallet() {
   };
 
   useEffect(() => { fetchWallet(); }, []);
+
+  const handleDepositRequest = async (e) => {
+    e.preventDefault();
+    if (!depositAmount || parseFloat(depositAmount) <= 0) {
+      toast.error('Enter a valid deposit amount.');
+      return;
+    }
+    if (!depositReference.trim()) {
+      toast.error('Enter your MoMo or bank payment reference.');
+      return;
+    }
+    setDepositing(true);
+    try {
+      const res = await axios.post('/wallet/deposit-request', {
+        amount: depositAmount,
+        paymentReference: depositReference.trim(),
+        paymentMethod: depositMethod,
+        notes: depositNotes,
+      });
+      toast.success(res.data.message);
+      setDepositAmount('');
+      setDepositReference('');
+      setDepositNotes('');
+      fetchWallet();
+      setActiveTab('overview');
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Deposit request failed.');
+    } finally {
+      setDepositing(false);
+    }
+  };
 
   const handleWithdraw = async (e) => {
     e.preventDefault();
@@ -74,7 +111,9 @@ export default function SellerWallet() {
 
   const getTypeStyle = (type) => {
     switch (type) {
-      case 'CREDIT': return { text: '+ Credit', color: 'text-emerald-600', icon: 'M7 11l5-5m0 0l5 5m-5-5v12' };
+      case 'DEPOSIT':
+      case 'DEPOSIT_REQUEST': return { text: type === 'DEPOSIT_REQUEST' ? 'Deposit Request' : 'Wallet Deposit', color: 'text-blue-600', icon: 'M12 4v16m8-8H4' };
+      case 'CREDIT': return { text: '+ Escrow Credit', color: 'text-emerald-600', icon: 'M7 11l5-5m0 0l5 5m-5-5v12' };
       case 'WITHDRAWAL_REQUEST': return { text: 'Withdrawal Request', color: 'text-amber-600', icon: 'M17 13l-5 5m0 0l-5-5m5 5V6' };
       case 'WITHDRAWAL_PAID': return { text: 'Withdrawal Paid', color: 'text-primary-600', icon: 'M5 13l4 4L19 7' };
       default: return { text: type, color: 'text-slate-600', icon: 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' };
@@ -143,6 +182,14 @@ export default function SellerWallet() {
             Request Withdrawal
           </button>
           )}
+          {isBuyer && (
+          <button 
+            onClick={() => setActiveTab('deposit')}
+            className={`flex-1 py-4 text-sm font-bold transition-colors ${activeTab === 'deposit' ? 'text-primary-600 border-b-2 border-primary-600 bg-white' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            Add Funds
+          </button>
+          )}
         </div>
 
         <div className="p-0">
@@ -202,6 +249,72 @@ export default function SellerWallet() {
                   </table>
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === 'deposit' && isBuyer && (
+            <div className="p-6 md:p-8 max-w-2xl">
+              <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl mb-6">
+                <h4 className="text-xs font-bold text-blue-800 uppercase tracking-widest mb-2">Fund your escrow wallet</h4>
+                <ul className="text-sm text-blue-700 font-medium space-y-1.5 ml-6 list-disc">
+                  <li>Pay via MTN MoMo or bank transfer to the platform collection account.</li>
+                  <li>Submit the amount and your payment reference below.</li>
+                  <li>An administrator verifies the payment and credits your wallet (usually within 1 business day).</li>
+                  <li>Use your wallet balance to lock escrow deposits on property purchases.</li>
+                </ul>
+              </div>
+              <form onSubmit={handleDepositRequest} className="space-y-6">
+                <div className="space-y-2">
+                  <label className="input-label">Amount paid (USD equivalent)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="0.01"
+                    required
+                    className="input-field font-bold"
+                    value={depositAmount}
+                    onChange={(e) => setDepositAmount(e.target.value)}
+                    disabled={depositing}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="input-label">Payment method</label>
+                  <select className="input-field" value={depositMethod} onChange={(e) => setDepositMethod(e.target.value)} disabled={depositing}>
+                    <option>MTN MoMo</option>
+                    <option>Bank transfer</option>
+                    <option>Airtel Money</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="input-label">Payment reference / transaction ID</label>
+                  <input
+                    type="text"
+                    required
+                    className="input-field font-mono"
+                    placeholder="e.g. MOMO-TXN-123456789"
+                    value={depositReference}
+                    onChange={(e) => setDepositReference(e.target.value)}
+                    disabled={depositing}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="input-label">Additional notes (optional)</label>
+                  <textarea
+                    className="input-field min-h-[80px]"
+                    placeholder="Phone number used, bank name, date of payment..."
+                    value={depositNotes}
+                    onChange={(e) => setDepositNotes(e.target.value)}
+                    disabled={depositing}
+                  />
+                </div>
+                <button type="submit" className="btn-primary w-full sm:w-auto px-8" disabled={depositing}>
+                  {depositing ? 'Submitting...' : 'Submit funding request'}
+                </button>
+              </form>
+              <p className="text-[10px] text-slate-500 mt-4">
+                Need funds immediately for an active deal?{' '}
+                <Link to="/dashboard" className="text-primary-600 font-bold underline">Return to dashboard</Link>
+              </p>
             </div>
           )}
 

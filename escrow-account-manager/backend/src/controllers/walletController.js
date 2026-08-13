@@ -1,6 +1,7 @@
 const { User, WalletTransaction } = require('../models');
 const { sequelize } = require('../config/database');
 const logger = require('../utils/logger');
+const notificationService = require('../services/notificationService');
 
 /**
  * GET /api/wallet
@@ -21,6 +22,10 @@ const getWallet = async (req, res) => {
       where: { userId: req.user.id, type: 'WITHDRAWAL_PAID', status: 'COMPLETED' },
     });
 
+    const totalDeposited = await WalletTransaction.sum('amount', {
+      where: { userId: req.user.id, type: 'DEPOSIT', status: 'COMPLETED' },
+    });
+
     res.json({
       success: true,
       wallet: {
@@ -28,6 +33,7 @@ const getWallet = async (req, res) => {
         pendingWithdrawals: parseFloat(pendingWithdrawals || 0),
         totalEarned: parseFloat(totalEarned || 0),
         totalWithdrawn: parseFloat(totalWithdrawn || 0),
+        totalDeposited: parseFloat(totalDeposited || 0),
       },
     });
   } catch (err) {
@@ -103,7 +109,151 @@ const requestWithdrawal = async (req, res) => {
 };
 
 /**
- * POST /api/wallet/:id/approve (Admin)
+ * POST /api/wallet/deposit-request
+ * Buyer submits proof of external payment (MoMo/bank). Admin verifies and credits wallet.
+ * Body: { amount, paymentReference, notes, paymentMethod }
+ */
+const requestWalletDeposit = async (req, res) => {
+  const t = await sequelize.transaction();
+  try {
+    const { amount, paymentReference, notes, paymentMethod } = req.body;
+    const depositAmount = parseFloat(amount);
+
+    if (!depositAmount || depositAmount <= 0) {
+      await t.rollback();
+      return res.status(400).json({ success: false, error: 'Valid deposit amount is required.' });
+    }
+    if (!paymentReference || !String(paymentReference).trim()) {
+      await t.rollback();
+      return res.status(400).json({ success: false, error: 'Payment reference (MoMo/bank transaction ID) is required.' });
+    }
+
+    const ref = String(paymentReference).trim();
+    const duplicate = await WalletTransaction.findOne({
+      where: { reference: ref, type: 'DEPOSIT_REQUEST' },
+      transaction: t,
+    });
+    if (duplicate) {
+      await t.rollback();
+      return res.status(400).json({ success: false, error: 'This payment reference was already submitted.' });
+    }
+
+    const walletTx = await WalletTransaction.create({
+      userId: req.user.id,
+      type: 'DEPOSIT_REQUEST',
+      amount: depositAmount,
+      reference: ref,
+      notes: [paymentMethod, notes].filter(Boolean).join(' — ') || 'Wallet funding request',
+      status: 'PENDING',
+    }, { transaction: t });
+
+    await t.commit();
+
+    notificationService.createInAppNotification(
+      req.user.id,
+      'Deposit request submitted',
+      `Your wallet funding request for $${depositAmount.toLocaleString()} is pending admin verification.`
+    ).catch(() => {});
+
+    res.status(201).json({
+      success: true,
+      message: 'Deposit request submitted. Funds will be credited after admin verifies your payment reference.',
+      transaction: walletTx,
+    });
+  } catch (err) {
+    if (!t.finished) await t.rollback();
+    logger.error('[Wallet] requestWalletDeposit error:', err);
+    res.status(500).json({ success: false, error: 'Failed to submit deposit request.' });
+  }
+};
+
+/**
+ * GET /api/admin/wallet/pending-deposits
+ */
+const getPendingWalletDeposits = async (req, res) => {
+  try {
+    const deposits = await WalletTransaction.findAll({
+      where: { type: 'DEPOSIT_REQUEST', status: 'PENDING' },
+      include: [{ model: User, as: 'user', attributes: ['id', 'name', 'email', 'role'] }],
+      order: [['createdAt', 'ASC']],
+    });
+    res.json({ success: true, data: deposits });
+  } catch (err) {
+    logger.error('[Wallet] getPendingWalletDeposits error:', err);
+    res.status(500).json({ success: false, error: 'Failed to load pending deposits.' });
+  }
+};
+
+/**
+ * POST /api/admin/wallet/deposits/:id/approve
+ */
+const approveWalletDeposit = async (req, res) => {
+  const t = await sequelize.transaction();
+  try {
+    const walletTx = await WalletTransaction.findByPk(req.params.id, { transaction: t, lock: t.LOCK.UPDATE });
+    if (!walletTx || walletTx.type !== 'DEPOSIT_REQUEST' || walletTx.status !== 'PENDING') {
+      await t.rollback();
+      return res.status(400).json({ success: false, error: 'Invalid or already processed deposit request.' });
+    }
+
+    const user = await User.findByPk(walletTx.userId, { transaction: t, lock: t.LOCK.UPDATE });
+    const newBalance = parseFloat(user.walletBalance || 0) + parseFloat(walletTx.amount);
+    await user.update({ walletBalance: newBalance }, { transaction: t });
+
+    await walletTx.update({ status: 'COMPLETED', type: 'DEPOSIT' }, { transaction: t });
+
+    await t.commit();
+
+    notificationService.createInAppNotification(
+      user.id,
+      'Wallet funded',
+      `$${parseFloat(walletTx.amount).toLocaleString()} has been credited to your wallet. New balance: $${newBalance.toLocaleString()}.`
+    ).catch(() => {});
+
+    res.json({ success: true, message: 'Deposit approved and wallet credited.', newBalance });
+  } catch (error) {
+    if (!t.finished) await t.rollback();
+    logger.error('[Wallet] approveWalletDeposit error:', error);
+    res.status(500).json({ success: false, error: 'Failed to approve deposit.' });
+  }
+};
+
+/**
+ * POST /api/admin/wallet/deposits/:id/reject
+ */
+const rejectWalletDeposit = async (req, res) => {
+  const t = await sequelize.transaction();
+  try {
+    const { reason } = req.body;
+    const walletTx = await WalletTransaction.findByPk(req.params.id, { transaction: t, lock: t.LOCK.UPDATE });
+    if (!walletTx || walletTx.type !== 'DEPOSIT_REQUEST' || walletTx.status !== 'PENDING') {
+      await t.rollback();
+      return res.status(400).json({ success: false, error: 'Invalid or already processed deposit request.' });
+    }
+
+    await walletTx.update({
+      status: 'REJECTED',
+      notes: `${walletTx.notes || ''}${reason ? ` — Rejected: ${reason}` : ''}`.trim(),
+    }, { transaction: t });
+
+    await t.commit();
+
+    notificationService.createInAppNotification(
+      walletTx.userId,
+      'Deposit request rejected',
+      reason || 'Your wallet funding request could not be verified. Contact support with your payment reference.'
+    ).catch(() => {});
+
+    res.json({ success: true, message: 'Deposit request rejected.' });
+  } catch (error) {
+    if (!t.finished) await t.rollback();
+    logger.error('[Wallet] rejectWalletDeposit error:', error);
+    res.status(500).json({ success: false, error: 'Failed to reject deposit.' });
+  }
+};
+
+/**
+ * POST /api/wallet/:id/approve (Admin) — withdrawal
  */
 const approveWithdrawal = async (req, res) => {
   const t = await sequelize.transaction();
@@ -150,4 +300,14 @@ const rejectWithdrawal = async (req, res) => {
   }
 };
 
-module.exports = { getWallet, getWalletHistory, requestWithdrawal, approveWithdrawal, rejectWithdrawal };
+module.exports = {
+  getWallet,
+  getWalletHistory,
+  requestWithdrawal,
+  requestWalletDeposit,
+  getPendingWalletDeposits,
+  approveWalletDeposit,
+  rejectWalletDeposit,
+  approveWithdrawal,
+  rejectWithdrawal,
+};

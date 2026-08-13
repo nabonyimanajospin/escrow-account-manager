@@ -7,6 +7,7 @@ const {
   getWallet,
   requestWithdrawal,
   getWalletHistory,
+  requestWalletDeposit,
 } = require('../controllers/walletController');
 
 const withdrawalLimiter = rateLimit({
@@ -28,5 +29,16 @@ router.get('/history', getWalletHistory);
 
 // POST /api/wallet/withdraw — request a withdrawal (rate limited: 5/hour)
 router.post('/withdraw', requireKyc, withdrawalLimiter, requestWithdrawal);
+
+const depositLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Too many deposit requests. Please wait before submitting again.' },
+});
+
+// POST /api/wallet/deposit-request — submit MoMo/bank funding proof (admin verifies)
+router.post('/deposit-request', requireKyc, depositLimiter, requestWalletDeposit);
 
 module.exports = router;

@@ -2,7 +2,7 @@ const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/database');
 
 /**
- * WalletTransaction — ledger for seller wallet credits and withdrawal requests.
+ * WalletTransaction — ledger for wallet credits, deposit requests, and withdrawals.
  */
 const WalletTransaction = sequelize.define('WalletTransaction', {
   id: {
@@ -15,7 +15,7 @@ const WalletTransaction = sequelize.define('WalletTransaction', {
     allowNull: false,
   },
   type: {
-    type: DataTypes.ENUM('CREDIT', 'WITHDRAWAL_REQUEST', 'WITHDRAWAL_PAID'),
+    type: DataTypes.ENUM('CREDIT', 'DEPOSIT', 'DEPOSIT_REQUEST', 'WITHDRAWAL_REQUEST', 'WITHDRAWAL_PAID'),
     allowNull: false,
   },
   amount: {
