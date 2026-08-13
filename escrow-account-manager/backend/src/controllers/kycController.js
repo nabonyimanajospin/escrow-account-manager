@@ -70,17 +70,15 @@ exports.approveKyc = async (req, res, next) => {
     await user.update({ isKycVerified: true, kycVerifiedAt: new Date() });
 
     const notificationService = require('../services/notificationService');
-    notificationService.createInAppNotification(user.id, 'KYC Approved ✅', 'Your identity has been verified. You now have full platform access.').catch(() => {});
-    notificationService.sendEmail(
-      user.email,
-      '✅ Your EscrowTrust KYC is Approved',
-      `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;padding:32px;border:1px solid #e5e7eb;border-radius:8px;">
+    notificationService.notifyUserTriChannel(user, 'KYC Approved ✅', 'Your identity has been verified. You now have full platform access.', {
+      emailSubject: '✅ Your EscrowTrust KYC is Approved',
+      emailHtml: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;padding:32px;border:1px solid #e5e7eb;border-radius:8px;">
         <h2 style="color:#10b981;">Identity Verified ✅</h2>
         <p>Hello <strong>${user.name}</strong>,</p>
         <p>Your KYC identity verification has been <strong>approved</strong> by our team. You now have full access to all platform features.</p>
         <p style="color:#888;font-size:13px;">EscrowTrust Platform</p>
-      </div>`
-    ).catch(() => {});
+      </div>`,
+    }).catch(() => {});
 
     res.status(200).json({ success: true, message: `KYC approved for ${user.name}.`, data: user });
   } catch (error) {
@@ -107,19 +105,17 @@ exports.rejectKyc = async (req, res, next) => {
     await user.update({ kycDocumentUrl: null });
 
     const notificationService = require('../services/notificationService');
-    notificationService.createInAppNotification(user.id, 'KYC Rejected ❌', `Your KYC submission was rejected. Reason: ${reason}. Please resubmit with a valid document.`).catch(() => {});
-    notificationService.sendEmail(
-      user.email,
-      '❌ EscrowTrust KYC Submission Rejected',
-      `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;padding:32px;border:1px solid #e5e7eb;border-radius:8px;">
+    notificationService.notifyUserTriChannel(user, 'KYC Rejected ❌', `Your KYC submission was rejected. Reason: ${reason}. Please resubmit with a valid document.`, {
+      emailSubject: '❌ EscrowTrust KYC Submission Rejected',
+      emailHtml: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;padding:32px;border:1px solid #e5e7eb;border-radius:8px;">
         <h2 style="color:#ef4444;">KYC Rejected ❌</h2>
         <p>Hello <strong>${user.name}</strong>,</p>
         <p>Your KYC identity document was <strong>rejected</strong> for the following reason:</p>
         <blockquote style="border-left:4px solid #ef4444;padding-left:12px;color:#555;">${reason}</blockquote>
         <p>Please log in and resubmit a clear, valid government-issued identity document.</p>
         <p style="color:#888;font-size:13px;">EscrowTrust Platform</p>
-      </div>`
-    ).catch(() => {});
+      </div>`,
+    }).catch(() => {});
 
     res.status(200).json({ success: true, message: `KYC rejected for ${user.name}. User notified to resubmit.` });
   } catch (error) {

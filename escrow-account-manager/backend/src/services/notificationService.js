@@ -1,6 +1,7 @@
 const nodemailer = require('nodemailer');
-const { Notification } = require('../models');
+const { Notification, User } = require('../models');
 const logger = require('../utils/logger');
+const { sendSmsAsync } = require('./smsProvider');
 
 /**
  * Nodemailer transporter configured for Gmail SMTP.
@@ -12,17 +13,33 @@ const transporter = nodemailer.createTransport({
     user: process.env.EMAIL_FROM,
     pass: process.env.EMAIL_APP_PASSWORD,
   },
-  connectionTimeout: 2500, // 2.5 second max connect timeout
-  greetingTimeout: 2500,   // 2.5 second max greeting timeout
-  socketTimeout: 2500,     // 2.5 second max socket timeout
+  connectionTimeout: 2500,
+  greetingTimeout: 2500,
+  socketTimeout: 2500,
 });
 
+const defaultNoticeHtml = (userName, title, message) => `
+  <div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+    <div style="background:#1a1a2e;padding:24px 32px;">
+      <h1 style="color:#c8a96e;margin:0;font-size:22px;">🏠 EscrowTrust</h1>
+    </div>
+    <div style="padding:32px;">
+      <p style="color:#333;">Hello <strong>${userName}</strong>,</p>
+      <p style="color:#1e293b;font-weight:bold;font-size:16px;margin-bottom:12px;">${title}</p>
+      <p style="color:#475569;font-size:14px;line-height:1.6;">${message}</p>
+      <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
+      <p style="color:#aaa;font-size:12px;">EscrowTrust Platform — Real-Time Notification Notice</p>
+    </div>
+  </div>
+`;
+
+const smsFromNotice = (title, message) => {
+  const plain = `${title}: ${message}`.replace(/\s+/g, ' ').trim();
+  return `[EscrowTrust] ${plain}`.slice(0, 480);
+};
+
 /**
- * Send a plain-text / HTML email.
- * @param {string} to       - Recipient email address
- * @param {string} subject  - Email subject line
- * @param {string} html     - HTML body content
- * @param {string} text     - Fallback plain-text content
+ * Send a plain-text / HTML email (fire-and-forget).
  */
 const sendEmail = async (to, subject, html, text = '') => {
   if (!process.env.EMAIL_FROM || !process.env.EMAIL_APP_PASSWORD) {
@@ -38,7 +55,6 @@ const sendEmail = async (to, subject, html, text = '') => {
     text: text || html.replace(/<[^>]+>/g, ''),
   };
 
-  // Fire-and-forget background execution so API requests return instantly
   setImmediate(() => {
     transporter.sendMail(mailOptions)
       .then((info) => logger.info(`[Email] Sent to ${to} — MessageId: ${info?.messageId}`))
@@ -46,19 +62,52 @@ const sendEmail = async (to, subject, html, text = '') => {
   });
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Notification helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-const createInAppNotification = async (userId, title, message) => {
+/**
+ * Tri-channel dispatch: in-app bell + email + SMS (when phone on file).
+ * Existing callers keep working — SMS is additive only.
+ */
+const notifyUserTriChannel = async (userOrId, title, message, options = {}) => {
   try {
-    await Notification.create({ userId, title, message });
+    const user = typeof userOrId === 'object' && userOrId !== null
+      ? userOrId
+      : await User.findByPk(userOrId, { attributes: ['id', 'name', 'email', 'phone'] });
+
+    if (!user) {
+      logger.warn('[Notification] notifyUserTriChannel — user not found');
+      return;
+    }
+
+    const { skipInApp = false, skipEmail = false, skipSms = false, emailSubject, emailHtml, smsText } = options;
+
+    if (!skipInApp) {
+      await Notification.create({ userId: user.id, title, message });
+    }
+
+    if (!skipEmail && user.email) {
+      const subject = emailSubject || `🔔 EscrowTrust Notice: ${title}`;
+      const html = emailHtml || defaultNoticeHtml(user.name, title, message);
+      sendEmail(user.email, subject, html).catch((e) => logger.warn(`[Notification Email] ${e.message}`));
+    }
+
+    if (!skipSms && user.phone) {
+      sendSmsAsync(user.phone, smsText || smsFromNotice(title, message));
+    } else if (!skipSms && !user.phone) {
+      logger.debug(`[SMS] No phone on file for user ${user.id} — in-app + email only`);
+    }
   } catch (err) {
-    logger.error('[Notification] Failed to create in-app notification:', err.message);
+    logger.error('[Notification] notifyUserTriChannel failed:', err.message);
   }
 };
 
-const sendOtpEmail = async (toEmail, toName, otpCode, transactionRef) => {
+/** @deprecated name kept for backward compatibility — now sends all 3 channels */
+const createInAppNotification = async (userId, title, message, options = {}) => {
+  return notifyUserTriChannel(userId, title, message, options);
+};
+
+const sendOtpEmail = async (toEmail, toName, otpCode, transactionRef, options = {}) => {
+  const opts = typeof options === 'string' ? { phone: options } : options;
+  const { phone, userId, skipSms = false, skipInApp = false } = opts;
+
   const subject = `Your EscrowTrust OTP Code — ${transactionRef}`;
   const html = `
     <div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
@@ -78,15 +127,32 @@ const sendOtpEmail = async (toEmail, toName, otpCode, transactionRef) => {
       </div>
     </div>
   `;
-  return sendEmail(toEmail, subject, html);
+
+  sendEmail(toEmail, subject, html);
+
+  const otpTitle = '🔐 Verification Approval Code';
+  const otpMessage = `Your verification code for ${transactionRef} is: ${otpCode}. Expires in 10 minutes.`;
+
+  if (userId && !skipInApp) {
+    await Notification.create({ userId, title: otpTitle, message: otpMessage });
+  }
+
+  if (phone && !skipSms) {
+    sendSmsAsync(phone, `[EscrowTrust] OTP ${transactionRef}: ${otpCode}. Valid 10 min. Do not share.`);
+  }
+
+  return Promise.resolve();
 };
 
-const sendTransactionStatusEmail = async (toEmail, toName, status, transactionRef, amount) => {
+const sendTransactionStatusEmail = async (toEmail, toName, status, transactionRef, amount, phone = null) => {
   const statusMap = {
-    FUNDED: { emoji: '💰', label: 'Funds Deposited', color: '#10b981', msg: `Your deposit of <strong>$${amount}</strong> has been received and is now held securely in escrow.` },
-    COMPLETED: { emoji: '✅', label: 'Transaction Completed', color: '#10b981', msg: `Funds have been released and the transaction is now complete. Thank you for using EscrowTrust.` },
-    DISPUTED: { emoji: '⚠️', label: 'Dispute Filed', color: '#f59e0b', msg: `A dispute has been opened on transaction <strong>${transactionRef}</strong>. Our team will review the case.` },
-    REFUNDED: { emoji: '↩️', label: 'Refund Initiated', color: '#3b82f6', msg: `A refund of <strong>$${amount}</strong> has been initiated back to the buyer.` },
+    FUNDED: { emoji: '💰', label: 'Funds Deposited', color: '#10b981', msg: `Your deposit of $${amount} has been received and is now held securely in escrow.` },
+    MUTATION_STARTED: { emoji: '🏗️', label: 'Mutation Started', color: '#3b82f6', msg: 'The seller has started the property ownership transfer process.' },
+    UNDER_REVIEW: { emoji: '🔍', label: 'Under Admin Review', color: '#8b5cf6', msg: 'Property transfer documents are being verified by administration.' },
+    COMPLETED: { emoji: '✅', label: 'Transaction Completed', color: '#10b981', msg: 'Funds have been released and the transaction is now complete. Thank you for using EscrowTrust.' },
+    DISPUTED: { emoji: '⚠️', label: 'Dispute Filed', color: '#f59e0b', msg: `A dispute has been opened on transaction ${transactionRef}. Our team will review the case.` },
+    REFUNDED: { emoji: '↩️', label: 'Refund Initiated', color: '#3b82f6', msg: `A refund of $${amount} has been initiated back to the buyer.` },
+    CANCELLED: { emoji: '❌', label: 'Transaction Cancelled', color: '#6b7280', msg: `Transaction ${transactionRef} has been cancelled.` },
   };
   const info = statusMap[status] || { emoji: '📋', label: status, color: '#6b7280', msg: `Your transaction status has been updated to ${status}.` };
 
@@ -108,10 +174,17 @@ const sendTransactionStatusEmail = async (toEmail, toName, status, transactionRe
       </div>
     </div>
   `;
-  return sendEmail(toEmail, subject, html);
+
+  sendEmail(toEmail, subject, html);
+
+  if (phone) {
+    sendSmsAsync(phone, `[EscrowTrust] ${info.label} (${transactionRef}). ${info.msg}`.slice(0, 480));
+  }
+
+  return Promise.resolve();
 };
 
-const sendDisputeNotificationEmail = async (toEmail, toName, transactionRef, role) => {
+const sendDisputeNotificationEmail = async (toEmail, toName, transactionRef, role, phone = null) => {
   const subject = `⚠️ Dispute Filed — Transaction ${transactionRef}`;
   const html = `
     <div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
@@ -128,10 +201,28 @@ const sendDisputeNotificationEmail = async (toEmail, toName, transactionRef, rol
       </div>
     </div>
   `;
-  return sendEmail(toEmail, subject, html);
+
+  sendEmail(toEmail, subject, html);
+
+  if (phone) {
+    sendSmsAsync(phone, `[EscrowTrust] Dispute filed on ${transactionRef} (you are ${role}). Log in to submit evidence.`.slice(0, 480));
+  }
+
+  return Promise.resolve();
 };
 
-const sendWalletCreditEmail = async (toEmail, toName, amount, newBalance, transactionRef) => {
+const sendWalletCreditEmail = async (toEmail, toName, amount, newBalance, transactionRef, phone = null, userId = null) => {
+  const title = '💰 Wallet Credited';
+  const message = `+$${Number(amount).toFixed(2)} released to your wallet for ${transactionRef}. New balance: $${Number(newBalance).toFixed(2)}.`;
+
+  if (userId) {
+    try {
+      await Notification.create({ userId, title, message });
+    } catch (err) {
+      logger.error('[Notification] Wallet credit in-app failed:', err.message);
+    }
+  }
+
   const subject = `💰 Wallet Credited — $${amount} Received`;
   const html = `
     <div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
@@ -151,24 +242,28 @@ const sendWalletCreditEmail = async (toEmail, toName, amount, newBalance, transa
       </div>
     </div>
   `;
-  return sendEmail(toEmail, subject, html);
+
+  sendEmail(toEmail, subject, html);
+
+  if (phone) {
+    sendSmsAsync(phone, `[EscrowTrust] Wallet credited +$${Number(amount).toFixed(2)} for ${transactionRef}. Balance: $${Number(newBalance).toFixed(2)}.`.slice(0, 480));
+  }
+
+  return Promise.resolve();
 };
 
 /**
- * sendConsensusCode — called by transactionController when OTP is issued.
- * { user, transaction, code, expiresAt }
+ * sendConsensusCode — OTP to buyer/seller: in-app + email + SMS together.
  */
 const sendConsensusCode = async ({ user, transaction, code, expiresAt }) => {
-  const ref = transaction.reference || `TXN-${transaction.id}`;
-  
-  // Create in-app notification so user sees code in notification bell panel
-  await createInAppNotification(
-    user.id,
-    '🔐 Verification Approval Code',
-    `Your verification approval code for deal ${ref} is: ${code}`
-  );
+  const ref = transaction.reference || transaction.transactionId || `TXN-${transaction.id}`;
 
-  return sendOtpEmail(user.email, user.name, code, ref);
+  await notifyUserTriChannel(user, '🔐 Verification Approval Code', `Your verification approval code for deal ${ref} is: ${code}`, {
+    skipEmail: true,
+    smsText: `[EscrowTrust] Deal ${ref} — your approval code is ${code}. Expires in 10 min.`,
+  });
+
+  return sendOtpEmail(user.email, user.name, code, ref, { phone: user.phone, skipSms: true, skipInApp: true });
 };
 
 module.exports = {
@@ -179,4 +274,5 @@ module.exports = {
   sendWalletCreditEmail,
   sendConsensusCode,
   createInAppNotification,
+  notifyUserTriChannel,
 };

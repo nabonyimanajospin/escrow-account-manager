@@ -39,6 +39,7 @@ jest.mock('../src/models', () => {
 jest.mock('../src/services/notificationService', () => ({
   sendOtpEmail: jest.fn().mockResolvedValue(undefined),
   sendConsensusCode: jest.fn().mockResolvedValue(undefined),
+  notifyUserTriChannel: jest.fn().mockResolvedValue(undefined),
   sendTransactionStatusEmail: jest.fn().mockResolvedValue(undefined),
   sendDisputeNotificationEmail: jest.fn().mockResolvedValue(undefined),
   sendWalletCreditEmail: jest.fn().mockResolvedValue(undefined),

@@ -222,3 +222,86 @@ exports.getUsers = async (req, res, next) => {
     next(error);
   }
 };
+
+const notificationService = require('../services/notificationService');
+const resetOtpStore = new Map();
+
+// @desc    Forgot Password - Request 6-digit OTP code via email
+// @route   POST /api/auth/forgot-password
+// @access  Public
+exports.forgotPassword = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Please provide an email address' });
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+    const user = await User.findOne({ where: { email: cleanEmail } });
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'No user account registered with this email address' });
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 15 * 60 * 1000;
+
+    resetOtpStore.set(cleanEmail, { otp, expiresAt });
+
+    await notificationService.sendOtpEmail(user.email, user.name, otp, 'PASSWORD-RESET', {
+      phone: user.phone,
+      userId: user.id,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Password reset code sent to your email, phone (if registered), and in-app notifications.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Reset Password with 6-digit OTP verification code
+// @route   POST /api/auth/reset-password
+// @access  Public
+exports.resetPassword = async (req, res, next) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Email, OTP verification code, and new password are required' });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({ success: false, message: 'New password must be at least 8 characters' });
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+    const storedRecord = resetOtpStore.get(cleanEmail);
+
+    if (!storedRecord || storedRecord.otp !== String(otp).trim()) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired OTP verification code' });
+    }
+
+    if (Date.now() > storedRecord.expiresAt) {
+      resetOtpStore.delete(cleanEmail);
+      return res.status(400).json({ success: false, message: 'OTP verification code has expired. Please request a new code.' });
+    }
+
+    const user = await User.findOne({ where: { email: cleanEmail } });
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    user.password = newPassword;
+    await user.save();
+    resetOtpStore.delete(cleanEmail);
+
+    res.status(200).json({
+      success: true,
+      message: 'Your password has been successfully reset. You may now log in with your new password.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
