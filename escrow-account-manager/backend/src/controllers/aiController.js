@@ -253,13 +253,14 @@ exports.chatWithAI = async (req, res, next) => {
 
     let responseText;
     try {
-      // Try Gemini AI first
       const context = {
+        transaction,
         propTitle: transaction.property?.title || 'the property',
         price: parseFloat(transaction.amount),
         status: transaction.status,
         role: req.user.role,
-        contractAddress: transaction.escrowAccount?.contractAddress || 'Not Generated'
+        userName: req.user.name,
+        contractAddress: transaction.escrowAccount?.contractAddress || 'Not Generated',
       };
       responseText = await generateChatResponse(message, context);
     } catch (aiError) {
@@ -290,13 +291,13 @@ exports.chatWithGlobalAI = async (req, res, next) => {
 
     let responseText;
     try {
-      // Try Gemini AI first
       const context = {
         propTitle: 'General Platform Query',
         price: 0,
         status: 'N/A',
         role: req.user ? req.user.role : 'GUEST',
-        contractAddress: 'N/A'
+        userName: req.user?.name,
+        contractAddress: 'N/A',
       };
       responseText = await generateChatResponse(message, context);
     } catch (aiError) {
