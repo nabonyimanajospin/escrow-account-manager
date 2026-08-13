@@ -19,6 +19,7 @@ import SellerWallet from './pages/SellerWallet';
 import KYCPage from './pages/KYCPage';
 import ContractVerification from './pages/ContractVerification';
 import AIChatWidget from './components/AIChatWidget';
+import ErrorBoundary from './components/common/ErrorBoundary';
 
 function App() {
   return (
@@ -44,6 +45,7 @@ function App() {
           }}
         />
 
+        <ErrorBoundary>
         <div className="min-h-screen flex flex-col bg-slate-50">
           <Navbar />
           <main className="flex-grow">
@@ -94,6 +96,7 @@ function App() {
           <Footer />
         </div>
         <AIChatWidget />
+        </ErrorBoundary>
       </AuthProvider>
     </Router>
   );

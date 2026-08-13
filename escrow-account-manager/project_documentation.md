@@ -93,12 +93,15 @@ EscrowTrust resolves these challenges by combining:
   - **🟡 YELLOW (Self-Correction Prompt)**: Minor typo -> Prompts seller to fix & re-upload before proceeding.
   - **🔴 RED (Fraud Alert & Lock)**: Photoshop edits/sample watermarks -> Freezes transaction status to `DISPUTED`, logs fraud alert on-chain, and alerts Admin for dispute mediation.
 
-### Module C: Institutional Integration Sockets
-- **Location**: [backend/src/routes/integrations.js](file:///c:/Users/FH%20Technology%20Ltd/Desktop/Escrow%20Management%20System/escrow-account-manager/backend/src/routes/integrations.js) & [backend/src/services/institutionalSockets.js](file:///c:/Users/FH%20Technology%20Ltd/Desktop/Escrow%20Management%20System/escrow-account-manager/backend/src/services/institutionalSockets.js)
+### Module C: Institutional Integration Sockets & Presentation Simulator
+- **Location**: [backend/src/routes/integrations.js](file:///c:/Users/FH%20Technology%20Ltd/Desktop/Escrow%20Management%20System/escrow-account-manager/backend/src/routes/integrations.js), [backend/src/services/institutionalSockets.js](file:///c:/Users/FH%20Technology%20Ltd/Desktop/Escrow%20Management%20System/escrow-account-manager/backend/src/services/institutionalSockets.js), & [backend/src/routes/admin.js](file:///c:/Users/FH%20Technology%20Ltd/Desktop/Escrow%20Management%20System/escrow-account-manager/backend/src/routes/admin.js)
 - **Endpoints**:
   - `POST /api/integrations/irembo/mutation-webhook`: Receives official land transfer approvals from `Irembo.gov.rw`.
   - `POST /api/integrations/rdb/kyc-verify`: Verifies national ID / company registration numbers against RDB.
-  - `POST /api/integrations/momo/payment-webhook`: Receives automated Mobile Money & bank settlement callbacks.
+  - `POST /api/integrations/momo/payment-webhook`: Payment settlement callback socket for MTN Mobile Money / local banks.
+- **Presentation & Demo Simulation Sockets**:
+  - `POST /api/admin/simulate/irembo/:id`: Admin simulator triggering official Irembo deed approval webhooks in 1 click.
+  - `POST /api/admin/simulate/momo/:id`: Admin simulator triggering MoMo payment deposit webhooks in 1 click.
   - `GET /api/integrations/status`: Institutional connection health monitoring gateway.
 
 ### Module D: AI Buyer Ranking & Recommendation System

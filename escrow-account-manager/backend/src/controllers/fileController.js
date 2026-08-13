@@ -1,5 +1,6 @@
 const path = require('path');
 const fs = require('fs');
+const { Op } = require('sequelize');
 const { Transaction, Property, Dispute, DisputeEvidence } = require('../models');
 
 const UPLOAD_ROOT = path.join(__dirname, '..', 'uploads');
@@ -22,12 +23,13 @@ const canAccessFile = async (category, req) => {
   if (category === 'mutations' || category === 'contracts') {
     const suffix = `/uploads/${category}/${req.params.filename}`;
     const transactions = await Transaction.findAll({
+      where: {
+        [Op.or]: [{ buyerId: req.user.id }, { sellerId: req.user.id }],
+      },
       attributes: ['id', 'buyerId', 'sellerId', 'mutationDocuments', 'contractDocumentUrl'],
     });
 
     return transactions.some((tx) => {
-      const isParticipant = tx.buyerId === req.user.id || tx.sellerId === req.user.id;
-      if (!isParticipant) return false;
       if (category === 'contracts' && tx.contractDocumentUrl === suffix) return true;
       const docs = tx.mutationDocuments || [];
       return category === 'mutations' && docs.some((d) => d.documentUrl === suffix);

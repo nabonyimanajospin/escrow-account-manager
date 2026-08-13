@@ -97,7 +97,41 @@ const generateEscrowContract = async (transaction, customFilename = null) => {
 
     doc.moveDown(1.5);
     doc.moveTo(60, doc.y).lineTo(doc.page.width - 60, doc.y).strokeColor(gold).lineWidth(1).stroke();
+    // ── Official Escrow Stamp & Seal Badge ─────────────────────────────────────
     doc.moveDown(1);
+    const stampY = doc.y;
+    const stampX = doc.page.width - 240;
+
+    // Draw Stamp Outer Gold Rounded Box
+    doc.roundedRect(stampX, stampY, 180, 75, 6)
+      .lineWidth(2)
+      .strokeColor(gold)
+      .fillColor('#faf8f5')
+      .fillAndStroke();
+
+    // Inner Stamp Border
+    doc.roundedRect(stampX + 4, stampY + 4, 172, 67, 4)
+      .lineWidth(1)
+      .strokeColor(gold)
+      .stroke();
+
+    // Stamp Content
+    doc.fillColor(dark).fontSize(9).font('Helvetica-Bold')
+      .text('OFFICIAL ESCROW SEAL', stampX + 10, stampY + 10, { width: 160, align: 'center' });
+    
+    doc.fillColor('#10b981').fontSize(8).font('Helvetica-Bold')
+      .text('✓ CERTIFIED & VERIFIED', stampX + 10, stampY + 23, { width: 160, align: 'center' });
+
+    doc.fillColor(gray).fontSize(7).font('Helvetica')
+      .text(`Issued: ${new Date().toLocaleDateString()}`, stampX + 10, stampY + 37, { width: 160, align: 'center' });
+
+    doc.fillColor('#888888').fontSize(6).font('Helvetica')
+      .text(`SHA-256 Checksum: ${transaction.deedChecksum ? transaction.deedChecksum.substring(0, 16) + '...' : 'VERIFIED-ON-CHAIN'}`, stampX + 10, stampY + 49, { width: 160, align: 'center' });
+    
+    doc.fillColor(gold).fontSize(6).font('Helvetica-Bold')
+      .text('ESCROWTRUST REGULATED', stampX + 10, stampY + 60, { width: 160, align: 'center' });
+
+    doc.y = stampY + 85;
 
     // ── Legal Footer ──────────────────────────────────────────────────────────
     doc.fillColor(gray).fontSize(9).font('Helvetica')

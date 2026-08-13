@@ -61,6 +61,7 @@ const buildSellerDealRows = (properties, transactions) => {
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const [dashTab, setDashTab] = useState('dashboard');
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ active: 0, escrowLocked: 0, totalEarned: 0, totalSpent: 0, properties: 0, completed: 0 });
   const [recentTxns, setRecentTxns] = useState([]);

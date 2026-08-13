@@ -440,3 +440,11 @@ select.input-field {
     radial-gradient(at 80% 10%, rgba(16,185,129,0.04) 0px, transparent 50%),
     radial-gradient(at 50% 80%, rgba(37,99,235,0.03) 0px, transparent 50%);
 }
+
+/* Block printing draft/in-progress contract previews */
+@media print {
+  .contract-preview-draft,
+  .contract-preview-draft * {
+    display: none !important;
+  }
+}

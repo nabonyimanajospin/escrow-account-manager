@@ -819,8 +819,10 @@ const releaseFunds = async (req, res, next) => {
           seller.name,
           sellerNetPayout,
           newBalance,
-          transaction.reference || `TXN-${transaction.id}`
-        ).catch((e) => console.error('[Email] Wallet credit email failed:', e.message));
+          transaction.reference || `TXN-${transaction.id}`,
+          seller.phone,
+          seller.id
+        ).catch((e) => console.error('[Notification] Wallet credit notify failed:', e.message));
       }
 
       await logAction(transaction.id, req, `Admin released funds. Audit Notes: ${adminNotes}. Split details: Seller Net Payout: $${sellerNetPayout}, Platform Commission: $${platformFee}. Status set to AWAITING_RECEIPT.`, { transaction: t });
@@ -1455,6 +1457,47 @@ const getAccountingJournal = async (req, res, next) => {
   }
 };
 
+// @desc    Export accounting journal as downloadable CSV file
+// @route   GET /api/escrow/:id/journal/export
+// @access  Private
+const exportAccountingJournalCsv = async (req, res, next) => {
+  try {
+    const transaction = await Transaction.findByPk(req.params.id, {
+      include: transactionIncludes,
+    });
+
+    if (!transaction) {
+      return res.status(404).json({ success: false, message: 'Transaction not found' });
+    }
+
+    const isParticipant =
+      transaction.buyerId === req.user.id ||
+      transaction.sellerId === req.user.id ||
+      req.user.role === 'ADMIN';
+
+    if (!isParticipant) {
+      return res.status(403).json({ success: false, message: 'Not authorized to export accounting journal for this transaction' });
+    }
+
+    const entries = await LedgerEntry.findAll({
+      where: { transactionId: transaction.id },
+      order: [['createdAt', 'ASC']],
+    });
+
+    let csvContent = 'Entry ID,Type,Account Type,Amount (USD),Description,Date & Time\n';
+    entries.forEach((e) => {
+      const cleanDesc = (e.description || '').replace(/"/g, '""');
+      csvContent += `"${e.id}","${e.type}","${e.accountType}","${e.amount}","${cleanDesc}","${e.createdAt}"\n`;
+    });
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename=EscrowTrust_Journal_TX_${transaction.id}.csv`);
+    return res.status(200).send(csvContent);
+  } catch (error) {
+    next(error);
+  }
+};
+
 const { explainContractText } = require('../services/aiService');
 
 // @desc    Explain selected text or paragraph from contract using wise AI legal interpreter
@@ -1467,11 +1510,23 @@ const explainContractClause = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Text selection is required for AI explanation.' });
     }
 
-    const explanation = await explainContractText(text.trim(), context || {});
+    const enrichedContext = {
+      ...(context || {}),
+      paragraphText: context?.paragraphText || text.trim(),
+      selectedText: context?.selectedText || text.trim(),
+      userRole: context?.userRole || req.user?.role,
+      userName: context?.userName || req.user?.name,
+    };
+
+    const explanation = await explainContractText(
+      enrichedContext.selectedText || text.trim(),
+      enrichedContext
+    );
 
     res.status(200).json({
       success: true,
       selectedText: text.trim(),
+      paragraphText: enrichedContext.paragraphText || text.trim(),
       explanation,
     });
   } catch (error) {
@@ -1534,16 +1589,37 @@ const verifyContractByChecksum = async (req, res, next) => {
 
     const deedDoc = (transaction.mutationDocuments || []).find((d) => d.sha256Checksum === checksum) || transaction.mutationDocuments?.[0];
 
-    // Check if contract is frozen under fraud alert or dispute
     const isDisputed = transaction.status === 'DISPUTED';
     const isRedTriage = deedDoc?.aiAnalysisReport?.triageCategory === 'RED';
-    const isValid = !isDisputed && !isRedTriage;
+    const isCompleted = transaction.status === 'COMPLETED';
+    const isClosedInactive = ['REFUNDED', 'CANCELLED'].includes(transaction.status);
+
+    let verificationStatus = 'IN_PROGRESS';
+    if (isDisputed || isRedTriage) {
+      verificationStatus = 'FROZEN';
+    } else if (isCompleted) {
+      verificationStatus = 'VERIFIED';
+    } else if (isClosedInactive) {
+      verificationStatus = 'CLOSED';
+    }
+
+    const isValid = verificationStatus === 'VERIFIED';
+    const isFinal = isValid;
+
+    const registryStatusByPhase = {
+      VERIFIED: 'COMPLETED & REGISTERED ON NATIONAL LAND NODE',
+      IN_PROGRESS: `ESCROW IN PROGRESS — CURRENT STATE: ${transaction.status}`,
+      FROZEN: 'SECURITY ALERT: FRAUD OR DISPUTE FROZEN',
+      CLOSED: `DEAL CLOSED — ${transaction.status}`,
+    };
 
     res.status(200).json({
       success: true,
       data: {
         checksum: deedDoc?.sha256Checksum || checksum,
         isValid,
+        isFinal,
+        verificationStatus,
         transactionId: transaction.id,
         propertyTitle: transaction.property?.title || 'Real Estate Property',
         upiCode: transaction.property?.upiCode || '1/03/01/04/3000',
@@ -1556,7 +1632,7 @@ const verifyContractByChecksum = async (req, res, next) => {
         buyerSignature: transaction.buyerSignature || (transaction.buyerAuthorized ? 'CRYPTOGRAPHICALLY-SIGNED-BUYER-CONSENSUS' : 'PENDING'),
         sellerSignature: transaction.sellerSignature || (transaction.sellerAuthorized ? 'CRYPTOGRAPHICALLY-SIGNED-SELLER-CONSENSUS' : 'PENDING'),
         verifiedAt: new Date().toISOString(),
-        registryStatus: isValid ? 'VERIFIED & REGISTERED ON NATIONAL LAND NODE' : 'SECURITY ALERT: FRAUD OR DISPUTE FROZEN',
+        registryStatus: registryStatusByPhase[verificationStatus],
         authority: 'Rwanda Land Management & Environment Authority (RLMA)',
       }
     });
@@ -1615,6 +1691,53 @@ const getMyGlobalJournal = async (req, res, next) => {
   }
 };
 
+// @desc    Simulate Irembo / RLMA land mutation approval webhook
+// @route   POST /api/admin/simulate/irembo/:id
+// @access  Private (ADMIN)
+const simulateIremboWebhook = async (req, res, next) => {
+  try {
+    const institutionalSockets = require('../services/institutionalSockets');
+    const transaction = await Transaction.findByPk(req.params.id, { include: transactionIncludes });
+    if (!transaction) {
+      return res.status(404).json({ success: false, message: 'Transaction not found' });
+    }
+
+    const payload = {
+      upi: transaction.property?.upiCode || 'UPI-1/02/03/04/567',
+      transactionId: transaction.id,
+      iremboCertificateNumber: `CERT-NLA-SIM-${Date.now()}`,
+      status: 'APPROVED',
+      approvalSecret: process.env.IREMBO_WEBHOOK_SECRET || 'IREMBO_GOV_RW_SECRET',
+    };
+
+    const result = await institutionalSockets.handleIremboMutationWebhook(payload);
+    res.status(200).json({ success: true, message: 'Simulated Irembo Land Mutation Approval successfully!', data: result });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Simulate MTN MoMo Payment Deposit webhook
+// @route   POST /api/admin/simulate/momo/:id
+// @access  Private (ADMIN)
+const simulateMomoWebhook = async (req, res, next) => {
+  try {
+    const transaction = await Transaction.findByPk(req.params.id);
+    if (!transaction) {
+      return res.status(404).json({ success: false, message: 'Transaction not found' });
+    }
+    if (transaction.status !== 'PENDING') {
+      return res.status(400).json({ success: false, message: 'Transaction is not in PENDING state' });
+    }
+
+    req.body.amount = Number(transaction.amount) + Number(transaction.buyerFee || 0);
+    req.body.reference = `MOMO-SIM-${Date.now()}`;
+    return depositFunds(req, res, next);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getTransactions,
   getMyTransactions,
@@ -1636,7 +1759,10 @@ module.exports = {
   confirmPropertyReceipt,
   verifyRegistryDeed,
   getAccountingJournal,
+  exportAccountingJournalCsv,
   explainContractClause,
   verifyContractByChecksum,
   getMyGlobalJournal,
+  simulateIremboWebhook,
+  simulateMomoWebhook,
 };

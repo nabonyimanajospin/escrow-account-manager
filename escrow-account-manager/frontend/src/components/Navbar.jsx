@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axios from '../api/axiosConfig';
@@ -9,8 +9,26 @@ const Navbar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const notificationRef = useRef(null);
 
   const unreadCount = notifications.filter(n => !n.read).length;
+
+  // Auto-close notification dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+        setShowNotifications(false);
+      }
+    };
+    if (showNotifications) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [showNotifications]);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -118,7 +136,7 @@ const Navbar = () => {
                 <div className="flex items-center gap-3 relative">
                   
                   {/* Notifications bell icon dropdown */}
-                  <div className="relative">
+                  <div className="relative" ref={notificationRef}>
                     <button
                       onClick={() => setShowNotifications(!showNotifications)}
                       className="p-1.5 text-slate-500 hover:text-slate-900 focus:outline-none relative rounded-full hover:bg-slate-100 transition-all cursor-pointer flex items-center justify-center"

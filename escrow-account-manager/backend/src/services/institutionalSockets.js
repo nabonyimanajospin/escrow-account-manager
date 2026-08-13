@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const { Transaction, Escrow, User } = require('../models');
 const { sequelize } = require('../config/database');
 const blockchainProvider = require('./blockchainProvider');
@@ -23,9 +24,16 @@ class InstitutionalSockets {
 
     logger.info(`[Irembo Webhook Socket] Received Land Mutation Approval for UPI ${upi} (TX ${transactionId})`);
 
-    // Verify webhook security token
+    // Verify webhook security token strictly with timing-safe comparison
     const expectedSecret = process.env.IREMBO_WEBHOOK_SECRET || 'IREMBO_GOV_RW_SECRET';
-    if (approvalSecret && approvalSecret !== expectedSecret) {
+    if (!approvalSecret) {
+      throw new Error('Missing required Irembo webhook authorization secret');
+    }
+
+    const secretBuffer = Buffer.from(String(approvalSecret));
+    const expectedBuffer = Buffer.from(String(expectedSecret));
+
+    if (secretBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(secretBuffer, expectedBuffer)) {
       throw new Error('Unauthorized Irembo webhook signature');
     }
 

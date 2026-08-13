@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import axios from '../api/axiosConfig';
 import toast from 'react-hot-toast';
 
 const Login = () => {
@@ -11,6 +12,14 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Forgot password modal state
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetStep, setResetStep] = useState(1); // 1 = request email, 2 = verify OTP & new password
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetOtp, setResetOtp] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
 
   const redirectFrom = location.state?.from;
 
@@ -29,7 +38,6 @@ const Login = () => {
       if (res.success) {
         const storedUser = JSON.parse(localStorage.getItem('user'));
         
-        // Preserve purchase intent if coming from a property page
         if (redirectFrom) {
           toast.success('Authenticated! Resuming your property transaction...');
           navigate(redirectFrom, { replace: true });
@@ -46,6 +54,57 @@ const Login = () => {
       setError('An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSendResetOtp = async (e) => {
+    e.preventDefault();
+    if (!resetEmail) {
+      toast.error('Please enter your email address');
+      return;
+    }
+    try {
+      setResetLoading(true);
+      const res = await axios.post('/auth/forgot-password', { email: resetEmail });
+      if (res.data.success) {
+        toast.success(res.data.message || 'OTP verification code sent to your email!');
+        setResetStep(2);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to request password reset OTP.');
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  const handleResetPasswordSubmit = async (e) => {
+    e.preventDefault();
+    if (!resetOtp || !newPassword) {
+      toast.error('Please fill in both the OTP code and your new password');
+      return;
+    }
+    if (newPassword.length < 8) {
+      toast.error('New password must be at least 8 characters');
+      return;
+    }
+    try {
+      setResetLoading(true);
+      const res = await axios.post('/auth/reset-password', {
+        email: resetEmail,
+        otp: resetOtp,
+        newPassword,
+      });
+      if (res.data.success) {
+        toast.success('Password successfully reset! You can now log in.');
+        setShowResetModal(false);
+        setResetStep(1);
+        setEmail(resetEmail);
+        setPassword('');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Invalid OTP code or request failed.');
+    } finally {
+      setResetLoading(false);
     }
   };
 
@@ -98,7 +157,19 @@ const Login = () => {
 
             {/* Password */}
             <div>
-              <label className="input-label" htmlFor="password">Password</label>
+              <div className="flex items-center justify-between">
+                <label className="input-label" htmlFor="password">Password</label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResetEmail(email);
+                    setShowResetModal(true);
+                  }}
+                  className="text-xs font-bold text-primary-600 hover:text-primary-700 transition-colors cursor-pointer"
+                >
+                  Forgot Password?
+                </button>
+              </div>
               <input
                 id="password"
                 type="password"
@@ -190,6 +261,97 @@ const Login = () => {
           </p>
         </div>
       </div>
+
+      {/* Forgot Password OTP Modal */}
+      {showResetModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-scale-up">
+            <div className="flex justify-between items-center pb-4 border-b border-slate-100">
+              <h3 className="text-lg font-extrabold text-slate-900">
+                🔐 {resetStep === 1 ? 'Request Password Reset OTP' : 'Verify OTP & Reset Password'}
+              </h3>
+              <button
+                onClick={() => setShowResetModal(false)}
+                className="text-slate-400 hover:text-slate-600 text-xl font-bold cursor-pointer"
+              >
+                &times;
+              </button>
+            </div>
+
+            {resetStep === 1 ? (
+              <form onSubmit={handleSendResetOtp} className="mt-4 space-y-4">
+                <p className="text-xs text-slate-600">
+                  Enter your registered account email. We will send a 6-digit OTP verification code to your email inbox.
+                </p>
+                <div>
+                  <label className="input-label">Registered Email</label>
+                  <input
+                    type="email"
+                    required
+                    className="input-field"
+                    placeholder="your-email@example.com"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={resetLoading}
+                  className="btn-primary w-full py-2.5 font-bold text-xs"
+                >
+                  {resetLoading ? 'Sending OTP Code...' : 'Send OTP Verification Code'}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleResetPasswordSubmit} className="mt-4 space-y-4">
+                <p className="text-xs text-slate-600">
+                  Enter the 6-digit OTP code sent to <strong>{resetEmail}</strong> and your new password.
+                </p>
+                <div>
+                  <label className="input-label">6-Digit OTP Code</label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={6}
+                    className="input-field tracking-widest font-mono text-center text-lg font-bold"
+                    placeholder="123456"
+                    value={resetOtp}
+                    onChange={(e) => setResetOtp(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="input-label">New Password</label>
+                  <input
+                    type="password"
+                    required
+                    minLength={8}
+                    className="input-field"
+                    placeholder="At least 8 characters"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setResetStep(1)}
+                    className="px-3 py-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg"
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={resetLoading}
+                    className="btn-primary flex-1 py-2.5 font-bold text-xs"
+                  >
+                    {resetLoading ? 'Updating Password...' : 'Verify OTP & Reset Password'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

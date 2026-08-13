@@ -15,6 +15,7 @@ const PropertyList = () => {
   const [typeFilter, setTypeFilter] = useState('ALL');
   const [locationFilter, setLocationFilter] = useState('');
   const [priceFilter, setPriceFilter] = useState('');
+  const [sortOrder, setSortOrder] = useState('NEWEST');
 
   useEffect(() => {
     const fetchProperties = async () => {
@@ -33,20 +34,26 @@ const PropertyList = () => {
   }, []);
 
   // Filter application logic
-  const filteredProperties = properties.filter((p) => {
-    if (typeFilter !== 'ALL' && p.propertyType !== typeFilter) return false;
-    if (locationFilter) {
-      const query = locationFilter.toLowerCase();
-      const matchesTitle = p.title?.toLowerCase().includes(query);
-      const matchesLocation = p.location?.toLowerCase().includes(query);
-      if (!matchesTitle && !matchesLocation) return false;
-    }
-    if (priceFilter) {
-      const maxPrice = Number(priceFilter);
-      if (Number(p.price) > maxPrice) return false;
-    }
-    return true;
-  });
+  const filteredProperties = properties
+    .filter((p) => {
+      if (typeFilter !== 'ALL' && p.propertyType !== typeFilter) return false;
+      if (locationFilter) {
+        const query = locationFilter.toLowerCase();
+        const matchesTitle = p.title?.toLowerCase().includes(query);
+        const matchesLocation = p.location?.toLowerCase().includes(query);
+        if (!matchesTitle && !matchesLocation) return false;
+      }
+      if (priceFilter) {
+        const maxPrice = Number(priceFilter);
+        if (Number(p.price) > maxPrice) return false;
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      if (sortOrder === 'PRICE_LOW_HIGH') return Number(a.price) - Number(b.price);
+      if (sortOrder === 'PRICE_HIGH_LOW') return Number(b.price) - Number(a.price);
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    });
 
   if (loading) {
     return (
@@ -72,16 +79,35 @@ const PropertyList = () => {
   return (
     <div className="page-wrapper space-y-6">
       
-      {/* Title */}
-      <div>
-        <h1 className="text-3xl font-extrabold text-slate-900 font-sans">Available Properties</h1>
-        <p className="text-sm text-slate-500 mt-1 font-semibold">
-          Browse available listings from all sellers on the platform.
-        </p>
+      {/* Title & Quick Category Pills */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-extrabold text-slate-900 font-sans">Available Properties</h1>
+          <p className="text-sm text-slate-500 mt-1 font-semibold">
+            Browse available listings from all sellers on the platform.
+          </p>
+        </div>
+
+        {/* Quick Type Pills */}
+        <div className="flex flex-wrap gap-1.5">
+          {['ALL', 'HOUSE', 'VILLA', 'APARTMENT', 'LAND', 'COMMERCIAL'].map((type) => (
+            <button
+              key={type}
+              onClick={() => setTypeFilter(type)}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                typeFilter === type
+                  ? 'bg-primary-600 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              {type}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Filter Bar */}
-      <div className="card p-4 bg-white grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {/* Filter & Sort Bar */}
+      <div className="card p-4 bg-white grid grid-cols-1 sm:grid-cols-4 gap-4">
         <div>
           <label className="input-label">Property Type</label>
           <select
@@ -118,6 +144,19 @@ const PropertyList = () => {
             value={priceFilter}
             onChange={(e) => setPriceFilter(e.target.value)}
           />
+        </div>
+
+        <div>
+          <label className="input-label">Sort Order</label>
+          <select
+            className="input-field font-semibold"
+            value={sortOrder}
+            onChange={(e) => setSortOrder(e.target.value)}
+          >
+            <option value="NEWEST">Newest Listings</option>
+            <option value="PRICE_LOW_HIGH">Price: Low to High</option>
+            <option value="PRICE_HIGH_LOW">Price: High to Low</option>
+          </select>
         </div>
       </div>
 

@@ -29,6 +29,25 @@ const TransactionJournal = ({ transactionId }) => {
     window.print();
   };
 
+  const handleExportCsv = async () => {
+    try {
+      const response = await axios.get(`/escrow/${transactionId}/journal/export`, {
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `EscrowTrust_Journal_TX_${transactionId}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      toast.success('CSV Ledger statement downloaded!');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to download CSV statement');
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-6 bg-white rounded-xl shadow-sm border border-slate-200 animate-pulse space-y-4">
@@ -60,15 +79,26 @@ const TransactionJournal = ({ transactionId }) => {
           </p>
         </div>
 
-        <button
-          onClick={handlePrint}
-          className="no-print bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold px-4 py-2.5 rounded-lg border border-slate-700 transition flex items-center gap-2"
-        >
-          <svg className="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 000-4h-6a2 2 0 000 4zm8-12V5a2 2 0 00-2-2H7a2 2 0 00-2 2v4h14z" />
-          </svg>
-          Print Journal Statement
-        </button>
+        <div className="no-print flex items-center gap-2">
+          <button
+            onClick={handleExportCsv}
+            className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3.5 py-2.5 rounded-lg border border-emerald-500 transition flex items-center gap-1.5 cursor-pointer shadow-sm"
+          >
+            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Export CSV Ledger
+          </button>
+          <button
+            onClick={handlePrint}
+            className="bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold px-3.5 py-2.5 rounded-lg border border-slate-700 transition flex items-center gap-1.5 cursor-pointer"
+          >
+            <svg className="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 000-4h-6a2 2 0 000 4zm8-12V5a2 2 0 00-2-2H7a2 2 0 00-2 2v4h14z" />
+            </svg>
+            Print Statement
+          </button>
+        </div>
       </div>
 
       {/* Summary Financial Cards */}

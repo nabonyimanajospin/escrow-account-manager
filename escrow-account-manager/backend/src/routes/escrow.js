@@ -15,6 +15,7 @@ const {
   verifyRegistryDeed,
   resendOtp,
   getAccountingJournal,
+  exportAccountingJournalCsv,
   explainContractClause,
   verifyContractByChecksum,
   getMyGlobalJournal,
@@ -39,8 +40,9 @@ router.get('/my', protect, roleCheck('BUYER', 'SELLER', 'ADMIN'), getMyTransacti
 // Explain highlighted contract clause with AI
 router.post('/contract/explain', protect, explainContractClause);
 
-// Get transaction accounting journal
+// Get transaction accounting journal & export CSV
 router.get('/:id/journal', protect, getAccountingJournal);
+router.get('/:id/journal/export', protect, exportAccountingJournalCsv);
 
 // Get single transaction details
 router.get('/:id', protect, getTransaction);

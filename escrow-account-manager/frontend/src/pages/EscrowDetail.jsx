@@ -264,7 +264,7 @@ const EscrowDetail = () => {
     try {
       setActionLoading(true);
       await axios.post(`/escrow/${id}/resend-otp`);
-      toast.success('Fresh OTP code sent to your notifications.');
+      toast.success('Fresh OTP sent to your notifications, email, and phone (if registered).');
       fetchTransaction();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to resend code');
@@ -778,7 +778,7 @@ STATUS: COMPLETED MUTATION`;
                   </span>
                 </div>
                 <p className="text-xs text-slate-600 leading-relaxed font-semibold">
-                  Please enter the verification OTP code sent to your <strong>notification panel</strong> to authorize this transaction step and generate your cryptographic consensus signature.
+                  Please enter the verification OTP code sent to your <strong>notification panel, email, and phone</strong> to authorize this transaction step and generate your cryptographic consensus signature.
                 </p>
                 <form onSubmit={handleVerifyConsensusCode} className="flex gap-2">
                   <input
