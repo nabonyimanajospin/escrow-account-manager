@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import axios from '../api/axiosConfig';
 import { useAuth } from '../context/AuthContext';
 import { resolveImageUrl } from '../utils/imageUtils';
+import PriceBreakdown from '../components/common/PriceBreakdown';
 import toast from 'react-hot-toast';
 
 const PropertyForm = () => {
@@ -386,6 +387,14 @@ const PropertyForm = () => {
                   value={price}
                 />
               </div>
+              {Number(price) > 0 && (
+                <div className="mt-3">
+                  <PriceBreakdown listPrice={price} role="seller" compact />
+                  <p className="text-[10px] text-slate-500 mt-2 leading-relaxed">
+                    Buyers will see your listing price plus a separate 1% deposit fee. The 1.5% seller fee is deducted only when the deal completes successfully.
+                  </p>
+                </div>
+              )}
             </div>
 
             <div>
