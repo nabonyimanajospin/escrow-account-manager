@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axios from '../api/axiosConfig';
 import toast from 'react-hot-toast';
+import BrandLogo from '../components/BrandLogo';
 
 const Login = () => {
   const { login } = useAuth();
@@ -37,7 +38,7 @@ const Login = () => {
       const res = await login(email, password);
       if (res.success) {
         const storedUser = JSON.parse(localStorage.getItem('user'));
-        
+
         if (redirectFrom) {
           toast.success('Authenticated! Resuming your property transaction...');
           navigate(redirectFrom, { replace: true });
@@ -111,13 +112,16 @@ const Login = () => {
   return (
     <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center bg-slate-50 py-12 px-4 sm:px-6 lg:px-8 hero-mesh">
       <div className="max-w-md w-full space-y-8 animate-fade-in">
-        
+
         {/* Header */}
         <div>
           <Link to="/" className="text-slate-400 hover:text-primary-600 transition-colors flex items-center gap-1 text-sm font-bold mb-6">
             &larr; Back to Home
           </Link>
           <div className="text-center">
+            <div className="flex justify-center mb-6">
+              <BrandLogo to="/" variant="primary" imgClassName="h-10 sm:h-11 w-auto" />
+            </div>
             <h2 className="text-3xl font-extrabold text-slate-900 font-sans">
               Sign in to EscrowTrust
             </h2>
@@ -127,8 +131,9 @@ const Login = () => {
           </div>
         </div>
 
-        {/* Card Form */}
-        <div className="card p-6 sm:p-8 bg-white max-w-full overflow-hidden">
+        {/* Card Form — framed border */}
+        <div className="auth-portal-frame">
+          <div className="card p-6 sm:p-8 bg-white max-w-full overflow-hidden">
           <form onSubmit={handleSubmit} className="space-y-6">
             
             {error && (
@@ -205,7 +210,8 @@ const Login = () => {
           </form>
 
           {/* Panel demo quick-fill (passwords managed via seed script) */}
-          <div className="mt-6 pt-5 border-t border-slate-100 text-center space-y-3">
+          <div className="auth-portal-inner-frame">
+            <div className="auth-portal-inner-panel text-center space-y-3">
             <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Panel Demo Accounts</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <button
@@ -248,6 +254,8 @@ const Login = () => {
             <p className="text-[10px] text-slate-400 font-medium">
               Demo credentials are provisioned by the database seed script for presentation environments.
             </p>
+            </div>
+          </div>
           </div>
         </div>
 

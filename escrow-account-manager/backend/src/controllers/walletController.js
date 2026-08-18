@@ -1,4 +1,5 @@
-const { User, WalletTransaction } = require('../models');
+const { Op } = require('sequelize');
+const { User, WalletTransaction, Escrow, Transaction, LedgerEntry } = require('../models');
 const { sequelize } = require('../config/database');
 const logger = require('../utils/logger');
 const notificationService = require('../services/notificationService');
@@ -300,6 +301,54 @@ const rejectWithdrawal = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/admin/platform-summary
+ * Platform-wide treasury snapshot for admin dashboard.
+ */
+const getPlatformSummary = async (req, res) => {
+  try {
+    const [
+      totalEscrowLocked,
+      platformRevenue,
+      totalUserWalletBalances,
+      pendingDepositAmount,
+      pendingDepositCount,
+      pendingWithdrawalAmount,
+      pendingWithdrawalCount,
+      activeEscrowAccounts,
+      completedDeals,
+    ] = await Promise.all([
+      Escrow.sum('balance', { where: { status: 'ACTIVE' } }),
+      LedgerEntry.sum('amount', { where: { accountType: 'PLATFORM_REVENUE', type: 'CREDIT' } }),
+      User.sum('walletBalance'),
+      WalletTransaction.sum('amount', { where: { type: 'DEPOSIT_REQUEST', status: 'PENDING' } }),
+      WalletTransaction.count({ where: { type: 'DEPOSIT_REQUEST', status: 'PENDING' } }),
+      WalletTransaction.sum('amount', { where: { type: 'WITHDRAWAL_REQUEST', status: 'PENDING' } }),
+      WalletTransaction.count({ where: { type: 'WITHDRAWAL_REQUEST', status: 'PENDING' } }),
+      Escrow.count({ where: { status: 'ACTIVE', balance: { [Op.gt]: 0 } } }),
+      Transaction.count({ where: { status: 'COMPLETED' } }),
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        totalEscrowLocked: parseFloat(totalEscrowLocked || 0),
+        platformRevenue: parseFloat(platformRevenue || 0),
+        totalUserWalletBalances: parseFloat(totalUserWalletBalances || 0),
+        pendingDepositAmount: parseFloat(pendingDepositAmount || 0),
+        pendingDepositCount: pendingDepositCount || 0,
+        pendingWithdrawalAmount: parseFloat(pendingWithdrawalAmount || 0),
+        pendingWithdrawalCount: pendingWithdrawalCount || 0,
+        activeEscrowAccounts: activeEscrowAccounts || 0,
+        completedDeals: completedDeals || 0,
+      },
+    });
+  } catch (err) {
+    logger.error('[Wallet] getPlatformSummary error:', err);
+    res.status(500).json({ success: false, error: 'Failed to load platform summary.' });
+  }
+};
+
 module.exports = {
   getWallet,
   getWalletHistory,
@@ -310,4 +359,5 @@ module.exports = {
   rejectWalletDeposit,
   approveWithdrawal,
   rejectWithdrawal,
+  getPlatformSummary,
 };

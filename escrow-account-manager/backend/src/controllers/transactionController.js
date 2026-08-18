@@ -35,6 +35,7 @@ const issueAndDeliverConsensusOtp = async (transaction, dbTransaction, targetRol
 };
 
 const { transactionIncludes, logAction } = require('../utils/transactionHelpers');
+const { ACTIVE_ESCROW_STATES, propertyHasActiveEscrow } = require('../utils/propertyMarketplace');
 
 // @desc    Get all transactions (Admin only)
 // @route   GET /api/admin/transactions
@@ -166,8 +167,12 @@ const initiateTransaction = async (req, res, next) => {
         throw Object.assign(new Error('Property is not available for transaction'), { statusCode: 400 });
       }
 
+      if (await propertyHasActiveEscrow(property.id, t)) {
+        throw Object.assign(new Error('This property has already been reserved by another buyer'), { statusCode: 400 });
+      }
+
       if (property.listingType === 'AUCTION') {
-        throw Object.assign(new Error('This property listing is configured for auction bidding. Direct purchases are disabled; please place a bid.'), { statusCode: 400 });
+        throw Object.assign(new Error('Use "Lock at offered price" on the listing page to reserve this property. Multi-buyer auction bidding is disabled.'), { statusCode: 400 });
       }
 
       if (property.sellerId === req.user.id) {
@@ -425,6 +430,11 @@ const depositFunds = async (req, res, next) => {
         buyerAuthorized: false,
         sellerAuthorized: false,
       }, { transaction: t });
+
+      await Property.update(
+        { status: 'PENDING' },
+        { where: { id: transaction.propertyId }, transaction: t }
+      );
 
       await ledgerService.recordEntry({
         transactionId: transaction.id,
@@ -1644,6 +1654,75 @@ const verifyContractByChecksum = async (req, res, next) => {
 // @desc    Get user's platform-wide global accounting journal across all deals
 // @route   GET /api/escrow/my-global-journal
 // @access  Private
+const buildWalletJournalEntries = (walletTxs = []) => {
+  const entries = [];
+
+  walletTxs.forEach((wt) => {
+    const amt = parseFloat(wt.amount || 0);
+    if (!amt) return;
+
+    const userLabel = wt.user?.name || `User #${wt.userId}`;
+    const ref = wt.reference ? `Ref: ${wt.reference}` : 'No reference';
+    const base = { createdAt: wt.createdAt, walletTransactionId: wt.id, source: 'WALLET' };
+
+    if (wt.type === 'DEPOSIT' && wt.status === 'COMPLETED') {
+      entries.push({
+        ...base,
+        id: `wallet-${wt.id}-debit`,
+        transactionId: null,
+        type: 'DEBIT',
+        accountType: 'EXTERNAL_CLEARING',
+        amount: amt,
+        description: `External MoMo/bank payment received — ${userLabel} (${ref})`,
+      });
+      entries.push({
+        ...base,
+        id: `wallet-${wt.id}-credit`,
+        transactionId: null,
+        type: 'CREDIT',
+        accountType: wt.user?.role === 'SELLER' ? 'SELLER_CASH' : 'BUYER_CASH',
+        amount: amt,
+        description: `Wallet credited — ${userLabel}`,
+      });
+    }
+
+    if (wt.type === 'WITHDRAWAL_PAID' && wt.status === 'COMPLETED') {
+      entries.push({
+        ...base,
+        id: `wallet-${wt.id}-withdraw-debit`,
+        transactionId: null,
+        type: 'DEBIT',
+        accountType: wt.user?.role === 'SELLER' ? 'SELLER_CASH' : 'BUYER_CASH',
+        amount: amt,
+        description: `Withdrawal paid out — ${userLabel}`,
+      });
+      entries.push({
+        ...base,
+        id: `wallet-${wt.id}-withdraw-credit`,
+        transactionId: null,
+        type: 'CREDIT',
+        accountType: 'EXTERNAL_CLEARING',
+        amount: amt,
+        description: `External payout sent — ${userLabel}`,
+      });
+    }
+
+    if (wt.type === 'CREDIT' && wt.status === 'COMPLETED') {
+      entries.push({
+        ...base,
+        id: `wallet-${wt.id}-escrow-credit`,
+        transactionId: null,
+        type: 'CREDIT',
+        accountType: wt.user?.role === 'SELLER' ? 'SELLER_CASH' : 'BUYER_CASH',
+        amount: amt,
+        description: `Escrow settlement credit — ${userLabel}`,
+      });
+    }
+  });
+
+  return entries;
+};
+
 const getMyGlobalJournal = async (req, res, next) => {
   try {
     const whereTx = req.user.role === 'ADMIN'
@@ -1664,10 +1743,26 @@ const getMyGlobalJournal = async (req, res, next) => {
       include: [{ model: Transaction, as: 'transaction', include: [{ model: Property, as: 'property', attributes: ['title'] }] }]
     });
 
+    const walletWhere = req.user.role === 'ADMIN'
+      ? { status: 'COMPLETED', type: ['DEPOSIT', 'WITHDRAWAL_PAID', 'CREDIT'] }
+      : { userId: req.user.id, status: 'COMPLETED', type: ['DEPOSIT', 'WITHDRAWAL_PAID', 'CREDIT'] };
+
+    const walletTxs = await WalletTransaction.findAll({
+      where: walletWhere,
+      include: [{ model: User, as: 'user', attributes: ['id', 'name', 'role'] }],
+      order: [['createdAt', 'DESC']],
+    });
+
+    const walletEntries = buildWalletJournalEntries(walletTxs);
+    const escrowEntries = entries.map((e) => ({ ...e.toJSON(), source: 'ESCROW' }));
+    const combinedEntries = [...escrowEntries, ...walletEntries].sort(
+      (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+    );
+
     let totalDebit = 0;
     let totalCredit = 0;
 
-    entries.forEach((e) => {
+    combinedEntries.forEach((e) => {
       const amt = parseFloat(e.amount || 0);
       if (e.type === 'DEBIT') totalDebit += amt;
       if (e.type === 'CREDIT') totalCredit += amt;
@@ -1678,12 +1773,14 @@ const getMyGlobalJournal = async (req, res, next) => {
       data: {
         summary: {
           totalDeals: userTransactions.length,
-          totalEntries: entries.length,
+          totalEntries: combinedEntries.length,
+          escrowEntries: escrowEntries.length,
+          walletEntries: walletEntries.length,
           totalDebit,
           totalCredit,
           netPosition: totalCredit - totalDebit,
         },
-        entries,
+        entries: combinedEntries,
       }
     });
   } catch (error) {

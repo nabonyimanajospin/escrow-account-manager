@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axios from '../api/axiosConfig';
+import BrandLogo from './BrandLogo';
 
 const Navbar = () => {
   const { user, logout, isAuthenticated } = useAuth();
@@ -67,15 +68,19 @@ const Navbar = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           {/* Logo and Brand */}
-          <div className="flex items-center">
-            <Link to="/" className="flex items-center gap-2 group">
-              <span className="font-extrabold text-xl tracking-tight gradient-text">
-                EscrowTrust
-              </span>
-              <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-primary-100 text-primary-700 border border-primary-200">
-                Secure Escrow
-              </span>
-            </Link>
+          <div className="flex items-center min-w-0">
+            <BrandLogo
+              to="/"
+              variant="icon"
+              imgClassName="h-8 w-8"
+              className="sm:hidden min-w-0"
+            />
+            <BrandLogo
+              to="/"
+              variant="primary"
+              imgClassName="h-7 sm:h-9 w-auto max-w-[160px] sm:max-w-none"
+              className="hidden sm:inline-flex min-w-0"
+            />
           </div>
 
           {/* Desktop Navigation Links */}
@@ -223,13 +228,22 @@ const Navbar = () => {
                         🪪 KYC
                       </Link>
                     )}
-                    {(user?.role === 'BUYER' || user?.role === 'SELLER' || user?.role === 'ADMIN') && (
+                    {(user?.role === 'BUYER' || user?.role === 'SELLER') && (
                       <Link
                         to="/wallet"
                         className="text-xs font-semibold text-emerald-600 hover:text-emerald-800 px-2 py-1 rounded hover:bg-emerald-50 transition-all"
                         title="Wallet"
                       >
                         Wallet
+                      </Link>
+                    )}
+                    {user?.role === 'ADMIN' && (
+                      <Link
+                        to="/wallet"
+                        className="text-xs font-semibold text-emerald-600 hover:text-emerald-800 px-2 py-1 rounded hover:bg-emerald-50 transition-all"
+                        title="Platform Treasury"
+                      >
+                        Treasury
                       </Link>
                     )}
                     <button
@@ -322,13 +336,22 @@ const Navbar = () => {
                 </Link>
               )}
 
-              {(user?.role === 'BUYER' || user?.role === 'SELLER' || user?.role === 'ADMIN') && (
+              {(user?.role === 'BUYER' || user?.role === 'SELLER') && (
                 <Link
                   to="/wallet"
                   onClick={() => setMobileMenuOpen(false)}
                   className="block px-3 py-2 rounded-lg text-base font-semibold text-emerald-600 hover:bg-emerald-50"
                 >
                   Wallet
+                </Link>
+              )}
+              {user?.role === 'ADMIN' && (
+                <Link
+                  to="/wallet"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="block px-3 py-2 rounded-lg text-base font-semibold text-emerald-600 hover:bg-emerald-50"
+                >
+                  Treasury
                 </Link>
               )}
 

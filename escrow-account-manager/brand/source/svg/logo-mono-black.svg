@@ -1,0 +1,9 @@
+<svg viewBox="0 0 480 130" xmlns="http://www.w3.org/2000/svg">
+  <g transform="translate(10,5) scale(0.55)">
+    <path d="M40,172 L40,110 A60,60 0 0 1 160,110 L160,172"
+          fill="none" stroke="#0f172a" stroke-width="26" stroke-linecap="round" />
+    <circle cx="100" cy="142" r="15" fill="#0f172a" />
+  </g>
+  <text x="140" y="82" font-family="'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif"
+        font-size="44" font-weight="700" letter-spacing="-0.5" fill="#0f172a">EscrowTrust</text>
+</svg>

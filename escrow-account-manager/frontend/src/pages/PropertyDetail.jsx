@@ -6,8 +6,8 @@ import StatusBadge from '../components/StatusBadge';
 import toast from 'react-hot-toast';
 import CurrencyConverter from '../components/CurrencyConverter';
 import PriceBreakdown from '../components/common/PriceBreakdown';
-import { resolveImageUrl } from '../utils/imageUtils';
-import { calculatePlatformFees } from '../utils/platformFees';
+import { resolveImageUrl, getPropertyCoverImage, DEFAULT_PROPERTY_COVER } from '../utils/imageUtils';
+import { calculatePlatformFees, getRoleAwareListingPrice } from '../utils/platformFees';
 
 const PropertyDetail = () => {
   const { id } = useParams();
@@ -49,7 +49,11 @@ const PropertyDetail = () => {
         setProperty(response.data.data);
       } catch (err) {
         console.error(err);
-        toast.error('Failed to load property details');
+        if (err.response?.status === 404) {
+          toast.error('This property is no longer available');
+        } else {
+          toast.error('Failed to load property details');
+        }
         navigate('/properties');
       } finally {
         setLoading(false);
@@ -87,14 +91,12 @@ const PropertyDetail = () => {
 
     try {
       setActionLoading(true);
-      await axios.post(`/properties/${id}/offers`, {
+      const response = await axios.post(`/properties/${id}/offers`, {
         price: parseFloat(bidPrice),
         paymentPeriodDays: parseInt(bidPeriod, 10),
       });
-      toast.success('Your bid was submitted. Check your rank below.');
-      setBidPrice('');
-      setBidPeriod('');
-      fetchOffers();
+      toast.success('Property reserved at your price. Fund escrow to complete your deposit.');
+      navigate(`/escrow/${response.data.data.id}`);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to place bid');
     } finally {
@@ -180,6 +182,10 @@ const PropertyDetail = () => {
   const isOwner = user?.id === property.sellerId;
   const isAdmin = user?.role === 'ADMIN';
   const showEscrowBtn = !isOwner && !isAdmin && property.status === 'AVAILABLE';
+  const priceDisplay = getRoleAwareListingPrice(property.price, {
+    role: user?.role,
+    isOwner,
+  });
 
   return (
     <div className="page-wrapper space-y-6">
@@ -199,20 +205,17 @@ const PropertyDetail = () => {
           {/* Cover image or placeholder */}
           <div className="space-y-4">
             <div className="card overflow-hidden h-[400px] bg-slate-100 relative">
-              {property.images && property.images.length > 0 ? (
-                <img
-                  src={resolveImageUrl(property.images[selectedImageIndex] || property.images[0])}
-                  alt={property.title}
-                  className="w-full h-full object-cover animate-fade-in transition-all duration-300"
-                />
-              ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 font-semibold bg-slate-200/50">
-                  <svg className="w-12 h-12 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                  </svg>
-                  <span className="text-xs uppercase font-bold tracking-widest">No Image Uploaded</span>
-                </div>
-              )}
+              <img
+                src={resolveImageUrl(
+                  property.images?.[selectedImageIndex] || getPropertyCoverImage(property.images)
+                )}
+                alt={property.title}
+                className="w-full h-full object-cover animate-fade-in transition-all duration-300"
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = DEFAULT_PROPERTY_COVER;
+                }}
+              />
               <div className="absolute top-4 right-4">
                 <StatusBadge status={property.status} />
               </div>
@@ -281,9 +284,9 @@ const PropertyDetail = () => {
           {/* Price & Primary Action Card */}
           <div className="card p-6 bg-white space-y-6">
             <div>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Seller listing price</p>
-              <p className="text-3xl font-extrabold text-slate-900 mt-1">${Number(property.price).toLocaleString()}</p>
-              <span className="text-[10px] font-mono text-slate-400 block mt-1">Currency: USD · set by seller</span>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{priceDisplay.label}</p>
+              <p className="text-3xl font-extrabold text-slate-900 mt-1">${Number(priceDisplay.amount).toLocaleString()}</p>
+              <span className="text-[10px] font-medium text-slate-500 block mt-1">{priceDisplay.hint}</span>
             </div>
 
             {user?.role === 'BUYER' && showEscrowBtn && (
@@ -294,7 +297,7 @@ const PropertyDetail = () => {
             )}
 
             {/* Live RWF Currency Converter */}
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 overflow-hidden">
               <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-3">Convert to Rwandan Francs</p>
               <CurrencyConverter defaultUSD={property.price} compact={true} />
             </div>
@@ -310,7 +313,12 @@ const PropertyDetail = () => {
                     <div className={`p-3 rounded-lg border text-xs font-semibold ${hasFunds ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-amber-50 border-amber-200 text-amber-900'}`}>
                       Your wallet: <strong>${Number(walletBalance).toLocaleString()}</strong>
                       {!hasFunds && (
-                        <span className="block mt-1">You may need additional wallet funds — demo mode auto-top-ups on deposit if needed.</span>
+                        <span className="block mt-1">
+                          You need more wallet funds for this deposit.{' '}
+                          <Link to="/wallet" className="text-primary-700 font-bold underline hover:text-primary-800">
+                            Go to Wallet → Add Funds
+                          </Link>
+                        </span>
                       )}
                     </div>
                   );
@@ -326,7 +334,7 @@ const PropertyDetail = () => {
                       {actionLoading ? 'Initiating Escrow...' : 'Buy now & lock escrow'}
                     </button>
                     <p className="text-[10px] text-slate-400 font-semibold text-center">
-                      Locks escrow at listing price; your wallet deposit includes the 1% buyer fee shown above.
+                      Locks the listing immediately; other buyers will no longer see this property once you reserve it.
                     </p>
                     
                     <details className="mt-2 text-left">
@@ -366,14 +374,17 @@ const PropertyDetail = () => {
                           disabled={actionLoading}
                           className="btn-secondary w-full py-2 font-bold text-xs cursor-pointer"
                         >
-                          {actionLoading ? 'Submitting Offer...' : 'Submit Bargain Offer'}
+                          {actionLoading ? 'Reserving...' : 'Lock at offered price'}
                         </button>
                       </form>
                     </details>
                   </div>
                 ) : (
                   <form onSubmit={handlePlaceBid} className="space-y-4">
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider text-center">Place Bidding Offer</p>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider text-center">Reserve at your price</p>
+                    <p className="text-[10px] text-slate-500 font-medium text-center leading-relaxed">
+                      First buyer to lock and fund removes this listing from the public catalog for everyone else.
+                    </p>
                     <div className="space-y-2">
                       <label className="text-[11px] font-bold text-slate-500 block text-left">Offer Amount ($ USD)</label>
                       <input
@@ -406,7 +417,7 @@ const PropertyDetail = () => {
                       disabled={actionLoading}
                       className="btn-primary w-full py-2.5 font-bold text-xs cursor-pointer"
                     >
-                      {actionLoading ? 'Submitting Bid...' : 'Submit Auction Bid'}
+                      {actionLoading ? 'Reserving...' : 'Lock at this price'}
                     </button>
                   </form>
                 )}
@@ -473,8 +484,8 @@ const PropertyDetail = () => {
             </div>
           </div>
 
-          {/* Buyer offer ranking (auction listings) */}
-          {isAuthenticated && property.listingType === 'AUCTION' && (isOwner || isAdmin || user?.role === 'BUYER') && (
+          {/* Reserved-offer history (seller / admin only) */}
+          {isAuthenticated && (isOwner || isAdmin) && property.listingType === 'AUCTION' && (
             <div className="card p-5 bg-white space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div>

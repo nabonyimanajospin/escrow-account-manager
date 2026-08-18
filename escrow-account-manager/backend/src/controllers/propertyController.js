@@ -1,6 +1,26 @@
 const { Property, User, Transaction, Escrow } = require('../models');
 const logger = require('../utils/logger');
 const { Op } = require('sequelize');
+const { getLockedPropertyIds, ACTIVE_ESCROW_STATES } = require('../utils/propertyMarketplace');
+
+/** Multipart forms send one image URL as a string; normalize to string[]. */
+const normalizeImagesInput = (images) => {
+  if (Array.isArray(images)) {
+    return images.map((item) => String(item).trim()).filter(Boolean);
+  }
+  if (typeof images === 'string' && images.trim()) {
+    return images.split(',').map((item) => item.trim()).filter(Boolean);
+  }
+  return [];
+};
+
+const buildFinalImages = (imagesInput, existingImages = [], uploadedFile) => {
+  const fromBody = imagesInput !== undefined ? normalizeImagesInput(imagesInput) : [...(existingImages || [])];
+  if (uploadedFile) {
+    return [`/uploads/properties/${uploadedFile.filename}`, ...fromBody];
+  }
+  return fromBody;
+};
 
 const normalizePropertySpecs = ({ propertyType, bedrooms, bathrooms, area }) => {
   if (propertyType === 'LAND') {
@@ -54,23 +74,25 @@ exports.getProperties = async (req, res, next) => {
       offset,
     });
 
-    // Filter out properties with active PENDING bids for general buyers browsing available listings
     const isSellerOrAdmin = req.user && (req.user.role === 'SELLER' || req.user.role === 'ADMIN');
+    const lockedPropertyIds = await getLockedPropertyIds();
+
     const filteredRows = rows.filter((property) => {
-      if (isSellerOrAdmin) return true;
-      // If filtering for available properties or general catalog, hide properties with active pending bids
-      const hasActivePendingBid = Array.isArray(property.offers) && property.offers.some((o) => o.status === 'PENDING');
-      if (hasActivePendingBid) return false;
+      // Sellers/admins browsing their tools may see locked listings when not filtering to AVAILABLE only
+      if (isSellerOrAdmin && status && status !== 'AVAILABLE') return true;
+
+      if (property.status !== 'AVAILABLE') return false;
+      if (lockedPropertyIds.has(property.id)) return false;
       return true;
     });
 
     res.status(200).json({
       success: true,
       count: filteredRows.length,
-      total: count,
-      totalPages: Math.ceil(count / limit),
+      total: filteredRows.length,
+      totalPages: Math.ceil(filteredRows.length / limit) || 1,
       currentPage: page,
-      data: filteredRows
+      data: filteredRows,
     });
   } catch (error) {
     next(error);
@@ -83,11 +105,30 @@ exports.getProperties = async (req, res, next) => {
 exports.getProperty = async (req, res, next) => {
   try {
     const property = await Property.findByPk(req.params.id, {
-      include: [{ model: User, as: 'seller', attributes: ['id', 'name'] }],
+      include: [{ model: User, as: 'seller', attributes: ['id', 'name', 'email', 'phone'] }],
     });
 
     if (!property) {
       return res.status(404).json({ success: false, message: 'Property not found' });
+    }
+
+    const activeTxn = await Transaction.findOne({
+      where: {
+        propertyId: property.id,
+        status: { [Op.in]: ACTIVE_ESCROW_STATES },
+      },
+    });
+
+    const isListingOwner = req.user && req.user.id === property.sellerId;
+    const isAdmin = req.user && req.user.role === 'ADMIN';
+    const isActiveBuyer = activeTxn && req.user && req.user.id === activeTxn.buyerId;
+    const isPubliclyAvailable = property.status === 'AVAILABLE' && !activeTxn;
+
+    if (!isPubliclyAvailable && !isListingOwner && !isAdmin && !isActiveBuyer) {
+      return res.status(404).json({
+        success: false,
+        message: 'This property is no longer available on the public marketplace.',
+      });
     }
 
     res.status(200).json({ success: true, data: property });
@@ -165,10 +206,7 @@ exports.createProperty = async (req, res, next) => {
     const specs = normalizePropertySpecs({ propertyType, bedrooms, bathrooms, area });
 
     // Handle image upload — uploaded file takes priority; fallback to URL array from body
-    let finalImages = Array.isArray(images) ? images.filter(Boolean) : [];
-    if (req.file) {
-      finalImages = [`/uploads/properties/${req.file.filename}`, ...finalImages];
-    }
+    const finalImages = buildFinalImages(images, [], req.file);
 
     const property = await Property.create({
       sellerId: req.user.id,
@@ -246,6 +284,8 @@ exports.updateProperty = async (req, res, next) => {
       area: finalArea
     });
 
+    const finalImages = buildFinalImages(images, property.images, req.file);
+
     await property.update({
       title: title !== undefined ? title : property.title,
       description: description !== undefined ? description : property.description,
@@ -253,7 +293,7 @@ exports.updateProperty = async (req, res, next) => {
       location: location !== undefined ? location : property.location,
       ...specs,
       propertyType: finalPropertyType,
-      images: Array.isArray(images) ? images.filter(Boolean) : property.images,
+      images: finalImages,
       listingType: finalListingType,
       biddingDeadline: finalListingType === 'AUCTION' ? new Date(finalBiddingDeadline) : null,
       upiCode: finalUpiCode.toUpperCase(),

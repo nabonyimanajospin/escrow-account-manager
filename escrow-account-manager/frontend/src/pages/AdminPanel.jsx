@@ -277,7 +277,7 @@ const AdminPanel = () => {
 
         {/* Tab Content Components */}
         {activeTab === 'properties' && (
-          <div className="overflow-x-auto">
+          <div className="table-scroll">
             <table className="min-w-full">
               <thead>
                 <tr className="text-left text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">
@@ -333,7 +333,7 @@ const AdminPanel = () => {
         )}
 
         {activeTab === 'transactions' && (
-          <div className="overflow-x-auto">
+          <div className="table-scroll">
             <table className="min-w-full">
               <thead>
                 <tr className="text-left text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">
@@ -443,7 +443,7 @@ const AdminPanel = () => {
         )}
 
         {activeTab === 'wallet' && (
-          <div className="overflow-x-auto">
+          <div className="table-scroll">
             <p className="text-xs text-slate-500 font-semibold mb-4">
               Verify buyer MoMo/bank payments and credit wallets before they can lock escrow deposits.
             </p>
@@ -486,7 +486,7 @@ const AdminPanel = () => {
         )}
 
         {activeTab === 'users' && (
-          <div className="overflow-x-auto">
+          <div className="table-scroll">
             <table className="min-w-full">
               <thead>
                 <tr className="text-left text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">

@@ -131,6 +131,7 @@ app.get('/uploads/contracts/:filename', protect, async (req, res) => {
       });
     }
     if (tx) {
+      // Regenerate so downloads always use the latest certificate template (logo, QR, layout).
       await generateEscrowContract(tx, req.params.filename);
       if (fs.existsSync(requestedFile)) {
         return res.sendFile(requestedFile);

@@ -8,6 +8,7 @@ import EmptyState from '../components/common/EmptyState';
 import { SkeletonCard, SkeletonTable } from '../components/common/SkeletonLoader';
 import OnboardingChecklist from '../components/common/OnboardingChecklist';
 import GlobalAccountingJournal from '../components/escrow/GlobalAccountingJournal';
+import { calculatePlatformFees, formatMoney } from '../utils/platformFees';
 
 const StatCard = ({ label, value, sub }) => (
   <div className="stat-card p-6 animate-fade-in bg-white">
@@ -77,7 +78,7 @@ const Dashboard = () => {
       const requests = [
         isSeller
           ? axios.get('/properties/mine')
-          : axios.get('/properties?limit=100'),
+          : axios.get('/properties?status=AVAILABLE&limit=100'),
         axios.get('/escrow/my?limit=100'),
       ];
       if (user?.role !== 'ADMIN') {
@@ -461,6 +462,9 @@ const Dashboard = () => {
                       </div>
                       <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
                         <p className="text-sm font-extrabold text-slate-900">${Number(p.price).toLocaleString()}</p>
+                        <p className="text-[10px] text-emerald-700 font-semibold">
+                          Net ${formatMoney(calculatePlatformFees(p.price).sellerNetPayout)}
+                        </p>
                         <div className="flex gap-2 items-center flex-wrap justify-end">
                           <StatusBadge status={p.status} variant="property" />
                           {activeTxn && (

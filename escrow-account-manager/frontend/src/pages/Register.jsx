@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import BrandLogo from '../components/BrandLogo';
 
 const Register = () => {
   const { register } = useAuth();
@@ -64,6 +65,9 @@ const Register = () => {
         
         {/* Header */}
         <div className="text-center">
+          <div className="flex justify-center mb-5">
+            <BrandLogo to="/" variant="primary" imgClassName="h-10 sm:h-11 w-auto" />
+          </div>
           <span className="text-sm font-bold text-primary-600 uppercase tracking-widest font-mono">Create Secure Account</span>
           <h2 className="mt-2 text-3xl font-extrabold text-slate-900 font-sans">
             Get started with EscrowTrust
@@ -74,7 +78,8 @@ const Register = () => {
         </div>
 
         {/* Card Form */}
-        <div className="card p-8 bg-white">
+        <div className="auth-portal-frame">
+          <div className="card p-8 bg-white">
           <form onSubmit={handleSubmit} className="space-y-6">
             
             {error && (
@@ -223,6 +228,7 @@ const Register = () => {
               </button>
             </div>
           </form>
+          </div>
         </div>
 
         {/* Login navigation link */}

@@ -1,13 +1,23 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import axios from '../api/axiosConfig';
+import { useAuth } from '../context/AuthContext';
 import StatusBadge from '../components/StatusBadge';
 import toast from 'react-hot-toast';
-import { resolveImageUrl } from '../utils/imageUtils';
+import { resolveImageUrl, getPropertyCoverImage, DEFAULT_PROPERTY_COVER } from '../utils/imageUtils';
 import EmptyState from '../components/common/EmptyState';
 import { SkeletonCard } from '../components/common/SkeletonLoader';
+import { getRoleAwareListingPrice, formatMoney } from '../utils/platformFees';
+
+const cardPriceBadgeSize = (amount) => {
+  const text = formatMoney(amount);
+  if (text.length > 11) return 'text-[11px]';
+  if (text.length > 9) return 'text-xs';
+  return 'text-sm';
+};
 
 const PropertyList = () => {
+  const { user } = useAuth();
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
   
@@ -170,30 +180,37 @@ const PropertyList = () => {
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredProperties.map((p) => (
+          {filteredProperties.map((p) => {
+            const priceDisplay = getRoleAwareListingPrice(p.price, {
+              role: user?.role,
+              isOwner: user?.id === p.sellerId,
+            });
+            const coverImage = getPropertyCoverImage(p.images);
+            return (
             <div key={p.id} className="card overflow-hidden flex flex-col justify-between bg-white h-[380px]">
               
               {/* Image & Price Area */}
               <div className="h-44 bg-slate-100 relative">
-                {p.images && p.images[0] ? (
-                  <img
-                    src={resolveImageUrl(p.images[0])}
-                    alt={p.title}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 font-semibold bg-slate-200/50">
-                    <svg className="w-8 h-8 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                    </svg>
-                    <span className="text-[10px] uppercase font-bold tracking-wider">No Image Reference</span>
-                  </div>
-                )}
+                <img
+                  src={resolveImageUrl(coverImage)}
+                  alt={p.title}
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = DEFAULT_PROPERTY_COVER;
+                  }}
+                />
                 <div className="absolute top-3 right-3">
                   <StatusBadge status={p.status} />
                 </div>
-                <div className="absolute bottom-3 left-3 bg-slate-900/90 text-white font-extrabold px-3 py-1 text-sm rounded-lg border border-slate-700">
-                  ${Number(p.price).toLocaleString()}
+                <div className="absolute bottom-3 left-3 max-w-[calc(100%-1.5rem)] bg-slate-900/95 text-white px-3 py-2 rounded-lg border border-slate-700 shadow-md">
+                  <span className="block text-[9px] font-bold uppercase tracking-wide text-slate-300 leading-tight">
+                    {priceDisplay.label}
+                  </span>
+                  <span className={`block font-extrabold tabular-nums leading-snug mt-0.5 ${cardPriceBadgeSize(priceDisplay.amount)}`}>
+                    ${formatMoney(priceDisplay.amount)}
+                  </span>
                 </div>
               </div>
 
@@ -229,7 +246,8 @@ const PropertyList = () => {
                 View Property Details &rarr;
               </Link>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

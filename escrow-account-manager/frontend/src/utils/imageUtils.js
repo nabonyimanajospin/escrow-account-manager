@@ -1,8 +1,21 @@
 import axios from '../api/axiosConfig';
 
+export const DEFAULT_PROPERTY_COVER =
+  'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80';
+
+export const getPropertyCoverImage = (images) => {
+  const first = Array.isArray(images) ? images.find(Boolean) : images;
+  return first || DEFAULT_PROPERTY_COVER;
+};
+
 export const resolveImageUrl = (url) => {
   if (!url) return '';
-  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
+  if (
+    url.startsWith('http://') ||
+    url.startsWith('https://') ||
+    url.startsWith('data:') ||
+    url.startsWith('blob:')
+  ) {
     return url;
   }
   const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';

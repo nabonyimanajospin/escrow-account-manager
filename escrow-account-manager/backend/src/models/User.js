@@ -49,7 +49,7 @@ const User = sequelize.define('User', {
   },
   isKycVerified: {
     type: DataTypes.BOOLEAN,
-    defaultValue: true,
+    defaultValue: false,
   },
   kycVerifiedAt: {
     type: DataTypes.DATE,
@@ -65,6 +65,10 @@ const User = sequelize.define('User', {
     allowNull: true,
   },
   kycDocumentUrl: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  nationalIdNumber: {
     type: DataTypes.STRING,
     allowNull: true,
   },

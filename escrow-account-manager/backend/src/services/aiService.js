@@ -54,10 +54,10 @@ ${dealContext}
 The user (${context.role || 'GUEST'}${context.userName ? `, ${context.userName}` : ''}) asks:
 "${message}"
 
-Respond accurately using ONLY the system reference and live deal context. If this is a general platform question with no active deal, use the full system reference. Keep under 3 short paragraphs unless listing steps.`;
+Respond accurately using ONLY the system reference and live deal context. If this is a general platform question with no active deal, use the full system reference. Keep under 3 short paragraphs unless listing steps. Answer the exact question first — never reply with only a capability list unless the user asks what you can do.`;
 
   const timeoutPromise = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error('AI response timeout')), 12000)
+    setTimeout(() => reject(new Error('AI response timeout')), 60000)
   );
 
   const apiPromise = (async () => {

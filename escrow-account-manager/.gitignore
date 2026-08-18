@@ -10,8 +10,9 @@ node_modules/
 backend/.env
 frontend/.env
 
-# Uploaded files (user documents, images)
+# Uploaded files (user documents, images, generated contracts)
 backend/uploads/
+backend/src/uploads/
 
 # Build output
 frontend/dist/

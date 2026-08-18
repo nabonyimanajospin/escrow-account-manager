@@ -1336,7 +1336,7 @@ STATUS: COMPLETED MUTATION`;
                     </div>
 
                     {/* Actions Row */}
-                    <div className="grid grid-cols-2 gap-3 pt-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                       <button
                         type="button"
                         onClick={handleAdminRefund}
@@ -1636,7 +1636,7 @@ STATUS: COMPLETED MUTATION`;
                           onChange={(e) => setArbitrationNotes(e.target.value)}
                           disabled={actionLoading}
                         />
-                        <div className="grid grid-cols-2 gap-2 pt-1">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                           <button
                             type="button"
                             onClick={() => handleResolveDispute('REFUND_TO_BUYER')}

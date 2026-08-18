@@ -69,21 +69,26 @@ export default function CurrencyConverter({ defaultUSD = '', compact = false }) 
       <div style={cs.compactWrap}>
         <div style={cs.compactRow}>
           <div style={cs.compactField}>
-              <span style={cs.compactLabel}>USD $</span>
-              <input
-                style={cs.compactInput}
-                type="text"
-                value={usd}
-                onChange={(e) => handleUsdChange(e.target.value)}
-                placeholder="0.00"
-              />
-            </div>
+            <span style={cs.compactLabel}>USD $</span>
+            <input
+              style={cs.compactInput}
+              type="text"
+              inputMode="decimal"
+              value={usd}
+              onChange={(e) => handleUsdChange(e.target.value)}
+              placeholder="0.00"
+            />
+          </div>
           <span style={cs.arrow}>⇄</span>
           <div style={cs.compactField}>
             <span style={cs.compactLabel}>RWF</span>
             <input
-              style={cs.compactInput}
+              style={{
+                ...cs.compactInput,
+                fontSize: rwf && rwf.replace(/,/g, '').length > 9 ? 12 : 14,
+              }}
               type="text"
+              inputMode="numeric"
               value={rwf}
               onChange={(e) => handleRwfChange(e.target.value)}
               placeholder="0"
@@ -239,21 +244,29 @@ const cs = {
   },
   disclaimer: { color: '#6b7280', fontSize: 12, marginTop: 16, marginBottom: 0 },
   // Compact styles
-  compactWrap: { padding: '12px 0' },
-  compactRow: { display: 'flex', alignItems: 'center', gap: 10 },
-  compactField: { display: 'flex', alignItems: 'center', gap: 6 },
-  compactLabel: { color: '#9ca3af', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' },
+  compactWrap: { padding: '4px 0', width: '100%', maxWidth: '100%', overflow: 'hidden' },
+  compactRow: {
+    display: 'grid',
+    gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
+    gap: 8,
+    alignItems: 'end',
+    width: '100%',
+  },
+  compactField: { display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 },
+  compactLabel: { color: '#64748b', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' },
   compactInput: {
     background: '#ffffff',
-    border: '1px solid rgba(200,169,110,0.3)',
+    border: '1px solid #cbd5e1',
     borderRadius: 8,
     padding: '8px 10px',
     color: '#1e293b',
     fontSize: 14,
     outline: 'none',
-    width: 110,
+    width: '100%',
+    minWidth: 0,
+    boxSizing: 'border-box',
     fontFamily: 'inherit',
   },
-  arrow: { color: '#c8a96e', fontSize: 18 },
+  arrow: { color: '#2563eb', fontSize: 16, paddingBottom: 8, flexShrink: 0, textAlign: 'center' },
   liveRate: { color: '#9ca3af', fontSize: 11, marginTop: 6, marginBottom: 0 },
 };

@@ -116,6 +116,19 @@ class InstitutionalSockets {
       nationalIdNumber: nationalId || user.nationalIdNumber,
     });
 
+    if (isVerified) {
+      const notificationService = require('./notificationService');
+      notificationService.notifyUserTriChannel(
+        user,
+        'KYC Verified ✅',
+        'Your identity was verified instantly via the RDB registry.',
+        {
+          emailSubject: '✅ EscrowTrust — Identity Verified',
+          emailHtml: `<p>Hello <strong>${user.name}</strong>, your Rwanda National ID was verified. KYC is complete — you only need to do this once.</p>`,
+        }
+      ).catch(() => {});
+    }
+
     return {
       success: true,
       userId,

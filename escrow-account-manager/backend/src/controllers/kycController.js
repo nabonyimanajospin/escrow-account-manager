@@ -17,7 +17,14 @@ exports.submitKyc = async (req, res, next) => {
     }
 
     if (user.isKycVerified) {
-      return res.status(400).json({ success: false, message: 'Your account is already KYC verified.' });
+      return res.status(400).json({ success: false, message: 'Your account is already KYC verified. Verification is only required once.' });
+    }
+
+    if (user.kycDocumentUrl) {
+      return res.status(400).json({
+        success: false,
+        message: 'Your identity document is already under admin review. You will be notified once verified.',
+      });
     }
 
     // Store the uploaded file path on the user record for admin review
@@ -26,6 +33,10 @@ exports.submitKyc = async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: 'KYC document submitted successfully. An administrator will review and verify your account within 1-2 business days.',
+      data: {
+        kycDocumentUrl: user.kycDocumentUrl,
+        isKycVerified: user.isKycVerified,
+      },
     });
   } catch (error) {
     next(error);

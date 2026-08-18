@@ -8,6 +8,21 @@ const generateToken = (id) => {
   });
 };
 
+const serializeUser = (user) => ({
+  id: user.id,
+  name: user.name,
+  email: user.email,
+  role: user.role,
+  phone: user.phone,
+  address: user.address,
+  bio: user.bio,
+  walletBalance: user.walletBalance,
+  isKycVerified: user.isKycVerified,
+  kycVerifiedAt: user.kycVerifiedAt,
+  kycDocumentUrl: user.kycDocumentUrl,
+  nationalIdNumber: user.nationalIdNumber,
+});
+
 // @desc    Register new user
 // @route   POST /api/auth/register
 // @access  Public
@@ -45,7 +60,15 @@ exports.register = async (req, res, next) => {
       });
     }
 
-    const user = await User.create({ name, email: cleanEmail, password, role, phone, address });
+    const user = await User.create({
+      name,
+      email: cleanEmail,
+      password,
+      role,
+      phone,
+      address,
+      isKycVerified: false,
+    });
     const token = generateToken(user.id);
     const cookieOptions = {
       expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
@@ -58,12 +81,7 @@ exports.register = async (req, res, next) => {
     res.status(201).json({
       success: true,
       token,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-      },
+      user: serializeUser(user),
     });
   } catch (error) {
     next(error);
@@ -113,12 +131,7 @@ exports.login = async (req, res, next) => {
     res.status(200).json({
       success: true,
       token,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-      },
+      user: serializeUser(user),
     });
   } catch (error) {
     next(error);
@@ -190,18 +203,7 @@ exports.updateMe = async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: 'Profile updated successfully.',
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        phone: user.phone,
-        address: user.address,
-        bio: user.bio,
-        walletBalance: user.walletBalance,
-        isKycVerified: user.isKycVerified,
-        kycVerifiedAt: user.kycVerifiedAt,
-      },
+      user: serializeUser(user),
     });
   } catch (error) {
     next(error);

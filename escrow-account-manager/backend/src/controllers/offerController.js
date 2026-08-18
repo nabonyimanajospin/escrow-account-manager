@@ -1,8 +1,32 @@
 const { Offer, Property, User, Transaction, Escrow, AuditLog } = require('../models');
 const { sequelize } = require('../config/database');
-const otpService = require('../services/otpService');
+const { Op } = require('sequelize');
 const notificationService = require('../services/notificationService');
 const blockchainProvider = require('../services/blockchainProvider');
+const otpService = require('../services/otpService');
+const { transactionIncludes } = require('../utils/transactionHelpers');
+const { ACTIVE_ESCROW_STATES, propertyHasActiveEscrow } = require('../utils/propertyMarketplace');
+
+const deliverConsensusOtp = async (transaction, dbTransaction, targetRole = 'BOTH') => {
+  const otp = await otpService.issueConsensusCode(transaction, dbTransaction);
+  const [buyer, seller] = await Promise.all([
+    User.findByPk(transaction.buyerId, { transaction: dbTransaction }),
+    User.findByPk(transaction.sellerId, { transaction: dbTransaction }),
+  ]);
+
+  setImmediate(async () => {
+    try {
+      if (buyer && (targetRole === 'BOTH' || targetRole === 'BUYER')) {
+        await notificationService.sendConsensusCode({ user: buyer, transaction, ...otp });
+      }
+      if (seller && (targetRole === 'BOTH' || targetRole === 'SELLER')) {
+        await notificationService.sendConsensusCode({ user: seller, transaction, ...otp });
+      }
+    } catch (err) {
+      console.error('[OTP Delivery]', err.message);
+    }
+  });
+};
 
 /** Rank pending offers: price weight, settlement days, KYC bonus. */
 const computeRankedPendingOffers = (offers, targetPrice) => {
@@ -35,7 +59,7 @@ const computeRankedPendingOffers = (offers, targetPrice) => {
   return ranked;
 };
 
-// @desc    Place a bid/offer on a property
+// @desc    Buyer locks a property at an offered price (first buyer wins — no multi-bidder auction)
 // @route   POST /api/properties/:id/offers
 // @access  Private (BUYER)
 exports.createOffer = async (req, res, next) => {
@@ -47,82 +71,132 @@ exports.createOffer = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Please provide offer price and payment period in days' });
     }
 
-    const property = await Property.findByPk(propertyId);
-    if (!property) {
-      return res.status(404).json({ success: false, message: 'Property not found' });
-    }
-
-    if (property.status !== 'AVAILABLE') {
-      return res.status(400).json({ success: false, message: 'This property is not open for bidding' });
-    }
-
-    if (property.listingType !== 'AUCTION') {
-      return res.status(400).json({ success: false, message: 'Bidding is only permitted for AUCTION listings' });
-    }
-
-    if (property.biddingDeadline && new Date() > new Date(property.biddingDeadline)) {
-      return res.status(400).json({ success: false, message: 'Bidding deadline has passed for this property' });
-    }
-
-    if (property.sellerId === req.user.id) {
-      return res.status(400).json({ success: false, message: 'Sellers cannot place bids on their own listings' });
-    }
-
-    // Check for duplicate pending offer from this buyer
-    const existingOffer = await Offer.findOne({
-      where: {
-        propertyId,
-        buyerId: req.user.id,
-        status: 'PENDING',
-      }
-    });
-    if (existingOffer) {
-      return res.status(400).json({ success: false, message: 'You already have an active pending bid on this listing' });
-    }
-
-    const targetPrice = parseFloat(property.price);
     const offerPrice = parseFloat(price);
-
-    if (offerPrice < targetPrice) {
-      return res.status(400).json({ 
-        success: false, 
-        message: `Your bid amount must be at least the target listing price of $${targetPrice.toLocaleString()}` 
-      });
+    if (!Number.isFinite(offerPrice) || offerPrice <= 0) {
+      return res.status(400).json({ success: false, message: 'Please provide a valid offer price' });
     }
 
-    const offer = await Offer.create({
-      propertyId,
-      buyerId: req.user.id,
-      price: offerPrice,
-      paymentPeriodDays: Number(paymentPeriodDays),
-      status: 'PENDING',
+    const paymentDays = Number(paymentPeriodDays);
+    if (!Number.isFinite(paymentDays) || paymentDays < 1) {
+      return res.status(400).json({ success: false, message: 'Payment period must be at least 1 day' });
+    }
+
+    const transactionId = await sequelize.transaction(async (t) => {
+      const property = await Property.findByPk(propertyId, { transaction: t, lock: t.LOCK.UPDATE });
+      if (!property) {
+        throw Object.assign(new Error('Property not found'), { statusCode: 404 });
+      }
+
+      if (property.status !== 'AVAILABLE') {
+        throw Object.assign(new Error('This property is no longer available'), { statusCode: 400 });
+      }
+
+      if (await propertyHasActiveEscrow(property.id, t)) {
+        throw Object.assign(new Error('This property has already been reserved by another buyer'), { statusCode: 400 });
+      }
+
+      if (property.biddingDeadline && new Date() > new Date(property.biddingDeadline)) {
+        throw Object.assign(new Error('The offer window for this listing has closed'), { statusCode: 400 });
+      }
+
+      if (property.sellerId === req.user.id) {
+        throw Object.assign(new Error('Sellers cannot purchase their own listings'), { statusCode: 400 });
+      }
+
+      const targetPrice = parseFloat(property.price);
+      if (offerPrice < targetPrice) {
+        throw Object.assign(
+          new Error(`Your offer must be at least the listing price of $${targetPrice.toLocaleString()}`),
+          { statusCode: 400 }
+        );
+      }
+
+      const buyerActiveCount = await Transaction.count({
+        where: { buyerId: req.user.id, status: { [Op.in]: ACTIVE_ESCROW_STATES } },
+        transaction: t,
+      });
+      if (process.env.NODE_ENV === 'production' && buyerActiveCount >= 10) {
+        throw Object.assign(new Error('You have exceeded the maximum limit of active escrow transactions.'), { statusCode: 400 });
+      }
+
+      await Offer.update(
+        { status: 'REJECTED' },
+        { where: { propertyId: property.id, status: 'PENDING' }, transaction: t }
+      );
+
+      const offer = await Offer.create({
+        propertyId: property.id,
+        buyerId: req.user.id,
+        price: offerPrice,
+        paymentPeriodDays: paymentDays,
+        status: 'ACCEPTED',
+      }, { transaction: t });
+
+      const buyerFee = parseFloat((offerPrice * 0.010).toFixed(2));
+      const sellerFee = parseFloat((offerPrice * 0.015).toFixed(2));
+
+      const transaction = await Transaction.create({
+        propertyId: property.id,
+        buyerId: req.user.id,
+        sellerId: property.sellerId,
+        amount: offerPrice,
+        buyerFee,
+        sellerFee,
+        status: 'PENDING',
+      }, { transaction: t });
+
+      const deployReceipt = await blockchainProvider.deployEscrowContract(transaction);
+
+      const escrow = await Escrow.create({
+        transactionId: transaction.id,
+        contractAddress: deployReceipt.contractAddress,
+        balance: 0.00,
+        status: 'ACTIVE',
+      }, { transaction: t });
+
+      await transaction.update({ escrowAccountId: escrow.id }, { transaction: t });
+      await property.update({ status: 'PENDING' }, { transaction: t });
+      await deliverConsensusOtp(transaction, t, 'BOTH');
+
+      await AuditLog.create({
+        transactionId: transaction.id,
+        userId: req.user.id,
+        userName: req.user.name,
+        userRole: req.user.role,
+        action: `Buyer locked listing at $${offerPrice.toLocaleString()} (${paymentDays}-day settlement). Property removed from public catalog.`,
+        ipAddress: req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1',
+        userAgent: req.headers['user-agent'] || 'Unknown Browser',
+      }, { transaction: t });
+
+      return { transactionId: transaction.id, offerId: offer.id };
     });
+
+    const result = await Transaction.findByPk(transactionId.transactionId, { include: transactionIncludes });
 
     try {
-      const allOffers = await Offer.findAll({
-        where: { propertyId },
-        include: [{ model: User, as: 'buyer', attributes: ['id', 'isKycVerified'] }],
-      });
-      const rankedOffers = computeRankedPendingOffers(allOffers, targetPrice);
-      const myRanked = rankedOffers.find((o) => o.id === offer.id);
-      const rank = myRanked?.rank || rankedOffers.length;
-
       await notificationService.createInAppNotification(
         req.user.id,
-        'Bid placed',
-        `Your offer of $${offerPrice.toLocaleString()} was submitted. You are ranked #${rank} of ${rankedOffers.length} bidder${rankedOffers.length !== 1 ? 's' : ''}.`
+        'Property reserved',
+        `You locked this listing at $${offerPrice.toLocaleString()}. Fund escrow from your wallet to complete the deposit.`
       );
       await notificationService.createInAppNotification(
-        property.sellerId,
-        'New buyer offer',
-        `A new offer of $${offerPrice.toLocaleString()} was placed. Review buyer rankings on the listing page.`
+        result.sellerId,
+        'Listing reserved',
+        `A buyer locked your property at $${offerPrice.toLocaleString()}. It is no longer visible to other buyers.`
       );
     } catch (notifErr) {
-      console.error('Failed to send bid notifications', notifErr);
+      console.error('Failed to send reservation notifications', notifErr);
     }
 
-    res.status(201).json({ success: true, message: 'Bid successfully placed on property listing', data: offer });
+    res.status(201).json({
+      success: true,
+      message: 'Property reserved at your offered price. Proceed to fund escrow — the listing is now hidden from other buyers.',
+      data: result,
+    });
   } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ success: false, message: error.message });
+    }
     next(error);
   }
 };
@@ -297,7 +371,7 @@ exports.acceptOffer = async (req, res, next) => {
       await property.update({ status: 'PENDING' }, { transaction: t });
 
       // 8.5. Issue OTP to both parties to proceed with deposit
-      await issueAndDeliverConsensusOtp(transaction, t, 'BOTH');
+      await deliverConsensusOtp(transaction, t, 'BOTH');
 
       // 9. Log to audit trail
       await AuditLog.create({

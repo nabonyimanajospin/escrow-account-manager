@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { QRCodeSVG } from 'qrcode.react';
 import { useAuth } from '../../context/AuthContext';
 import { getStableContractChecksum, isContractFinalized } from '../../utils/contractChecksum';
+import BrandLogo from '../BrandLogo';
 
 const WORKFLOW_BY_STATUS = {
   PENDING: 'Awaiting dual OTP consensus from buyer and seller',
@@ -55,20 +56,8 @@ const ContractPreviewModal = ({ isOpen, onClose, transaction }) => {
   const [loadingAi, setLoadingAi] = useState(false);
   const contractRef = useRef(null);
 
-  if (!isOpen || !transaction) return null;
-
-  const { property, buyer, seller, amount, buyerFee, sellerFee, status, id, createdAt, transactionId, buyerAuthorized, sellerAuthorized } = transaction;
-  const priceNum = parseFloat(amount || 0);
-  const buyerFeeNum = parseFloat(buyerFee || (priceNum * 0.01));
-  const sellerFeeNum = parseFloat(sellerFee || (priceNum * 0.015));
-  const totalBuyerPaid = priceNum + buyerFeeNum;
-  const sellerNetPayout = priceNum - sellerFeeNum;
-
-  const checksum = getStableContractChecksum(transaction);
-  const verificationUrl = `${window.location.origin}/verify-contract/${encodeURIComponent(checksum)}`;
-  const isFinalized = isContractFinalized(status);
-
   const handleMouseUp = useCallback(() => {
+    if (!transaction) return;
     const selection = window.getSelection();
     const ctx = getSelectionContext(selection, contractRef);
 
@@ -94,7 +83,20 @@ const ContractPreviewModal = ({ isOpen, onClose, transaction }) => {
     setParagraphText(ctx.paragraphText);
     setClauseLabel(ctx.clauseLabel);
     setFloatingPos({ top, left, visible: true });
-  }, []);
+  }, [transaction]);
+
+  if (!isOpen || !transaction) return null;
+
+  const { property, buyer, seller, amount, buyerFee, sellerFee, status, id, createdAt, transactionId, buyerAuthorized, sellerAuthorized } = transaction;
+  const priceNum = parseFloat(amount || 0);
+  const buyerFeeNum = parseFloat(buyerFee || (priceNum * 0.01));
+  const sellerFeeNum = parseFloat(sellerFee || (priceNum * 0.015));
+  const totalBuyerPaid = priceNum + buyerFeeNum;
+  const sellerNetPayout = priceNum - sellerFeeNum;
+
+  const checksum = getStableContractChecksum(transaction);
+  const verificationUrl = `${window.location.origin}/verify-contract/${encodeURIComponent(checksum)}`;
+  const isFinalized = isContractFinalized(status);
 
   const buildAiContext = () => ({
     selectedText,
@@ -274,6 +276,9 @@ const ContractPreviewModal = ({ isOpen, onClose, transaction }) => {
             </div>
 
             <div className="text-center border-b border-slate-300 pb-4 mb-6">
+              <div className="flex justify-center mb-3">
+                <BrandLogo variant="primary" imgClassName="h-10 sm:h-12 w-auto" alt="EscrowTrust" />
+              </div>
               <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">
                 REPUBLIC OF RWANDA • LAND MANAGEMENT & ESCROW VAULT
               </h3>

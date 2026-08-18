@@ -10,7 +10,14 @@ const {
   simulateIremboWebhook,
   simulateMomoWebhook,
 } = require('../controllers/transactionController');
-const { approveWithdrawal, rejectWithdrawal, approveWalletDeposit, rejectWalletDeposit, getPendingWalletDeposits } = require('../controllers/walletController');
+const {
+  approveWithdrawal,
+  rejectWithdrawal,
+  approveWalletDeposit,
+  rejectWalletDeposit,
+  getPendingWalletDeposits,
+  getPlatformSummary,
+} = require('../controllers/walletController');
 const { getPendingKyc, approveKyc, rejectKyc } = require('../controllers/kycController');
 const { protect } = require('../middleware/auth');
 const roleCheck = require('../middleware/roleCheck');
@@ -40,6 +47,9 @@ router.get('/audit-logs', getAuditLogs);
 
 // Verify audit logs integrity chain
 router.get('/audit-logs/verify', verifyAuditLogs);
+
+// Platform treasury overview
+router.get('/platform-summary', getPlatformSummary);
 
 // Wallet management
 router.post('/wallet/:id/approve', approveWithdrawal);

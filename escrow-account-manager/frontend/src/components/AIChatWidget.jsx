@@ -16,8 +16,8 @@ const AIChatWidget = () => {
     {
       role: 'ai',
       content: transactionId
-        ? 'Hello! I am your AI Escrow Co-pilot. How can I assist you with this transaction today?'
-        : 'Hello! I am your AI Assistant. Ask me about buying property, escrow fees, or how the platform works.',
+        ? 'Hello! I\'m the **EscrowTrust AI Co-Pilot** for this deal. How can I help with this transaction?'
+        : 'Hello! I\'m the **EscrowTrust AI Co-Pilot**. Ask me about buying property, escrow fees, contracts, or how the platform works.',
       timestamp: new Date(),
     },
   ]);
@@ -87,7 +87,10 @@ const AIChatWidget = () => {
         <button
           type="button"
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-6 right-6 flex items-center gap-2.5 pl-4 pr-5 py-3.5 bg-[#2554eb] text-white rounded-full shadow-2xl hover:bg-[#1d40d8] transition-all hover:scale-105 z-[9999] group border-2 border-white/20"
+          className="fixed z-[9999] flex items-center gap-2.5 bg-[#2554eb] text-white shadow-2xl transition-all hover:scale-105 group border-2 border-white/20 touch-target
+            bottom-4 right-4 pl-3 pr-4 py-3 rounded-full
+            sm:bottom-6 sm:right-6 sm:pl-4 sm:pr-5 sm:py-3.5"
+          style={{ marginBottom: 'env(safe-area-inset-bottom, 0px)' }}
           title="Chat with AI Co-Pilot"
           aria-label="Open AI assistant chat"
         >
@@ -101,10 +104,22 @@ const AIChatWidget = () => {
       )}
 
       {isOpen && (
-        <div
-          className="fixed bottom-6 right-6 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl overflow-hidden z-[9999] flex flex-col border border-slate-200"
-          style={{ height: '500px', maxHeight: '80vh' }}
-        >
+        <>
+          <div
+            className="fixed inset-0 z-[9998] bg-black/10"
+            onClick={() => setIsOpen(false)}
+            aria-hidden="true"
+          />
+          <div
+            className="fixed z-[9999] flex flex-col bg-white shadow-2xl overflow-hidden border border-slate-200
+            inset-x-3 bottom-3 rounded-2xl
+            sm:inset-x-auto sm:left-auto sm:right-6 sm:bottom-6 sm:w-96 sm:rounded-2xl"
+            style={{
+              height: 'min(520px, calc(100vh - 5rem - env(safe-area-inset-bottom, 0px)))',
+              maxHeight: '85vh',
+              marginBottom: 'env(safe-area-inset-bottom, 0px)',
+            }}
+          >
           <div className="bg-gradient-to-r from-[#2554eb] to-indigo-600 p-4 flex justify-between items-center text-white">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
@@ -183,7 +198,8 @@ const AIChatWidget = () => {
               </svg>
             </button>
           </form>
-        </div>
+          </div>
+        </>
       )}
     </>
   );

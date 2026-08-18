@@ -139,6 +139,20 @@
   box-shadow: 0 1px 3px rgba(37, 99, 235, 0.05);
 }
 
+/* Highlight balance cards — do NOT combine with .card (white bg overrides gradient) */
+.wallet-balance-card {
+  background: linear-gradient(135deg, #2554eb 0%, #1d36af 100%);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 1rem;
+  box-shadow: 0 4px 20px rgba(37, 84, 235, 0.28);
+  color: #ffffff;
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.wallet-balance-card:hover {
+  box-shadow: 0 8px 28px rgba(37, 84, 235, 0.38);
+  transform: translateY(-2px);
+}
+
 /* Navbar glass — white frosted */
 .glass {
   background: rgba(255, 255, 255, 0.9);
@@ -416,10 +430,51 @@ select.input-field {
 .page-wrapper {
   max-width: 80rem;
   margin: 0 auto;
-  padding: 2rem 1rem;
+  padding: 1rem 0.875rem;
+  padding-left: max(0.875rem, env(safe-area-inset-left));
+  padding-right: max(0.875rem, env(safe-area-inset-right));
 }
 @media (min-width: 640px)  { .page-wrapper { padding: 2rem 1.5rem; } }
 @media (min-width: 1024px) { .page-wrapper { padding: 2.5rem 2rem; } }
+
+/* Responsive tables — horizontal scroll on phones without breaking layout */
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 0 -0.25rem;
+  padding: 0 0.25rem;
+}
+.table-scroll table {
+  min-width: 640px;
+}
+@media (min-width: 1024px) {
+  .table-scroll table { min-width: 100%; }
+}
+
+/* Touch-friendly tap targets (44px minimum) */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Stack action button rows on small screens */
+@media (max-width: 639px) {
+  .action-row {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+  .action-row > button,
+  .action-row > a.btn-primary,
+  .action-row > a.btn-secondary {
+    width: 100%;
+    justify-content: center;
+  }
+  .card { border-radius: 0.875rem; }
+  .btn-primary, .btn-secondary {
+    min-height: 44px;
+  }
+}
 
 .dashboard-wrapper {
   max-width: 92rem;
@@ -439,6 +494,45 @@ select.input-field {
     radial-gradient(at 20% 30%, rgba(37,99,235,0.05) 0px, transparent 50%),
     radial-gradient(at 80% 10%, rgba(16,185,129,0.04) 0px, transparent 50%),
     radial-gradient(at 50% 80%, rgba(37,99,235,0.03) 0px, transparent 50%);
+}
+
+/* ═══════════════════════════════════════════════════
+   AUTH PORTAL — Option 1: framed border around sign-in card
+   Revert: remove auth-portal-frame wrapper + this CSS block.
+   ═══════════════════════════════════════════════════ */
+.auth-portal-frame {
+  padding: 4px;
+  border-radius: 1.25rem;
+  border: 2px solid rgba(37, 84, 235, 0.25);
+  background: linear-gradient(
+    145deg,
+    rgba(240, 246, 255, 0.95) 0%,
+    rgba(236, 253, 245, 0.9) 100%
+  );
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+.auth-portal-frame .card:hover {
+  transform: none;
+}
+
+.auth-portal-inner-frame {
+  margin-top: 1.5rem;
+  padding: 3px;
+  border-radius: 0.875rem;
+  border: 1.5px solid rgba(37, 84, 235, 0.2);
+  background: linear-gradient(
+    145deg,
+    rgba(236, 253, 245, 0.85) 0%,
+    rgba(240, 246, 255, 0.95) 100%
+  );
+}
+
+.auth-portal-inner-panel {
+  padding: 1rem 1.125rem;
+  border-radius: 0.625rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
 }
 
 /* Block printing draft/in-progress contract previews */

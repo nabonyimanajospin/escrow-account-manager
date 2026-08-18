@@ -49,7 +49,7 @@ const GlobalAccountingJournal = () => {
           </span>
           <h2 className="text-xl sm:text-2xl font-black mt-2">Platform-Wide General Accounting Journal</h2>
           <p className="text-xs text-slate-400 mt-1">
-            Complete record of double-entry ledger entries across all your escrow transactions.
+            Escrow deal entries plus wallet funding / payout movements (double-entry view).
           </p>
         </div>
 
@@ -62,29 +62,31 @@ const GlobalAccountingJournal = () => {
       </div>
 
       {/* Summary Stats */}
-      <div className="p-6 bg-slate-50 border-b border-slate-200 grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-xl border border-slate-200">
+      <div className="p-6 bg-slate-50 border-b border-slate-200 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="bg-white p-4 rounded-xl border border-slate-200 min-w-0 overflow-hidden">
           <p className="text-[11px] font-bold text-slate-400 uppercase">Total Active Deals</p>
-          <p className="text-xl font-black text-slate-900 mt-1">{summary.totalDeals}</p>
+          <p className="text-lg xl:text-xl font-black text-slate-900 mt-1 tabular-nums leading-tight">
+            {summary.totalDeals}
+          </p>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-slate-200">
+        <div className="bg-white p-4 rounded-xl border border-slate-200 min-w-0 overflow-hidden">
           <p className="text-[11px] font-bold text-rose-600 uppercase">Total Debits (-)</p>
-          <p className="text-xl font-black text-rose-600 mt-1">
+          <p className="text-lg xl:text-xl font-black text-rose-600 mt-1 tabular-nums leading-tight break-words">
             ${Number(summary.totalDebit || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
           </p>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-slate-200">
+        <div className="bg-white p-4 rounded-xl border border-slate-200 min-w-0 overflow-hidden">
           <p className="text-[11px] font-bold text-emerald-600 uppercase">Total Credits (+)</p>
-          <p className="text-xl font-black text-emerald-600 mt-1">
+          <p className="text-lg xl:text-xl font-black text-emerald-600 mt-1 tabular-nums leading-tight break-words">
             ${Number(summary.totalCredit || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
           </p>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-slate-200">
+        <div className="bg-white p-4 rounded-xl border border-slate-200 min-w-0 overflow-hidden">
           <p className="text-[11px] font-bold text-blue-600 uppercase">Net Accounting Position</p>
-          <p className="text-xl font-black text-blue-600 mt-1">
+          <p className="text-lg xl:text-xl font-black text-blue-600 mt-1 tabular-nums leading-tight break-words">
             ${Number(summary.netPosition || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
           </p>
         </div>
@@ -126,13 +128,20 @@ const GlobalAccountingJournal = () => {
                       </td>
 
                       <td className="p-3 font-bold text-slate-800">
-                        {entry.transaction?.property?.title || `Tx #${entry.transactionId}`}
+                        {entry.source === 'WALLET'
+                          ? 'Wallet funding / payout'
+                          : (entry.transaction?.property?.title || `Tx #${entry.transactionId}`)}
                       </td>
 
                       <td className="p-3">
                         <span className="inline-block px-2 py-0.5 text-[10px] font-mono font-bold bg-slate-100 rounded border border-slate-300">
                           {entry.accountType}
                         </span>
+                        {entry.source === 'WALLET' && (
+                          <span className="ml-1 inline-block px-1.5 py-0.5 text-[9px] font-bold bg-blue-100 text-blue-700 rounded">
+                            WALLET
+                          </span>
+                        )}
                       </td>
 
                       <td className="p-3 text-center">

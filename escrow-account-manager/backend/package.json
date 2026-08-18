@@ -39,6 +39,7 @@
     "pdfkit": "^0.19.1",
     "pg": "^8.11.3",
     "pg-hstore": "^2.3.4",
+    "qrcode": "^1.5.4",
     "sequelize": "^6.37.3",
     "solc": "^0.8.20",
     "tesseract.js": "^7.0.0",

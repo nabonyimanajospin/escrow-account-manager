@@ -109,6 +109,24 @@ ${hasDeedType && hasSeller && hasBuyer && hasProperty && matchedUpi && upiExists
 }`;
   }
 
+  // Contract / agreement inquiry
+  if (query.includes('contract') || query.includes('agreement') || query.includes('certificate') || query.includes('pdf') || query.includes('qr') || query.includes('checksum')) {
+    const propTitle = transaction.property?.title || 'the property';
+    const buyerFee = (price * 0.010).toFixed(2);
+    const sellerFee = (price * 0.015).toFixed(2);
+    return `### 📜 How Your Escrow Contract Works (This Deal)
+
+**For transaction \`${transaction.transactionId}\`** on **${propTitle}**:
+
+1. **Created when the deal started** — EscrowTrust generated a unique escrow contract address: \`${transaction.escrowAccount?.contractAddress || 'pending'}\`.
+2. **4-clause live agreement** — Open **Contract Preview** in your escrow workspace. Clauses cover parties, escrow custody & fees, seller payout/disputes, and cryptographic consensus — filled with your real names, price ($${price.toLocaleString()}), and fees (buyer 1% = $${parseFloat(buyerFee).toLocaleString()}, seller 1.5% = $${parseFloat(sellerFee).toLocaleString()}).
+3. **Current status: ${status}** — ${status === 'COMPLETED' ? 'This deal is **final**. The contract shows **VERIFIED** and PDF download/print is unlocked.' : 'The contract is still a **DRAFT / IN PROGRESS** certificate — not final until COMPLETED.'}
+4. **QR & checksum** — Scan the QR on the contract to verify authenticity at the public portal.
+5. **Official PDF** — Generated automatically when admin releases funds / deal completes.
+
+**Tip:** Highlight any clause in Contract Preview → **Ask AI to Explain** for help specific to your role (${role}).`;
+  }
+
   // 4. Document or Mutation analysis
   if (query.includes('deed') || query.includes('document') || query.includes('proof') || query.includes('mutation') || query.includes('upload')) {
     const docCount = transaction.mutationDocuments?.length || 0;
@@ -279,6 +297,134 @@ exports.chatWithAI = async (req, res, next) => {
   }
 };
 
+/** Rule-based global chat when Gemini is unavailable — natural replies, no echo loops */
+const getGlobalChatFallback = (message) => {
+  const q = message.toLowerCase().trim();
+
+  if (/how (are you|you doing|is it going)|how're you|how r u/.test(q)) {
+    return `I'm doing well, thanks for asking! I'm here and ready to help with **EscrowTrust** — property buying, escrow fees, or how a deal works. What would you like to know?`;
+  }
+
+  if (/how old|your age|when were you born/.test(q)) {
+    return `I'm **EscrowTrust's AI assistant** — software, not a person — so I don't have an age. I was built to help you understand buying, selling, and escrow on this platform. What can I help you with?`;
+  }
+
+  if (/who are you|what are you|what('s| is) your name|your name/.test(q)) {
+    return `I'm the **EscrowTrust AI Co-Pilot** — EscrowTrust's built-in AI assistant (software, not a human). I help with listings, escrow deposits, fees (1% buyer + 1.5% seller), contracts, deed verification, and disputes. What would you like to know?`;
+  }
+
+  if (/are you (a )?human|are you real|real person|are you (a )?(bot|ai|robot)|artificial intelligence/.test(q)) {
+    return `No — I'm **not human**. I'm the **EscrowTrust AI Co-Pilot**, an automated assistant built into this platform to explain buying, selling, escrow, and contracts. Ask me anything about how EscrowTrust works.`;
+  }
+
+  if (/thank|thanks|appreciate/.test(q)) {
+    return `You're welcome! If you have another question about a property, escrow step, or platform fee, just ask.`;
+  }
+
+  if (/good|helpful|worth|trust|recommend|safe|legit|reliable/.test(q) && /system|platform|escrowtrust|this|app|service/.test(q)) {
+    return `**Yes — EscrowTrust is designed to be helpful** for property deals where buyers and sellers don't fully trust each other yet.
+
+**What it does well:**
+- Locks buyer funds in escrow until deed/mutation is verified
+- Transparent fees: buyer pays listing price **+ 1%**; seller receives listing price **− 1.5%**
+- Admin review, dispute mediation, and contract verification (QR/checksum)
+- Notifications by email, in-app, and SMS when your phone is on your profile
+
+**Honest note:** Deals still need seller document upload and admin verification — it's secure, not instant magic.
+
+Want help with buying, selling, or fees specifically?`;
+  }
+
+  if (q.includes('ready') || q.includes('are you ready') || (q.includes('help') && (q.includes('yes') || q.includes('can you')))) {
+    return `**YES!** I am fully ready to assist you.
+
+As your **EscrowTrust AI Co-Pilot**, I can guide you with:
+- **Buying & Bidding** on properties
+- **Escrow protection** and how funds stay locked
+- **Fee structure** (1% buyer + 1.5% seller)
+- **Disputes & mediation**
+
+What would you like to explore first?`;
+  }
+
+  if (q.includes('fee') || q.includes('charge') || q.includes('cost') || q.includes('percent')) {
+    return `### Platform Fee Breakdown
+EscrowTrust charges a transparent **2.5% total service fee**:
+- **Buyer Fee (1.0%)**: Paid upfront when funding the escrow.
+- **Seller Fee (1.5%)**: Deducted from the seller's final payout upon successful completion.
+
+*No hidden costs.*`;
+  }
+
+  if (q.includes('dispute') || q.includes('problem') || q.includes('complain') || q.includes('stuck') || q.includes('fraud')) {
+    return `### Dispute Resolution
+1. Click **File Dispute** in your transaction dashboard to freeze escrow funds.
+2. Both parties submit evidence.
+3. An administrator reviews and orders a **refund** or **release**.`;
+  }
+
+  if (q.includes('buy') || q.includes('purchase') || q.includes('browse')) {
+    return `### How to Buy
+1. Browse listings → buy now or place a bid
+2. Verify OTP consensus → deposit into escrow (+ 1% buyer fee)
+3. Seller completes mutation → admin verifies → deal completes`;
+  }
+
+  if (q.includes('sell') || q.includes('list') || q.includes('seller')) {
+    return `### How to Sell
+1. Add a property from your dashboard
+2. Review buyer offers (AI-ranked)
+3. Accept a bid → upload mutation documents → receive net payout (− 1.5% fee)`;
+  }
+
+  if (q.includes('rank') || q.includes('ranking') || q.includes('bid') || q.includes('offer')) {
+    return `### AI Buyer Ranking
+Offers are scored by price vs listing, settlement days, and KYC status. Sellers see **Rank #1 Top Pick** on the property page and can accept the best bid from there.`;
+  }
+
+  if (q.includes('hi') || q.includes('hello') || q.includes('hey') || q.includes('greetings')) {
+    return `Hello! I'm your **EscrowTrust AI Co-Pilot**. Ask me about listings, escrow protection, bids, or platform fees — how can I help?`;
+  }
+
+  if (q.includes('flow') || q.includes('process') || q.includes('how it works') || q.includes('escrow')) {
+    return `### How EscrowTrust Works
+1. Agreement (buy or accepted bid)
+2. Buyer deposits funds (+ 1% fee)
+3. Seller uploads mutation/deed documents
+4. Admin verifies registry records
+5. Seller receives net payout (− 1.5% fee)`;
+  }
+
+  if (
+    /contract|agreement|certificate|checksum|qr code|pdf/.test(q) ||
+    (/(how|what|when|where|made|create|generat|build)/.test(q) && /contract|agreement/.test(q))
+  ) {
+    return `### How EscrowTrust Contracts Are Made
+
+1. **Deal initiation** — When a buyer starts a purchase (or a seller accepts a bid), EscrowTrust creates the transaction and assigns a unique **escrow contract address** for that deal.
+
+2. **Digital agreement (4 clauses)** — In the escrow workspace, open **Contract Preview**. The platform auto-builds a live agreement from deal data:
+   - **Clause 1** — Buyer, seller, property, UPI code
+   - **Clause 2** — Escrow custody, listing price, **1% buyer fee**
+   - **Clause 3** — Seller net payout (**1.5% seller fee** deducted), dispute rules
+   - **Clause 4** — Dual OTP consensus and audit trail
+
+3. **Draft vs final** — Before the deal is **COMPLETED**, the contract is marked **IN PROGRESS** (draft). It is not a final certificate yet.
+
+4. **Security** — Each contract gets a **SHA-256 checksum** and **QR code**. Anyone can scan it to verify status at the public verification page.
+
+5. **Official PDF** — When the admin **releases funds** and the deal completes, the system auto-generates a **PDF completion certificate** with a text-based official seal.
+
+6. **Download/print** — Locked until **COMPLETED** (prevents fake draft documents).
+
+7. **Ask AI on clauses** — Inside Contract Preview, highlight text and click **Ask AI to Explain** for role-specific help.
+
+Open any active deal → **Contract Preview** to see yours.`;
+  }
+
+  return `I can help with **buying**, **selling**, **escrow fees**, **contracts**, **disputes**, and **how a deal moves step by step** on EscrowTrust. What would you like to know?`;
+};
+
 // @desc    Global chat with contextual AI Co-Pilot
 // @route   POST /api/ai/global-chat
 // @access  Public or Private
@@ -302,77 +448,7 @@ exports.chatWithGlobalAI = async (req, res, next) => {
       responseText = await generateChatResponse(message, context);
     } catch (aiError) {
       logger.warn('Gemini AI global chat fallback active:', aiError.message);
-      const q = message.toLowerCase();
-      
-      if (q.includes('ready') || q.includes('are you ready') || (q.includes('help') && (q.includes('yes') || q.includes('can you')))) {
-        responseText = `**YES!** I am fully ready to assist you. 
-
-As your **EscrowTrust AI Co-Pilot**, I am active and equipped to guide you with:
-- 🏡 **Buying & Bidding**: How to make custom offers on properties.
-- 🛡️ **Escrow Protection**: How buyer & seller funds are locked and verified.
-- 💸 **Fee Structure**: Understanding our transparent 2.5% fee split (1% Buyer / 1.5% Seller).
-- ⚖️ **Disputes & Mediation**: How our administrator mediation process protects your transaction.
-
-What would you like to explore first?`;
-      } else if (q.includes('fee') || q.includes('charge') || q.includes('cost') || q.includes('percent')) {
-        responseText = `### 💸 Platform Fee Breakdown
-EscrowTrust charges a transparent **2.5% total service fee**:
-- **Buyer Fee (1.0%)**: Paid upfront when funding the escrow.
-- **Seller Fee (1.5%)**: Deducted from the seller's final payout upon successful transaction completion.
-
-*No hidden costs or extra charges.*`;
-      } else if (q.includes('dispute') || q.includes('problem') || q.includes('complain') || q.includes('stuck') || q.includes('fraud')) {
-        responseText = `### ⚖️ Dispute Resolution System
-If any disagreement or issue arises during a deal:
-1. Click **"File Dispute"** in your transaction dashboard to lock and freeze escrow funds.
-2. Both parties submit evidence (documents, payment proofs, communications).
-3. A platform Administrator acts as an impartial arbitrator to review evidence and order a **Refund** or **Funds Release**.`;
-      } else if (q.includes('buy') || q.includes('purchase') || q.includes('browse')) {
-        responseText = `### 🛒 How to Buy Property on EscrowTrust
-1. **Browse Marketplace**: Select a listing from our properties page.
-2. **Submit Offer or Direct Purchase**: Buy instantly or place a custom bid specifying your price and payment duration.
-3. **Fund Escrow**: Deposit your funds into the secure smart escrow contract.
-4. **Deed Verification**: Seller uploads ownership transfer documents for official admin verification.
-5. **Ownership Transfer**: Upon verification, funds are released to the seller and the property is yours!`;
-      } else if (q.includes('sell') || q.includes('list') || q.includes('seller')) {
-        responseText = `### 🏡 How to Sell Property on EscrowTrust
-1. **List Property**: Click "Add Property" from your dashboard and fill in parcel details.
-2. **Review Offers**: View incoming buyer bids ranked by our AI algorithm.
-3. **Accept Offer**: Accepting a bid instantly opens an Escrow workspace.
-4. **Upload Deed**: Once buyer funds the escrow, upload your mutation transfer documents.
-5. **Get Paid**: After verification, net funds (minus 1.5% fee) are released directly to your wallet!`;
-      } else if (q.includes('rank') || q.includes('ranking') || q.includes('best buyer') || q.includes('pick buyer') || q.includes('bid') || q.includes('offer')) {
-        responseText = `### 🤖 AI Buyer Ranking & Recommendation System
-Our AI Engine automatically analyzes and ranks all buyer bids/offers placed on a property listing:
-
-1. **Immediate #1 Rank**: When the **first buyer** places money/an offer on a property, they are immediately assigned **Rank #1 (Top AI Choice)**.
-2. **Multi-Buyer Dynamic AI Analysis**: When a **second or subsequent buyer** places an offer on the same property, our AI model evaluates both buyers using a multi-factor score:
-   - **Offer Price Ratio**: Higher bids relative to target price increase score.
-   - **Settlement Timeline**: Shorter payment periods (fewer days) penalize less and boost rank.
-   - **Identity Verification**: Verified KYC identity adds a +5% trust bonus.
-3. **Where to see AI Rankings**:
-   - **For Sellers**: On the **Property Details page**, the seller views the **"AI Buyer Ranking & Recommendation"** feed showing **🏆 Rank #1 Top Pick**, Rank #2, etc. The seller can click **"Select #1 Buyer & Accept Bid"** directly based on AI rankings.
-   - **For Buyers**: On the **Property Details page**, buyers can see their current position (e.g., *🏆 Ranked #1 of X Buyers*) and AI advice on how to improve their rank score.`;
-      } else if (q.includes('hi') || q.includes('hello') || q.includes('hey') || q.includes('greetings')) {
-        responseText = `👋 Hello! I am your **EscrowTrust AI Co-Pilot**. I am ready to answer any questions you have about real estate listings, escrow protection, placing bids, or platform fees. How can I help you today?`;
-      } else if (q.includes('flow') || q.includes('process') || q.includes('how it works') || q.includes('escrow')) {
-        responseText = `### 🔄 How EscrowTrust Works
-1. **Agreement**: Buyer buys directly or seller accepts a bid.
-2. **Deposit**: Buyer funds the smart escrow (+ 1.0% fee).
-3. **Deed Transfer**: Seller uploads official land mutation certificates.
-4. **Admin Audit**: Administrator verifies document authenticity against land registry records.
-5. **Payout**: Funds (net of 1.5% fee) are released to the seller!`;
-      } else {
-        responseText = `Hello! I am your AI Assistant. You asked: *"_${message}_"*
-
-I am fully active and ready to help! I can assist you with:
-- **Buying & Bidding on Properties**
-- **Understanding Platform Escrow Fees**
-- **How smart contracts & document verification protect your funds**
-- **Filing and resolving transaction disputes**
-
-Feel free to ask me anything specific about buying, selling, or escrow protection!`;
-      }
+      responseText = getGlobalChatFallback(message);
     }
 
     res.status(200).json({

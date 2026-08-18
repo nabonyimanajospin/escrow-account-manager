@@ -6,8 +6,9 @@ import StatusBadge from '../components/StatusBadge';
 import toast from 'react-hot-toast';
 import EmptyState from '../components/common/EmptyState';
 import { SkeletonCard, SkeletonTable } from '../components/common/SkeletonLoader';
+import AdminPlatformWallet from './AdminPlatformWallet';
 
-export default function SellerWallet() {
+function MemberWallet() {
   const { user } = useAuth();
   const isBuyer = user?.role === 'BUYER';
   const [wallet, setWallet] = useState(null);
@@ -136,11 +137,11 @@ export default function SellerWallet() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         
         {/* Main Balance Card */}
-        <div className="card p-6 bg-gradient-to-br from-primary-600 to-primary-800 text-white relative overflow-hidden">
+        <div className="wallet-balance-card p-6 relative overflow-hidden">
           <div className="relative z-10">
-            <p className="text-xs font-bold text-primary-100 uppercase tracking-wider mb-2">Available Balance</p>
-            <p className="text-4xl font-black">${Number(wallet?.balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-            <p className="text-xs text-primary-200 mt-2 font-medium">{isBuyer ? 'Available for escrow deposits' : 'Ready for withdrawal'}</p>
+            <p className="text-xs font-bold text-white/90 uppercase tracking-wider mb-2">Available Balance</p>
+            <p className="text-4xl font-black text-white">${Number(wallet?.balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+            <p className="text-xs text-white/80 mt-2 font-medium">{isBuyer ? 'Available for escrow deposits' : 'Ready for withdrawal'}</p>
           </div>
           {/* Decorative graphic */}
           <div className="absolute -right-6 -bottom-6 w-32 h-32 bg-white opacity-5 rounded-full blur-2xl"></div>
@@ -255,13 +256,16 @@ export default function SellerWallet() {
           {activeTab === 'deposit' && isBuyer && (
             <div className="p-6 md:p-8 max-w-2xl">
               <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl mb-6">
-                <h4 className="text-xs font-bold text-blue-800 uppercase tracking-widest mb-2">Fund your escrow wallet</h4>
-                <ul className="text-sm text-blue-700 font-medium space-y-1.5 ml-6 list-disc">
-                  <li>Pay via MTN MoMo or bank transfer to the platform collection account.</li>
-                  <li>Submit the amount and your payment reference below.</li>
-                  <li>An administrator verifies the payment and credits your wallet (usually within 1 business day).</li>
-                  <li>Use your wallet balance to lock escrow deposits on property purchases.</li>
-                </ul>
+                <h4 className="text-xs font-bold text-blue-800 uppercase tracking-widest mb-2">How to add funds (secure flow)</h4>
+                <ol className="text-sm text-blue-700 font-medium space-y-1.5 ml-6 list-decimal">
+                  <li><strong>First</strong> send money via MTN MoMo, Airtel Money, or bank transfer to the platform collection account.</li>
+                  <li><strong>After payment succeeds</strong>, your phone or bank app shows a transaction ID / reference — copy that.</li>
+                  <li>Submit the amount and reference below. Admin verifies it matches a real incoming payment before crediting your wallet.</li>
+                  <li>Once approved, use your wallet balance to lock escrow on property purchases.</li>
+                </ol>
+                <p className="text-[11px] text-blue-600 mt-3 font-semibold">
+                  The reference proves you paid — you cannot get one before sending money. That is intentional for security.
+                </p>
               </div>
               <form onSubmit={handleDepositRequest} className="space-y-6">
                 <div className="space-y-2">
@@ -385,4 +389,12 @@ export default function SellerWallet() {
       </div>
     </div>
   );
+}
+
+export default function SellerWallet() {
+  const { user } = useAuth();
+  if (user?.role === 'ADMIN') {
+    return <AdminPlatformWallet />;
+  }
+  return <MemberWallet />;
 }

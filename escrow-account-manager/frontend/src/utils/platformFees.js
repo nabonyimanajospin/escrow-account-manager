@@ -15,3 +15,30 @@ export const calculatePlatformFees = (listPrice) => {
 
 export const formatMoney = (value) =>
   Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/** Role-aware headline price for property cards and detail pages. */
+export const getRoleAwareListingPrice = (listPrice, { role, isOwner } = {}) => {
+  const fees = calculatePlatformFees(listPrice);
+
+  if (isOwner) {
+    return {
+      amount: fees.price,
+      label: 'Your listing price',
+      hint: `Net on completion: $${formatMoney(fees.sellerNetPayout)} (after 1.5% platform fee)`,
+    };
+  }
+
+  if (role === 'ADMIN') {
+    return {
+      amount: fees.price,
+      label: 'Listing price',
+      hint: `Buyer deposit: $${formatMoney(fees.buyerTotal)} · Seller net: $${formatMoney(fees.sellerNetPayout)}`,
+    };
+  }
+
+  return {
+    amount: fees.buyerTotal,
+    label: 'Total at escrow deposit',
+    hint: `Listing $${formatMoney(fees.price)} + 1% platform fee ($${formatMoney(fees.buyerFee)})`,
+  };
+};

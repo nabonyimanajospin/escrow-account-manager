@@ -42,6 +42,7 @@ export const AuthProvider = ({ children }) => {
       const response = await axios.get('/auth/me', { skipErrorToast: true });
       setUser(response.data.user);
       setIsAuthenticated(true);
+      localStorage.setItem('user', JSON.stringify(response.data.user));
     } catch (error) {
       console.log('No active session.');
       localStorage.removeItem('token');
@@ -60,6 +61,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await axios.get('/auth/me', { skipErrorToast: true });
       setUser(response.data.user);
+      localStorage.setItem('user', JSON.stringify(response.data.user));
     } catch (err) {
       console.error('Failed to refresh profile info:', err.message);
     }

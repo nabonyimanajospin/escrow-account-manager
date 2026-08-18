@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { resolveImageUrl } from '../utils/imageUtils';
+import { resolveImageUrl, getPropertyCoverImage, DEFAULT_PROPERTY_COVER } from '../utils/imageUtils';
 import axios from '../api/axiosConfig';
 import StatusBadge from '../components/StatusBadge';
+import BrandLogo from '../components/BrandLogo';
 
 const LandingPage = () => {
   const [properties, setProperties] = useState([]);
@@ -21,14 +22,15 @@ const LandingPage = () => {
     <div className="space-y-24 pb-20">
       
       {/* ── HERO SECTION ── */}
-      <section className="relative pt-32 pb-24 overflow-hidden bg-slate-50 hero-mesh border-b border-slate-200/60">
+      <section className="relative pt-12 sm:pt-16 pb-20 overflow-hidden bg-slate-50 hero-mesh border-b border-slate-200/60">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="flex flex-col items-center text-center space-y-8 max-w-4xl mx-auto">
-            
-            {/* Animated Pill Badge */}
-            <div className="animate-slide-up inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-slate-200 shadow-sm text-xs font-bold text-slate-600 uppercase tracking-wider">
-              <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              Secure Property Exchange Engine
+          <div className="flex flex-col items-center text-center space-y-6 max-w-4xl mx-auto">
+
+            {/* Brand mark */}
+            <div className="animate-slide-up flex flex-col items-center gap-2.5 sm:gap-3">
+              <BrandLogo variant="icon" imgClassName="h-16 sm:h-24 w-auto drop-shadow-md" />
+              <BrandLogo variant="wordmark" imgClassName="h-7 sm:h-8 w-auto translate-x-1 sm:translate-x-1.5" />
+              <BrandLogo variant="badge" imgClassName="h-8 w-auto" />
             </div>
 
             {/* Headline */}
@@ -215,17 +217,16 @@ const LandingPage = () => {
             {properties.map((p) => (
               <Link key={p.id} to={`/properties/${p.id}`} className="card overflow-hidden group flex flex-col justify-between h-[400px] cursor-pointer block">
                 <div className="h-48 bg-slate-100 relative overflow-hidden">
-                  {p.images && p.images[0] ? (
-                    <img 
-                      src={resolveImageUrl(p.images[0])} 
-                      alt={p.title} 
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-slate-200 flex items-center justify-center">
-                       <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">No Image</span>
-                    </div>
-                  )}
+                  <img
+                    src={resolveImageUrl(getPropertyCoverImage(p.images))}
+                    alt={p.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    loading="lazy"
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = DEFAULT_PROPERTY_COVER;
+                    }}
+                  />
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                   
                   <div className="absolute top-4 right-4">

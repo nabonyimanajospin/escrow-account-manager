@@ -26,7 +26,7 @@ export default function OnboardingChecklist({ user, walletBalance, hasActiveDeal
 
   const steps = isBuyer
     ? [
-        { done: kycDone, title: 'Verify your identity (KYC)', desc: 'Required before you can buy or bid on properties.', link: '/kyc', linkLabel: 'Complete KYC' },
+        { done: kycDone, title: 'Verify your identity (KYC)', desc: 'One-time check required before you can buy or bid.', link: '/kyc', linkLabel: 'Complete KYC' },
         { done: hasFunds, title: 'Fund your wallet', desc: 'Deposits are paid from your platform wallet balance.', link: '/wallet', linkLabel: 'View wallet' },
         { done: hasActiveDeal, title: 'Start an escrow deal', desc: 'Browse listings and initiate a secure purchase.', link: '/properties', linkLabel: 'Browse properties' },
       ]
