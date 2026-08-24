@@ -467,7 +467,7 @@ const PropertyDetail = () => {
             )}
           </div>
 
-          {/* Seller Metadata Card with Anti-Bypassing Contact Masking */}
+          {/* Verified Seller Profile Card (Amazon / AliExpress anti-bypass model) */}
           <div className="card p-5 bg-white space-y-3 border border-slate-200 shadow-sm">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Verified Seller Profile</h3>
@@ -475,20 +475,20 @@ const PropertyDetail = () => {
                 ✓ Escrow Verified
               </span>
             </div>
-            <div className="leading-tight space-y-1.5 pt-1">
+            <div className="leading-tight space-y-2 pt-1">
               <p className="text-sm font-extrabold text-slate-900">{property.seller?.name || 'Verified Seller'}</p>
-              
-              {/* Masked Email & Phone (Amazon / AliExpress anti-bypass model) */}
-              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs space-y-1 font-mono">
-                <p className="text-slate-500">Email: <span className="text-slate-800 font-bold">••••••••@••••.com</span></p>
-                <p className="text-slate-500">Phone: <span className="text-slate-800 font-bold">+250 78••••••</span></p>
-              </div>
 
-              <p className="text-[10px] text-amber-700 font-semibold bg-amber-50 p-2.5 rounded border border-amber-200 leading-snug">
-                🔒 <strong>Platform Safety Protocol:</strong> Direct contact details are protected (AliExpress / Amazon standard) to guarantee your transaction is backed by our zero-trust escrow lock.
-              </p>
+              <div className="p-3 bg-emerald-50/50 rounded-lg border border-emerald-200/60 text-xs text-emerald-900 space-y-1">
+                <p className="font-bold flex items-center gap-1">
+                  <span>🔒 Safe Escrow Protection</span>
+                </p>
+                <p className="text-[11px] text-slate-600 leading-snug">
+                  All communication, offers, and title deed transfers are protected in-app via the Escrow Account Manager protocol (Amazon / AliExpress standard).
+                </p>
+              </div>
             </div>
           </div>
+
 
 
           {/* Reserved-offer history (seller / admin only) */}
