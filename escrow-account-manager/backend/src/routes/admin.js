@@ -16,6 +16,7 @@ const {
   approveWalletDeposit,
   rejectWalletDeposit,
   getPendingWalletDeposits,
+  getPendingWithdrawals,
   getPlatformSummary,
 } = require('../controllers/walletController');
 const { getPendingKyc, approveKyc, rejectKyc } = require('../controllers/kycController');
@@ -52,6 +53,7 @@ router.get('/audit-logs/verify', verifyAuditLogs);
 router.get('/platform-summary', getPlatformSummary);
 
 // Wallet management
+router.get('/wallet/pending-withdrawals', getPendingWithdrawals);
 router.post('/wallet/:id/approve', approveWithdrawal);
 router.post('/wallet/:id/reject', rejectWithdrawal);
 router.get('/wallet/pending-deposits', getPendingWalletDeposits);

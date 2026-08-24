@@ -262,17 +262,25 @@ const verifyConsensusCode = async (req, res, next) => {
       });
     }
 
-    if (!otpService.verifyConsensusCode(transaction, code)) {
-      const attempts = transaction.verificationAttempts + 1;
+    const codeCheck = otpService.checkConsensusCode(transaction, code);
+    if (!codeCheck.ok) {
+      const attempts = (transaction.verificationAttempts || 0) + 1;
       const updates = { verificationAttempts: attempts };
       if (attempts >= 5) {
         updates.verificationLockedUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 mins lock
       }
       await transaction.update(updates);
 
-      const message = attempts >= 5
-        ? 'Too many failed attempts. Consensus verification has been locked for 15 minutes.'
-        : `Consensus code does not match. Please verify code. (${5 - attempts} attempts remaining)`;
+      let message;
+      if (attempts >= 5) {
+        message = 'Too many failed attempts. Consensus verification has been locked for 15 minutes.';
+      } else if (codeCheck.reason === 'expired') {
+        message = `This OTP has expired. Click Resend OTP so both buyer and seller get a fresh code. (${5 - attempts} attempts remaining)`;
+      } else if (codeCheck.reason === 'missing') {
+        message = `No active OTP found for this deal. Click Resend OTP to issue a new code to both parties. (${5 - attempts} attempts remaining)`;
+      } else {
+        message = `Consensus code does not match. Use the latest code from your notification bell (older codes are invalid after a resend). (${5 - attempts} attempts remaining)`;
+      }
 
       return res.status(400).json({ success: false, message });
     }
@@ -312,7 +320,7 @@ const verifyConsensusCode = async (req, res, next) => {
   }
 };
 
-// @desc    Resend OTP verification code to current requesting user
+// @desc    Resend shared OTP to BOTH buyer and seller (one code for the deal)
 // @route   POST /api/escrow/:id/resend-otp
 // @access  Private (BUYER or SELLER)
 const resendOtp = async (req, res, next) => {
@@ -327,12 +335,26 @@ const resendOtp = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Only buyer or seller can request OTP resend' });
     }
 
-    const targetRole = req.user.id === transaction.buyerId ? 'BUYER' : 'SELLER';
-    await issueAndDeliverConsensusOtp(transaction, null, targetRole);
+    // Shared deal OTP: always rotate once and deliver the same new code to BOTH parties.
+    // Sending to only one party previously left the other with an invalidated old code.
+    await issueAndDeliverConsensusOtp(transaction, null, 'BOTH');
+
+    const otherPartyId = req.user.id === transaction.buyerId ? transaction.sellerId : transaction.buyerId;
+    setImmediate(async () => {
+      try {
+        await notificationService.createInAppNotification(
+          otherPartyId,
+          '🔄 Fresh OTP issued',
+          `Your counterparty requested a new verification code for deal ${transaction.reference || `TXN-${transaction.id}`}. Previous codes are invalid — use the newest OTP from your inbox.`
+        );
+      } catch (err) {
+        logger.warn(`[OTP Resend Notice] ${err.message}`);
+      }
+    });
 
     res.status(200).json({
       success: true,
-      message: `Fresh verification OTP code delivered to your Notification Bell (🔔) panel.`,
+      message: 'Fresh OTP sent to both buyer and seller (notifications, email, and phone). Previous codes are now invalid.',
     });
   } catch (error) {
     next(error);
@@ -369,6 +391,13 @@ const depositFunds = async (req, res, next) => {
 
       if (transaction.status !== 'PENDING') {
         throw Object.assign(new Error('Transaction is not in PENDING status'), { statusCode: 400 });
+      }
+
+      if (!transaction.buyerAuthorized || !transaction.sellerAuthorized) {
+        throw Object.assign(
+          new Error('Both buyer and seller must verify the OTP consensus code before deposit. Open the notification bell, enter the latest code, then try again.'),
+          { statusCode: 400 }
+        );
       }
 
       const totalRequired = parseFloat(transaction.amount) + parseFloat(transaction.buyerFee || 0);
@@ -536,7 +565,12 @@ const initiateMutation = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Escrow funds must be deposited before starting mutation' });
     }
 
-    // Removed cryptographic consensus requirement here - buyer depositing funds implicitly authorizes mutation start.
+    if (!transaction.sellerAuthorized) {
+      return res.status(400).json({
+        success: false,
+        message: 'Seller must verify the OTP from the notification bell before starting mutation.',
+      });
+    }
 
     await sequelize.transaction(async (t) => {
       await transaction.update({
@@ -657,6 +691,10 @@ const uploadMutationDocument = async (req, res, next) => {
       if (aiReport?.triageCategory === 'RED') {
         await notificationService.createInAppNotification(transaction.sellerId, '🚨 Deed Fraud Alert', aiReport.triageGuidance);
         await notificationService.createInAppNotification(transaction.buyerId, '⚠️ Transaction Frozen', 'A suspicious document edit was detected. Escrow locked for Admin dispute mediation.');
+        await notificationService.notifyAdmins(
+          '🚨 Deed fraud triage — RED',
+          `Deal #${transaction.id} was frozen after AI fraud triage. Immediate admin review required.`
+        );
       } else if (aiReport?.triageCategory === 'YELLOW') {
         await notificationService.createInAppNotification(transaction.sellerId, '⚠️ Deed Self-Correction Prompt', aiReport.triageGuidance);
       } else if (aiReport?.triageCategory === 'GREEN') {
@@ -695,15 +733,18 @@ const completeMutation = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Please upload at least one mutation document as proof' });
     }
 
+    if (!transaction.sellerAuthorized) {
+      return res.status(400).json({
+        success: false,
+        message: 'Seller must verify the latest OTP from the notification bell before submitting for admin review.',
+      });
+    }
+
     await sequelize.transaction(async (t) => {
       await transaction.update({
         status: 'UNDER_REVIEW',
         mutationEndDate: new Date(),
-        buyerAuthorized: false,
-        sellerAuthorized: false,
       }, { transaction: t });
-
-      await issueAndDeliverConsensusOtp(transaction, t);
 
       await logAction(transaction.id, req, `Mutation completed and submitted under review for Admin verification`, { transaction: t });
       
@@ -722,6 +763,11 @@ const completeMutation = async (req, res, next) => {
         await notificationService.sendTransactionStatusEmail(txWithUsers.seller.email, txWithUsers.seller.name, 'UNDER_REVIEW', txWithUsers.id, txWithUsers.amount);
         await notificationService.createInAppNotification(txWithUsers.sellerId, 'Mutation Under Review', 'Your property transfer submission is now under admin review.');
       }
+
+      await notificationService.notifyAdmins(
+        'Escrow ready for admin review',
+        `Deal #${txWithUsers.id} (${txWithUsers.property?.title || 'property'}) is UNDER_REVIEW. Buyer and seller await your verification and release/refund decision.`
+      );
     });
 
     const result = await Transaction.findByPk(transaction.id, { include: transactionIncludes });
@@ -1406,7 +1452,55 @@ const verifyRegistryDeed = async (req, res, next) => {
   }
 };
 
-// @desc    Get complete accounting general journal and double-entry ledger for a transaction
+/** Role-scoped ledger accounts: buyers/sellers only follow their own money trail. */
+const journalAccountsForUser = (user, transaction) => {
+  if (user.role === 'ADMIN') {
+    return ['BUYER_CASH', 'SELLER_CASH', 'PLATFORM_REVENUE', 'ESCROW_CUSTODY'];
+  }
+  if (transaction && user.id === transaction.buyerId) {
+    return ['BUYER_CASH', 'ESCROW_CUSTODY'];
+  }
+  if (transaction && user.id === transaction.sellerId) {
+    return ['SELLER_CASH', 'ESCROW_CUSTODY'];
+  }
+  if (user.role === 'BUYER') return ['BUYER_CASH', 'ESCROW_CUSTODY'];
+  if (user.role === 'SELLER') return ['SELLER_CASH', 'ESCROW_CUSTODY'];
+  return [];
+};
+
+const journalViewScope = (user, transaction) => {
+  if (user.role === 'ADMIN') return 'FULL_AUDIT';
+  if (transaction && user.id === transaction.buyerId) return 'BUYER_MONEY_TRAIL';
+  if (transaction && user.id === transaction.sellerId) return 'SELLER_MONEY_TRAIL';
+  return user.role === 'BUYER' ? 'BUYER_MONEY_TRAIL' : 'SELLER_MONEY_TRAIL';
+};
+
+const buildDealJournalSummary = (transaction, entries, viewScope) => {
+  const price = parseFloat(transaction.amount || 0);
+  const buyerFee = parseFloat(transaction.buyerFee || 0);
+  const sellerFee = parseFloat(transaction.sellerFee || 0);
+  const totalBuyerPaid = price + buyerFee;
+  const sellerNetPayout = price - sellerFee;
+  const platformTotalRevenue = buyerFee + sellerFee;
+
+  return {
+    propertyTitle: transaction.property?.title || 'Property',
+    upiCode: transaction.property?.upiCode || 'N/A',
+    buyerName: transaction.buyer?.name || 'Buyer',
+    sellerName: transaction.seller?.name || 'Seller',
+    price,
+    buyerFee,
+    sellerFee,
+    totalBuyerPaid,
+    sellerNetPayout,
+    platformTotalRevenue,
+    escrowStatus: transaction.status,
+    ledgerEntryCount: entries.length,
+    viewScope,
+  };
+};
+
+// @desc    Get accounting journal for a transaction (role-filtered for buyer/seller)
 // @route   GET /api/escrow/:id/journal
 // @access  Private
 const getAccountingJournal = async (req, res, next) => {
@@ -1428,38 +1522,25 @@ const getAccountingJournal = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Not authorized to view accounting journal for this transaction' });
     }
 
+    const viewScope = journalViewScope(req.user, transaction);
+    const allowedAccounts = journalAccountsForUser(req.user, transaction);
+
     const entries = await LedgerEntry.findAll({
-      where: { transactionId: transaction.id },
+      where: {
+        transactionId: transaction.id,
+        accountType: allowedAccounts,
+      },
       order: [['createdAt', 'ASC']],
     });
 
-    const price = parseFloat(transaction.amount || 0);
-    const buyerFee = parseFloat(transaction.buyerFee || 0);
-    const sellerFee = parseFloat(transaction.sellerFee || 0);
-    const totalBuyerPaid = price + buyerFee;
-    const sellerNetPayout = price - sellerFee;
-    const platformTotalRevenue = buyerFee + sellerFee;
-
-    const summary = {
-      propertyTitle: transaction.property?.title || 'Property',
-      upiCode: transaction.property?.upiCode || 'N/A',
-      buyerName: transaction.buyer?.name || 'Buyer',
-      sellerName: transaction.seller?.name || 'Seller',
-      price,
-      buyerFee,
-      sellerFee,
-      totalBuyerPaid,
-      sellerNetPayout,
-      platformTotalRevenue,
-      escrowStatus: transaction.status,
-      ledgerEntryCount: entries.length,
-    };
+    const summary = buildDealJournalSummary(transaction, entries, viewScope);
 
     res.status(200).json({
       success: true,
       data: {
         summary,
         entries,
+        viewScope,
       },
     });
   } catch (error) {
@@ -1467,7 +1548,7 @@ const getAccountingJournal = async (req, res, next) => {
   }
 };
 
-// @desc    Export accounting journal as downloadable CSV file
+// @desc    Export accounting journal as downloadable CSV file (role-filtered)
 // @route   GET /api/escrow/:id/journal/export
 // @access  Private
 const exportAccountingJournalCsv = async (req, res, next) => {
@@ -1489,8 +1570,12 @@ const exportAccountingJournalCsv = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Not authorized to export accounting journal for this transaction' });
     }
 
+    const allowedAccounts = journalAccountsForUser(req.user, transaction);
     const entries = await LedgerEntry.findAll({
-      where: { transactionId: transaction.id },
+      where: {
+        transactionId: transaction.id,
+        accountType: allowedAccounts,
+      },
       order: [['createdAt', 'ASC']],
     });
 
@@ -1723,66 +1808,225 @@ const buildWalletJournalEntries = (walletTxs = []) => {
   return entries;
 };
 
-const getMyGlobalJournal = async (req, res, next) => {
-  try {
-    const whereTx = req.user.role === 'ADMIN'
-      ? {}
-      : (req.user.role === 'BUYER' ? { buyerId: req.user.id } : { sellerId: req.user.id });
+const buildMyGlobalJournalData = async (user) => {
+  const isAdmin = user.role === 'ADMIN';
+  const whereTx = isAdmin
+    ? {}
+    : (user.role === 'BUYER' ? { buyerId: user.id } : { sellerId: user.id });
 
-    const userTransactions = await Transaction.findAll({
-      where: whereTx,
-      attributes: ['id', 'amount', 'buyerFee', 'sellerFee', 'status', 'buyerId', 'sellerId', 'propertyId'],
-      include: [{ model: Property, as: 'property', attributes: ['title', 'upiCode'] }]
+  const userTransactions = await Transaction.findAll({
+    where: whereTx,
+    attributes: ['id', 'amount', 'buyerFee', 'sellerFee', 'status', 'buyerId', 'sellerId', 'propertyId', 'createdAt', 'updatedAt'],
+    include: [
+      { model: Property, as: 'property', attributes: ['title', 'upiCode', 'location'] },
+      { model: User, as: 'buyer', attributes: ['id', 'name', 'email'] },
+      { model: User, as: 'seller', attributes: ['id', 'name', 'email'] },
+    ],
+    order: [['createdAt', 'DESC']],
+  });
+
+  const txIds = userTransactions.map((t) => t.id);
+  const allowedAccounts = isAdmin
+    ? ['BUYER_CASH', 'SELLER_CASH', 'PLATFORM_REVENUE', 'ESCROW_CUSTODY']
+    : journalAccountsForUser(user, null);
+
+  const entries = txIds.length
+    ? await LedgerEntry.findAll({
+        where: {
+          transactionId: txIds,
+          accountType: allowedAccounts,
+        },
+        order: [['createdAt', 'ASC']],
+      })
+    : [];
+
+  const entriesByTx = {};
+  entries.forEach((e) => {
+    const key = e.transactionId;
+    if (!entriesByTx[key]) entriesByTx[key] = [];
+    entriesByTx[key].push(e.toJSON ? e.toJSON() : e);
+  });
+
+  if (isAdmin) {
+    const deals = userTransactions.map((tx) => {
+      const dealEntries = entriesByTx[tx.id] || [];
+      const price = parseFloat(tx.amount || 0);
+      const buyerFee = parseFloat(tx.buyerFee || 0);
+      const sellerFee = parseFloat(tx.sellerFee || 0);
+      return {
+        transactionId: tx.id,
+        status: tx.status,
+        propertyTitle: tx.property?.title || 'Property',
+        upiCode: tx.property?.upiCode || 'N/A',
+        location: tx.property?.location || null,
+        buyer: { id: tx.buyer?.id, name: tx.buyer?.name || 'Buyer', email: tx.buyer?.email || null },
+        seller: { id: tx.seller?.id, name: tx.seller?.name || 'Seller', email: tx.seller?.email || null },
+        price,
+        buyerFee,
+        sellerFee,
+        totalBuyerPaid: price + buyerFee,
+        sellerNetPayout: price - sellerFee,
+        platformTotalRevenue: buyerFee + sellerFee,
+        createdAt: tx.createdAt,
+        updatedAt: tx.updatedAt,
+        entries: dealEntries,
+      };
     });
 
-    const txIds = userTransactions.map((t) => t.id);
-
-    const entries = await LedgerEntry.findAll({
-      where: { transactionId: txIds },
-      order: [['createdAt', 'DESC']],
-      include: [{ model: Transaction, as: 'transaction', include: [{ model: Property, as: 'property', attributes: ['title'] }] }]
-    });
-
-    const walletWhere = req.user.role === 'ADMIN'
-      ? { status: 'COMPLETED', type: ['DEPOSIT', 'WITHDRAWAL_PAID', 'CREDIT'] }
-      : { userId: req.user.id, status: 'COMPLETED', type: ['DEPOSIT', 'WITHDRAWAL_PAID', 'CREDIT'] };
-
-    const walletTxs = await WalletTransaction.findAll({
-      where: walletWhere,
-      include: [{ model: User, as: 'user', attributes: ['id', 'name', 'role'] }],
-      order: [['createdAt', 'DESC']],
-    });
-
-    const walletEntries = buildWalletJournalEntries(walletTxs);
-    const escrowEntries = entries.map((e) => ({ ...e.toJSON(), source: 'ESCROW' }));
-    const combinedEntries = [...escrowEntries, ...walletEntries].sort(
-      (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+    const flatEntries = deals.flatMap((d) =>
+      d.entries.map((e) => ({
+        ...e,
+        source: 'ESCROW',
+        propertyTitle: d.propertyTitle,
+        buyerName: d.buyer.name,
+        sellerName: d.seller.name,
+      }))
     );
 
     let totalDebit = 0;
     let totalCredit = 0;
-
-    combinedEntries.forEach((e) => {
+    flatEntries.forEach((e) => {
       const amt = parseFloat(e.amount || 0);
       if (e.type === 'DEBIT') totalDebit += amt;
       if (e.type === 'CREDIT') totalCredit += amt;
     });
 
-    res.status(200).json({
-      success: true,
-      data: {
-        summary: {
-          totalDeals: userTransactions.length,
-          totalEntries: combinedEntries.length,
-          escrowEntries: escrowEntries.length,
-          walletEntries: walletEntries.length,
-          totalDebit,
-          totalCredit,
-          netPosition: totalCredit - totalDebit,
-        },
-        entries: combinedEntries,
-      }
-    });
+    return {
+      mode: 'AUDIT',
+      viewScope: 'FULL_AUDIT',
+      summary: {
+        totalDeals: deals.length,
+        totalEntries: flatEntries.length,
+        escrowEntries: flatEntries.length,
+        walletEntries: 0,
+        totalDebit,
+        totalCredit,
+        netPosition: totalCredit - totalDebit,
+      },
+      deals,
+      entries: flatEntries,
+    };
+  }
+
+  const walletTxs = await WalletTransaction.findAll({
+    where: {
+      userId: user.id,
+      status: 'COMPLETED',
+      type: ['DEPOSIT', 'WITHDRAWAL_PAID', 'CREDIT'],
+    },
+    include: [{ model: User, as: 'user', attributes: ['id', 'name', 'role'] }],
+    order: [['createdAt', 'DESC']],
+  });
+
+  const walletEntries = buildWalletJournalEntries(walletTxs);
+  const escrowEntries = entries.map((e) => {
+    const tx = userTransactions.find((t) => t.id === e.transactionId);
+    return {
+      ...(e.toJSON ? e.toJSON() : e),
+      source: 'ESCROW',
+      propertyTitle: tx?.property?.title || null,
+      transaction: tx
+        ? {
+            id: tx.id,
+            property: tx.property,
+          }
+        : null,
+    };
+  });
+
+  const combinedEntries = [...escrowEntries, ...walletEntries].sort(
+    (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+  );
+
+  let totalDebit = 0;
+  let totalCredit = 0;
+  combinedEntries.forEach((e) => {
+    const amt = parseFloat(e.amount || 0);
+    if (e.type === 'DEBIT') totalDebit += amt;
+    if (e.type === 'CREDIT') totalCredit += amt;
+  });
+
+  return {
+    mode: 'PERSONAL',
+    viewScope: user.role === 'BUYER' ? 'BUYER_MONEY_TRAIL' : 'SELLER_MONEY_TRAIL',
+    summary: {
+      totalDeals: userTransactions.length,
+      totalEntries: combinedEntries.length,
+      escrowEntries: escrowEntries.length,
+      walletEntries: walletEntries.length,
+      totalDebit,
+      totalCredit,
+      netPosition: totalCredit - totalDebit,
+    },
+    deals: [],
+    entries: combinedEntries,
+  };
+};
+
+const getMyGlobalJournal = async (req, res, next) => {
+  try {
+    const data = await buildMyGlobalJournalData(req.user);
+    res.status(200).json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Export platform-wide / role-scoped accounting journal as CSV
+// @route   GET /api/escrow/my-global-journal/export
+// @access  Private
+const exportMyGlobalJournalCsv = async (req, res, next) => {
+  try {
+    const data = await buildMyGlobalJournalData(req.user);
+    const rows = [
+      ['Date', 'Mode', 'Deal ID', 'Property', 'Buyer', 'Seller', 'Source', 'Type', 'Account', 'Amount', 'Description'],
+    ];
+
+    if (data.mode === 'AUDIT' && Array.isArray(data.deals)) {
+      data.deals.forEach((deal) => {
+        (deal.entries || []).forEach((e) => {
+          rows.push([
+            e.createdAt ? new Date(e.createdAt).toISOString() : '',
+            'AUDIT',
+            deal.transactionId,
+            deal.propertyTitle || '',
+            deal.buyer?.name || '',
+            deal.seller?.name || '',
+            'ESCROW',
+            e.type || '',
+            e.accountType || '',
+            Number(e.amount || 0).toFixed(2),
+            String(e.description || '').replace(/"/g, '""'),
+          ]);
+        });
+      });
+    } else {
+      (data.entries || []).forEach((e) => {
+        rows.push([
+          e.createdAt ? new Date(e.createdAt).toISOString() : '',
+          'PERSONAL',
+          e.transactionId || '',
+          e.propertyTitle || e.transaction?.property?.title || '',
+          '',
+          '',
+          e.source || '',
+          e.type || '',
+          e.accountType || '',
+          Number(e.amount || 0).toFixed(2),
+          String(e.description || '').replace(/"/g, '""'),
+        ]);
+      });
+    }
+
+    const csv = rows
+      .map((row) => row.map((cell) => '"' + cell + '"').join(','))
+      .join('\n');
+
+    const stamp = new Date().toISOString().slice(0, 10);
+    const scope = req.user.role === 'ADMIN' ? 'platform-audit' : (req.user.role.toLowerCase() + '-money-trail');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="escrowtrust-' + scope + '-' + stamp + '.csv"');
+    res.status(200).send(csv);
   } catch (error) {
     next(error);
   }
@@ -1860,6 +2104,7 @@ module.exports = {
   explainContractClause,
   verifyContractByChecksum,
   getMyGlobalJournal,
+  exportMyGlobalJournalCsv,
   simulateIremboWebhook,
   simulateMomoWebhook,
 };

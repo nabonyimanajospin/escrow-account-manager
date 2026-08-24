@@ -108,19 +108,16 @@ app.get('/uploads/contracts/:filename', protect, async (req, res) => {
   if (!fs.existsSync(contractsDir)) fs.mkdirSync(contractsDir, { recursive: true });
 
   const requestedFile = path.join(contractsDir, req.params.filename);
-  if (fs.existsSync(requestedFile)) {
-    return res.sendFile(requestedFile);
-  }
   try {
     const { Transaction } = require('./models');
     const { generateEscrowContract } = require('./services/contractService');
     const { transactionIncludes } = require('./utils/transactionHelpers');
 
-    const txIdMatch = req.params.filename.match(/TXN-([A-Z0-9-]+)/i);
+    const txIdMatch = req.params.filename.match(/(TXN-[A-Z0-9-]+)/i);
     let tx = null;
     if (txIdMatch) {
       tx = await Transaction.findOne({
-        where: { transactionId: txIdMatch[0].toUpperCase() },
+        where: { transactionId: txIdMatch[1].toUpperCase() },
         include: transactionIncludes,
       });
     }
@@ -131,14 +128,14 @@ app.get('/uploads/contracts/:filename', protect, async (req, res) => {
       });
     }
     if (tx) {
-      // Regenerate so downloads always use the latest certificate template (logo, QR, layout).
+      // Always regenerate so downloads use the latest Articles template (not a stale PDF on disk).
       await generateEscrowContract(tx, req.params.filename);
-      if (fs.existsSync(requestedFile)) {
-        return res.sendFile(requestedFile);
-      }
     }
   } catch (err) {
     logger.error('[Contract On-the-Fly] Error:', err.message);
+  }
+  if (fs.existsSync(requestedFile)) {
+    return res.sendFile(requestedFile);
   }
   res.status(404).send('Contract document unavailable.');
 });

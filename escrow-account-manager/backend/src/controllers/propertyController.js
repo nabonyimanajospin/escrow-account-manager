@@ -14,12 +14,25 @@ const normalizeImagesInput = (images) => {
   return [];
 };
 
-const buildFinalImages = (imagesInput, existingImages = [], uploadedFile) => {
-  const fromBody = imagesInput !== undefined ? normalizeImagesInput(imagesInput) : [...(existingImages || [])];
-  if (uploadedFile) {
-    return [`/uploads/properties/${uploadedFile.filename}`, ...fromBody];
-  }
-  return fromBody;
+const buildFinalImages = (imagesInput, existingImages = [], uploadedFiles = []) => {
+  const files = Array.isArray(uploadedFiles)
+    ? uploadedFiles
+    : uploadedFiles
+      ? [uploadedFiles]
+      : [];
+  const uploadedPaths = files
+    .filter(Boolean)
+    .map((file) => `/uploads/properties/${file.filename}`);
+
+  // If client sent explicit image URLs (even empty array), prefer that set + new uploads.
+  // If images field omitted, keep existing gallery and prepend new uploads.
+  const fromBody = imagesInput !== undefined
+    ? normalizeImagesInput(imagesInput)
+    : [...(existingImages || [])];
+
+  // Deduplicate while preserving order (uploads first as newest cover candidates)
+  const merged = [...uploadedPaths, ...fromBody];
+  return [...new Set(merged.filter(Boolean))];
 };
 
 const normalizePropertySpecs = ({ propertyType, bedrooms, bathrooms, area }) => {
@@ -188,25 +201,18 @@ exports.createProperty = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Please provide all required property fields' });
     }
 
-    const finalListingType = listingType === 'AUCTION' ? 'AUCTION' : 'FIXED_PRICE';
+    // Platform supports fixed-price sales only (auction disabled)
+    const finalListingType = 'FIXED_PRICE';
 
     if (!upiCode || !/^\d{1,2}\/\d{2}\/\d{2}\/\d{2}\/\d{1,5}$/i.test(upiCode)) {
       return res.status(400).json({ success: false, message: 'A valid Rwandan Land Registry UPI code is required (example: 1/03/01/04/3000)' });
     }
 
-    if (finalListingType === 'AUCTION') {
-      if (!biddingDeadline) {
-        return res.status(400).json({ success: false, message: 'Please provide a bidding deadline for auction listings' });
-      }
-      if (new Date(biddingDeadline) <= new Date()) {
-        return res.status(400).json({ success: false, message: 'Bidding deadline must be a future date' });
-      }
-    }
-
     const specs = normalizePropertySpecs({ propertyType, bedrooms, bathrooms, area });
 
-    // Handle image upload — uploaded file takes priority; fallback to URL array from body
-    const finalImages = buildFinalImages(images, [], req.file);
+    // Handle image upload — uploaded files first, then URL array from body
+    const uploadedFiles = req.files?.length ? req.files : (req.file ? [req.file] : []);
+    const finalImages = buildFinalImages(images, [], uploadedFiles);
 
     const property = await Property.create({
       sellerId: req.user.id,
@@ -260,17 +266,9 @@ exports.updateProperty = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'A valid Rwandan Land Registry UPI code is required (example: 1/03/01/04/3000)' });
     }
 
-    const finalListingType = listingType !== undefined ? (listingType === 'AUCTION' ? 'AUCTION' : 'FIXED_PRICE') : property.listingType;
-    const finalBiddingDeadline = biddingDeadline !== undefined ? biddingDeadline : property.biddingDeadline;
-
-    if (finalListingType === 'AUCTION') {
-      if (!finalBiddingDeadline) {
-        return res.status(400).json({ success: false, message: 'Please provide a bidding deadline for auction listings' });
-      }
-      if (new Date(finalBiddingDeadline) <= new Date()) {
-        return res.status(400).json({ success: false, message: 'Bidding deadline must be a future date' });
-      }
-    }
+    // Platform supports fixed-price sales only (auction disabled)
+    const finalListingType = 'FIXED_PRICE';
+    const finalBiddingDeadline = null;
 
     const finalPropertyType = propertyType !== undefined ? propertyType : property.propertyType;
     const finalBedrooms = bedrooms !== undefined ? bedrooms : property.bedrooms;
@@ -284,7 +282,8 @@ exports.updateProperty = async (req, res, next) => {
       area: finalArea
     });
 
-    const finalImages = buildFinalImages(images, property.images, req.file);
+    const uploadedFiles = req.files?.length ? req.files : (req.file ? [req.file] : []);
+    const finalImages = buildFinalImages(images, property.images, uploadedFiles);
 
     await property.update({
       title: title !== undefined ? title : property.title,

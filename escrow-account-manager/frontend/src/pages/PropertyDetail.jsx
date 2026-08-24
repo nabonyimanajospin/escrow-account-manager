@@ -6,7 +6,7 @@ import StatusBadge from '../components/StatusBadge';
 import toast from 'react-hot-toast';
 import CurrencyConverter from '../components/CurrencyConverter';
 import PriceBreakdown from '../components/common/PriceBreakdown';
-import { resolveImageUrl, getPropertyCoverImage, DEFAULT_PROPERTY_COVER } from '../utils/imageUtils';
+import { resolveImageUrl, getPropertyCoverImage, handlePropertyImageError } from '../utils/imageUtils';
 import { calculatePlatformFees, getRoleAwareListingPrice } from '../utils/platformFees';
 
 const PropertyDetail = () => {
@@ -211,10 +211,8 @@ const PropertyDetail = () => {
                 )}
                 alt={property.title}
                 className="w-full h-full object-cover animate-fade-in transition-all duration-300"
-                onError={(e) => {
-                  e.currentTarget.onerror = null;
-                  e.currentTarget.src = DEFAULT_PROPERTY_COVER;
-                }}
+                referrerPolicy="no-referrer"
+                onError={handlePropertyImageError}
               />
               <div className="absolute top-4 right-4">
                 <StatusBadge status={property.status} />
@@ -234,7 +232,7 @@ const PropertyDetail = () => {
                         : 'opacity-70 hover:opacity-100 hover:ring-2 hover:ring-slate-300 hover:ring-offset-1'
                     }`}
                   >
-                    <img src={resolveImageUrl(imgUrl)} className="w-full h-full object-cover" alt={`Thumbnail ${idx + 1}`} />
+                    <img src={resolveImageUrl(imgUrl)} className="w-full h-full object-cover" alt={`Thumbnail ${idx + 1}`} referrerPolicy="no-referrer" onError={handlePropertyImageError} />
                   </button>
                 ))}
               </div>
@@ -323,8 +321,7 @@ const PropertyDetail = () => {
                     </div>
                   );
                 })()}
-                {property.listingType === 'FIXED_PRICE' ? (
-                  <div className="space-y-4">
+                <div className="space-y-4">
                     <button
                       type="button"
                       onClick={handleDirectPurchase}
@@ -379,48 +376,6 @@ const PropertyDetail = () => {
                       </form>
                     </details>
                   </div>
-                ) : (
-                  <form onSubmit={handlePlaceBid} className="space-y-4">
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider text-center">Reserve at your price</p>
-                    <p className="text-[10px] text-slate-500 font-medium text-center leading-relaxed">
-                      First buyer to lock and fund removes this listing from the public catalog for everyone else.
-                    </p>
-                    <div className="space-y-2">
-                      <label className="text-[11px] font-bold text-slate-500 block text-left">Offer Amount ($ USD)</label>
-                      <input
-                        type="number"
-                        required
-                        min={property.price}
-                        step="any"
-                        className="input-field !py-1.5 !px-3 text-xs w-full"
-                        placeholder={`Min. $${Number(property.price).toLocaleString()}`}
-                        value={bidPrice}
-                        onChange={(e) => setBidPrice(e.target.value)}
-                        disabled={actionLoading}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[11px] font-bold text-slate-500 block text-left">Mutation Payment Period (Days)</label>
-                      <input
-                        type="number"
-                        required
-                        min={1}
-                        className="input-field !py-1.5 !px-3 text-xs w-full"
-                        placeholder="E.g. 15 days"
-                        value={bidPeriod}
-                        onChange={(e) => setBidPeriod(e.target.value)}
-                        disabled={actionLoading}
-                      />
-                    </div>
-                    <button
-                      type="submit"
-                      disabled={actionLoading}
-                      className="btn-primary w-full py-2.5 font-bold text-xs cursor-pointer"
-                    >
-                      {actionLoading ? 'Reserving...' : 'Lock at this price'}
-                    </button>
-                  </form>
-                )}
               </div>
             )}
 
@@ -485,7 +440,7 @@ const PropertyDetail = () => {
           </div>
 
           {/* Reserved-offer history (seller / admin only) */}
-          {isAuthenticated && (isOwner || isAdmin) && property.listingType === 'AUCTION' && (
+          {false && isAuthenticated && (isOwner || isAdmin) && property.listingType === 'AUCTION' && (
             <div className="card p-5 bg-white space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div>

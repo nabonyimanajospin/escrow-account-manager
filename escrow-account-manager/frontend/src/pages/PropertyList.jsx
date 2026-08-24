@@ -4,7 +4,7 @@ import axios from '../api/axiosConfig';
 import { useAuth } from '../context/AuthContext';
 import StatusBadge from '../components/StatusBadge';
 import toast from 'react-hot-toast';
-import { resolveImageUrl, getPropertyCoverImage, DEFAULT_PROPERTY_COVER } from '../utils/imageUtils';
+import { resolveImageUrl, getPropertyCoverImage, handlePropertyImageError } from '../utils/imageUtils';
 import EmptyState from '../components/common/EmptyState';
 import { SkeletonCard } from '../components/common/SkeletonLoader';
 import { getRoleAwareListingPrice, formatMoney } from '../utils/platformFees';
@@ -196,10 +196,8 @@ const PropertyList = () => {
                   alt={p.title}
                   className="w-full h-full object-cover"
                   loading="lazy"
-                  onError={(e) => {
-                    e.currentTarget.onerror = null;
-                    e.currentTarget.src = DEFAULT_PROPERTY_COVER;
-                  }}
+                  referrerPolicy="no-referrer"
+                  onError={handlePropertyImageError}
                 />
                 <div className="absolute top-3 right-3">
                   <StatusBadge status={p.status} />

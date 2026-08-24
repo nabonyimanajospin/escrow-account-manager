@@ -74,6 +74,10 @@ exports.raiseDispute = async (req, res, next) => {
       notificationService.sendDisputeNotificationEmail(seller.email, seller.name, txRef, 'SELLER').catch(() => {});
       notificationService.createInAppNotification(seller.id, 'Dispute Filed', `A dispute has been opened on transaction ${txRef}.`).catch(() => {});
     }
+    notificationService.notifyAdmins(
+      'Dispute filed — admin mediation required',
+      `A dispute was opened on ${txRef}. Escrow is frozen until you mediate.`
+    ).catch(() => {});
 
     const updatedTx = await Transaction.findByPk(transaction.id, { include: transactionIncludes });
     res.status(200).json({ success: true, message: 'Dispute successfully filed. Escrow locked. Resolution deadline set to 7 days.', dispute: result, data: updatedTx });

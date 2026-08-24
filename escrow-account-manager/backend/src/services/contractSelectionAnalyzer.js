@@ -17,6 +17,170 @@ function detectClauseNumber(clauseLabel = '', paragraphText = '') {
   return null;
 }
 
+function isBroadSelection(selectedText, paragraphText = '') {
+  const sel = selectedText.trim();
+  if (sel.length >= 280) return true;
+  if (paragraphText && sel.length / Math.max(paragraphText.length, 1) >= 0.75) return true;
+  const clauseHits = (sel.match(/clause\s*[1-4]/gi) || []).length;
+  return clauseHits >= 2;
+}
+
+function buildFullContractExplanation(ctx = {}) {
+  const role = ctx.userRole || 'Participant';
+  const status = ctx.status || 'PENDING';
+  const roleIntro =
+    role === 'BUYER'
+      ? `As **${ctx.userName || 'the buyer'}**, this agreement defines what you are purchasing, what you will pay, and how your money is protected until title transfer is verified.`
+      : role === 'SELLER'
+        ? `As **${ctx.userName || 'the seller'}**, this agreement defines what you must deliver, when you get paid, and how disputes are handled before funds reach your wallet.`
+        : `This agreement governs how **${ctx.buyerName}** and **${ctx.sellerName}** complete the sale of **"${ctx.propertyTitle}"**.`;
+
+  return `${roleIntro}
+
+**Clause 1 — Parties & property:** **${ctx.buyerName}** (buyer) and **${ctx.sellerName}** (seller) agree on **"${ctx.propertyTitle}"** at **${ctx.propertyLocation}** (UPI **${ctx.upiCode || 'N/A'}**) for **${fmtMoney(ctx.amount)}**. This sets who is legally bound and which asset is being transferred.
+
+**Clause 2 — Escrow custody & fees:** The buyer deposits **${fmtMoney(ctx.totalBuyerPaid)}** total (**${fmtMoney(ctx.amount)}** + **${fmtMoney(ctx.buyerFee)}** buyer fee). Funds stay locked in escrow until mutation documents and registry checks succeed. On this deal the status is **${status}**${status === 'FUNDED' || status === 'MUTATION_STARTED' || status === 'UNDER_REVIEW' ? ' — buyer funds are already in custody' : status === 'PENDING' ? ' — deposit happens after both parties verify OTP' : ''}.
+
+**Clause 3 — Seller payout & disputes:** After admin approval, the seller receives **${fmtMoney(ctx.sellerNetPayout)}** net (after **${fmtMoney(ctx.sellerFee)}** seller fee). If fraud, title defects, or disputes arise, funds remain frozen and either party may escalate to admin mediation.
+
+**Clause 4 — Cryptographic consensus:** Both parties authorize key steps via OTP on EscrowTrust. Buyer authorized: **${ctx.buyerAuthorized ? 'Yes' : 'No'}**. Seller authorized: **${ctx.sellerAuthorized ? 'Yes' : 'No'}**. These digital approvals create an auditable record alongside this contract.
+
+**What you should understand before signing:** EscrowTrust does not ask you to skip reading — it holds money safely while **${ctx.sellerName}** proves title transfer and admin verifies the registry. Your role (${role}) has clear steps at each status; signing means you agree to this structured process, not that you waive your dispute or refund protections.`;
+}
+
+function buildClauseExplanation(clause, ctx = {}) {
+  const role = ctx.userRole || 'Participant';
+  const status = ctx.status || 'PENDING';
+
+  if (clause === 1) {
+    return `This clause names the parties and the property being sold. **${ctx.buyerName}** is the buyer and **${ctx.sellerName}** is the seller. They agree to transfer **"${ctx.propertyTitle}"** located at **${ctx.propertyLocation}** for **${fmtMoney(ctx.amount)}**.
+
+**How it works:** This is the foundation of the contract — it confirms who is involved, which listing is covered, and the purchase price before escrow steps begin.
+
+**What ${role === 'BUYER' ? 'you' : 'the buyer'} should know:** ${role === 'BUYER' ? `You are committing to buy this specific property at the stated price. Your total wallet deposit will be **${fmtMoney(ctx.totalBuyerPaid)}** including fees, but payment only moves into escrow after OTP verification (status: **${status}**).` : `The buyer **${ctx.buyerName}** is identified as the purchaser of your listing at **${fmtMoney(ctx.amount)}**.`}
+
+**What ${role === 'SELLER' ? 'you' : 'the seller'} should know:** ${role === 'SELLER' ? `You agree to transfer legal title of this property once escrow conditions are met. Your net payout after the seller fee will be **${fmtMoney(ctx.sellerNetPayout)}** upon successful completion.` : `The seller **${ctx.sellerName}** must deliver title and mutation documents for this property.`}`;
+  }
+
+  if (clause === 2) {
+    return `This clause explains how buyer funds are held in escrow. The buyer pays **${fmtMoney(ctx.totalBuyerPaid)}** (**${fmtMoney(ctx.amount)}** + **${fmtMoney(ctx.buyerFee)}** platform fee) into the EscrowTrust vault. Money stays locked until the seller completes title mutation and administration verifies registry clearance.
+
+**How it works:** Neither party can unilaterally withdraw escrow funds. The buyer cannot get a casual refund without the dispute/admin process; the seller cannot receive payout until release rules are satisfied.
+
+**On this deal (${ctx.transactionId}, status ${status}):** ${status === 'PENDING' ? 'Funds are not yet deposited — complete OTP verification first, then deposit from wallet.' : status === 'FUNDED' || status === 'MUTATION_STARTED' || status === 'UNDER_REVIEW' ? `Funds (**${fmtMoney(ctx.totalBuyerPaid)}**) are in escrow custody now.` : 'Follow the escrow workspace timeline for the current funding state.'}
+
+**For you as ${role}:** ${role === 'BUYER' ? 'Your money is protected in escrow while the seller proves transfer — you are not paying directly to the seller’s personal account.' : role === 'SELLER' ? 'You will not receive payout until documents and admin review are complete, which protects both sides.' : 'Monitor custody status and admin review checkpoints.'}`;
+  }
+
+  if (clause === 3) {
+    return `This clause covers seller payout and dispute protection. After verification, **${ctx.sellerName}** receives **${fmtMoney(ctx.sellerNetPayout)}** net (purchase price minus **${fmtMoney(ctx.sellerFee)}** seller fee). If document forgery, title defects, or disputes appear, funds stay frozen for mediation.
+
+**How it works:** Payout is not instant when the buyer deposits. Admin must approve release after mutation documents and registry checks. Either party can file a dispute to pause release.
+
+**What you should know:** This protects the buyer from paying for a bad title and protects the seller from unfair chargebacks by requiring evidence and admin review.
+
+**For you as ${role}:** ${role === 'BUYER' ? 'You may file a dispute if documents do not match the listing or UPI. Funds remain frozen until resolved.' : role === 'SELLER' ? `Your net payout of **${fmtMoney(ctx.sellerNetPayout)}** is earned only after successful mutation and admin release.` : 'Admin mediates disputes and decides release or refund.'}`;
+  }
+
+  if (clause === 4) {
+    return `This clause confirms that OTP approvals logged on EscrowTrust are legally binding authorization steps under Rwandan law and smart-contract escrow standards.
+
+**How it works:** Buyer and seller each verify OTP codes sent to notifications, email, and SMS. These approvals create cryptographic signatures on the deal timeline.
+
+**On this deal:** Buyer authorized **${ctx.buyerAuthorized ? 'Yes' : 'No'}** · Seller authorized **${ctx.sellerAuthorized ? 'Yes' : 'No'}**.
+
+**For you as ${role}:** ${role === 'BUYER' || role === 'SELLER' ? 'Verify OTP only when you understand and agree with the current escrow step — it is your digital sign-off, not a trap, but a record that you approved that stage.' : 'Both parties must authorize before sensitive steps proceed.'}`;
+  }
+
+  return '';
+}
+
+/**
+ * Guaranteed substantive explanation — always returns helpful content.
+ */
+function buildRichExplanation(selectedText, paragraphText, ctx = {}) {
+  const sel = selectedText.trim();
+  const paragraph = paragraphText || sel;
+  const broad = isBroadSelection(sel, paragraph);
+
+  if (broad) {
+    return buildFullContractExplanation(ctx);
+  }
+
+  const clause = detectClauseNumber(ctx.clauseLabel, paragraph);
+  const clauseBody = buildClauseExplanation(clause, ctx);
+  if (clauseBody) {
+    const focus =
+      sel.length < 120
+        ? `**Regarding your highlighted words** ("${sel}"): this appears in ${ctx.clauseLabel || `Clause ${clause}`}.`
+        : `**Regarding your selection** in ${ctx.clauseLabel || `Clause ${clause}`}:`;
+
+    return `${focus}
+
+${clauseBody}`;
+  }
+
+  return buildSelectionSpecificFallback(selectedText, paragraph, ctx);
+}
+
+function stripExplanationMeta(text = '') {
+  return String(text)
+    .replace(/^#{1,6}\s*🧠[^\n]*\n+/i, '')
+    .replace(/^\*\*Your selection:\*\*[^\n]*\n+/i, '')
+    .replace(/^-\s*\*\*What these exact words mean:\*\*\s*\n?/i, '')
+    .trim();
+}
+
+function sanitizeMarkdownForDisplay(text = '') {
+  let out = String(text).trim();
+  const boldCount = (out.match(/\*\*/g) || []).length;
+  if (boldCount % 2 !== 0) out += '**';
+  return out;
+}
+
+function isTruncatedExplanation(text = '') {
+  const cleaned = stripExplanationMeta(text);
+  if (!cleaned || cleaned.length < 40) return true;
+
+  const boldCount = (cleaned.match(/\*\*/g) || []).length;
+  if (boldCount % 2 !== 0) return true;
+
+  const tail = cleaned.slice(-100).trim();
+  const endsCleanly = /[.!?]["')\]]*\s*$/.test(tail) || /[.!?]["')\]]*\s*$/.test(cleaned.trim());
+  if (!endsCleanly) return true;
+
+  return false;
+}
+
+function isSubstantiveExplanation(text = '') {
+  const cleaned = stripExplanationMeta(text);
+  if (cleaned.length < 120) return false;
+  if (isTruncatedExplanation(cleaned)) return false;
+  const lower = cleaned.toLowerCase();
+  const hasMeaning =
+    lower.includes('how it works') ||
+    lower.includes('means') ||
+    lower.includes('escrow') ||
+    lower.includes('buyer') ||
+    lower.includes('seller') ||
+    lower.includes('deposit') ||
+    lower.includes('payout') ||
+    lower.includes('clause') ||
+    lower.includes('should know');
+  return hasMeaning;
+}
+
+function mergeExplanation(aiText, fallbackText) {
+  const fallback = sanitizeMarkdownForDisplay(stripExplanationMeta(fallbackText) || fallbackText);
+  const ai = stripExplanationMeta(aiText);
+
+  if (!ai || isTruncatedExplanation(ai) || !isSubstantiveExplanation(ai)) {
+    return fallback;
+  }
+
+  return sanitizeMarkdownForDisplay(ai);
+}
+
 /**
  * Keyword-driven focus instructions tied to THIS deal's real data.
  */
@@ -24,9 +188,19 @@ function buildSelectionFocusInstructions(selectedText, paragraphText, ctx = {}) 
   const sel = selectedText.toLowerCase();
   const lines = [];
   const clause = detectClauseNumber(ctx.clauseLabel, paragraphText);
+  const broad = isBroadSelection(selectedText, paragraphText);
 
-  lines.push(`MANDATORY: Open your answer by quoting these exact words: "${selectedText}"`);
-  lines.push(`Then explain ONLY what those specific words mean in THIS contract for ${ctx.userName || 'the reader'} as ${ctx.userRole}.`);
+  if (broad) {
+    lines.push('The user selected a large portion or multiple clauses. Explain ALL FOUR contract clauses in plain professional language.');
+    lines.push(`Structure: (1) Parties & property, (2) Escrow custody & fees, (3) Seller payout & disputes, (4) Cryptographic consensus.`);
+    lines.push(`Use real names and amounts. End with what ${ctx.userRole} should understand before signing — reassuring, not discouraging.`);
+    lines.push('Do NOT merely repeat the selected text. Teach what will actually occur step by step.');
+    return lines.join('\n');
+  }
+
+  lines.push(`Explain the FULL paragraph for ${ctx.userName || 'the reader'} as ${ctx.userRole}, using the highlighted phrase "${selectedText}" as the entry point.`);
+  lines.push('Include: what it means, how it works on EscrowTrust, what the user should know, and what happens next on THIS deal.');
+  lines.push('Tone: professional, clear, reassuring — educate without discouraging signing.');
 
   if (clause === 1) {
     lines.push(`This is Clause 1 about parties: Buyer "${ctx.buyerName}" and Seller "${ctx.sellerName}" buying "${ctx.propertyTitle}" at ${ctx.propertyLocation} for ${fmtMoney(ctx.amount)}.`);
@@ -69,8 +243,8 @@ function buildSelectionFocusInstructions(selectedText, paragraphText, ctx = {}) 
     lines.push(`Property specifics: "${ctx.propertyTitle}", UPI ${ctx.upiCode || 'N/A'}, location ${ctx.propertyLocation}.`);
   }
 
-  lines.push('FORBIDDEN: Do NOT give a generic platform tour. Do NOT repeat all 10 workflow steps unless the selection explicitly asks "how does the whole process work".');
-  lines.push('REQUIRED: Every sentence must connect back to the meaning of the highlighted words or their immediate sentence in the paragraph.');
+  lines.push('FORBIDDEN: Do NOT only repeat the selected text. Do NOT return empty bullet points.');
+  lines.push('REQUIRED: Minimum 4 sentences of real explanation tied to this deal.');
 
   return lines.join('\n');
 }
@@ -131,5 +305,13 @@ Funds (${fmtMoney(ctx.totalBuyerPaid)} max from buyer) stay in escrow vault unti
 module.exports = {
   buildSelectionFocusInstructions,
   buildSelectionSpecificFallback,
+  buildRichExplanation,
+  buildFullContractExplanation,
+  isBroadSelection,
+  mergeExplanation,
+  stripExplanationMeta,
+  isSubstantiveExplanation,
+  isTruncatedExplanation,
+  sanitizeMarkdownForDisplay,
   detectClauseNumber,
 };

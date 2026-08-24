@@ -9,6 +9,9 @@ const {
 const {
   buildSelectionFocusInstructions,
   buildSelectionSpecificFallback,
+  buildRichExplanation,
+  mergeExplanation,
+  isBroadSelection,
 } = require('./contractSelectionAnalyzer');
 
 let genAI = null;
@@ -169,7 +172,8 @@ exports.explainContractText = async (selectedText, contractContext = {}) => {
 
   const fullParagraph = paragraphText || selectedText;
   const selectionFocus = buildSelectionFocusInstructions(selectedText, fullParagraph, contractContext);
-  const systemKnowledge = getEscrowTrustSystemKnowledge();
+  const guaranteedExplanation = buildRichExplanation(selectedText, fullParagraph, contractContext);
+  const broad = isBroadSelection(selectedText, fullParagraph);
   const dealContext = buildDealContextSnapshot({
     transactionId,
     status,
@@ -194,53 +198,57 @@ exports.explainContractText = async (selectedText, contractContext = {}) => {
 
   const ai = getGenAI();
   if (!ai) {
-    return buildSelectionSpecificFallback(selectedText, fullParagraph, contractContext);
+    return guaranteedExplanation;
   }
 
   try {
     const model = ai.getGenerativeModel({
       model: 'gemini-flash-latest',
       generationConfig: {
-        temperature: 0.2,
-        maxOutputTokens: 700,
+        temperature: 0.3,
+        maxOutputTokens: 2048,
       },
     });
 
-    const prompt = `${AI_INSTRUCTIONS}
+    const compactContractRules = `EscrowTrust rules for this explanation only:
+- Buyer deposits price + 1% fee into escrow vault; seller uploads mutation/title docs; admin verifies and releases seller payout (price minus 1.5% seller fee).
+- Dual OTP consensus required from buyer and seller before deposit.
+- Funds stay locked until registry/admin approval; disputes freeze release.
+- Explain clearly for ${userRole}; be professional and reassuring, not discouraging.`;
 
-${systemKnowledge}
+    const prompt = `${AI_INSTRUCTIONS}
 
 ${dealContext}
 
-═══ SELECTION-SPECIFIC TASK (HIGHEST PRIORITY — NOT GENERIC) ═══
+${compactContractRules}
+
+═══ SELECTION TASK ═══
 ${selectionFocus}
 
-Parent paragraph (for context only — center answer on the HIGHLIGHTED phrase):
+Paragraph:
 ${clauseLabel ? `[${clauseLabel}]\n` : ''}${fullParagraph}
 
-═══ OUTPUT RULES ═══
-1. FIRST sentence MUST quote "${selectedText}" and explain those exact words.
-2. Use real names: Buyer "${buyerName}", Seller "${sellerName}", Property "${propertyTitle}".
-3. Use real amounts from this deal when money/terms appear in the selection.
-4. Tie to status "${status}" — what applies NOW, not a generic lifecycle essay.
-5. "What this means for you as ${userRole}" must address ONLY the selected phrase's impact on ${userRole}.
-6. Do NOT start with "EscrowTrust is a platform..." or list all workflow steps.
+Highlighted:
+"${selectedText}"
 
-Format (Markdown):
-### 🧠 AI Legal Co-Pilot
-**Your selection:** "${selectedText}"
-
-- **What these exact words mean:** (specific — quote key terms back)
-- **In this deal (${transactionId}, ${status}):** (apply to live numbers/names)
-- **For you as ${userRole}:** (personal, actionable)
-- **Next action related to this phrase:** (one concrete step)
-
-Max 200 words. Zero generic filler.`;
+Write a COMPLETE explanation (3–6 short paragraphs). Must end with a full sentence and period.
+Sections to cover: What it means · How it works · What ${userRole} should know · What happens next (status: ${status}).
+Use names ${buyerName}, ${sellerName}, property "${propertyTitle}", amounts from deal context.
+Do NOT include "Your selection:" — UI shows that already.
+${broad ? 'Large selection: summarize all four clauses and overall flow.' : 'Explain the full paragraph, starting from the highlight.'}`;
 
     const result = await model.generateContent(prompt);
-    return result.response.text();
+    const response = result.response;
+    const aiText = response.text()?.trim() || '';
+    const finishReason = response.candidates?.[0]?.finishReason;
+
+    if (finishReason === 'MAX_TOKENS' || !aiText) {
+      return guaranteedExplanation;
+    }
+
+    return mergeExplanation(aiText, guaranteedExplanation);
   } catch (err) {
-    return buildSelectionSpecificFallback(selectedText, fullParagraph, contractContext);
+    return guaranteedExplanation;
   }
 };
 

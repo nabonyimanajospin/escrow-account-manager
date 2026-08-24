@@ -19,6 +19,7 @@ const {
   explainContractClause,
   verifyContractByChecksum,
   getMyGlobalJournal,
+  exportMyGlobalJournalCsv,
 } = require('../controllers/transactionController');
 const { raiseDispute, uploadEvidence, resolveDispute, mediateDispute } = require('../controllers/disputeController');
 const { acceptOffer } = require('../controllers/offerController');
@@ -33,6 +34,7 @@ router.get('/verify-deed/:checksum', verifyContractByChecksum);
 
 // Platform-wide global accounting journal
 router.get('/my-global-journal', protect, getMyGlobalJournal);
+router.get('/my-global-journal/export', protect, exportMyGlobalJournalCsv);
 
 // Get user's active/past escrow transactions
 router.get('/my', protect, roleCheck('BUYER', 'SELLER', 'ADMIN'), getMyTransactions);

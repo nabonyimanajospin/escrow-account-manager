@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary-50: #f0f6ff;
+  --color-primary-100: #e0ebff;
+  --color-primary-500: #3b71fe;
+  --color-primary-600: #2554eb;
+  --color-primary-700: #1d40d8;
+  --color-primary-800: #1d36af;
+  --font-sans: "Source Sans 3", system-ui, sans-serif;
+  --font-display: "Outfit", system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background: #f8fafc;
+  color: #1e293b;
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #2554eb;
+  color: #fff;
+  font-weight: 700;
+  border-radius: 0.75rem;
+  padding: 0.65rem 1.25rem;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+}
+.btn-primary:hover { background: #1d40d8; }
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  color: #1e293b;
+  font-weight: 700;
+  border-radius: 0.75rem;
+  padding: 0.65rem 1.25rem;
+  border: 1px solid #e2e8f0;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+
+.hero-mesh {
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(37, 84, 235, 0.12), transparent),
+    linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+}
+
+.wallet-balance-card {
+  background: linear-gradient(135deg, #2554eb 0%, #1d36af 100%);
+  border-radius: 1rem;
+  color: #fff;
+  box-shadow: 0 4px 20px rgba(37, 84, 235, 0.28);
+}

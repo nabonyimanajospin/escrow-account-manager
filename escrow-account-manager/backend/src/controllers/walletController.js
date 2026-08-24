@@ -156,6 +156,11 @@ const requestWalletDeposit = async (req, res) => {
       `Your wallet funding request for $${depositAmount.toLocaleString()} is pending admin verification.`
     ).catch(() => {});
 
+    notificationService.notifyAdmins(
+      'Wallet funding request',
+      `${req.user.name} requested a wallet deposit of $${depositAmount.toLocaleString()} (ref: ${ref}). Review Admin → Wallet to approve or reject.`
+    ).catch(() => {});
+
     res.status(201).json({
       success: true,
       message: 'Deposit request submitted. Funds will be credited after admin verifies your payment reference.',
@@ -250,6 +255,24 @@ const rejectWalletDeposit = async (req, res) => {
     if (!t.finished) await t.rollback();
     logger.error('[Wallet] rejectWalletDeposit error:', error);
     res.status(500).json({ success: false, error: 'Failed to reject deposit.' });
+  }
+};
+
+/**
+ * GET /api/admin/wallet/pending-withdrawals
+ * Lists seller withdrawal requests awaiting admin payout.
+ */
+const getPendingWithdrawals = async (req, res) => {
+  try {
+    const withdrawals = await WalletTransaction.findAll({
+      where: { type: 'WITHDRAWAL_REQUEST', status: 'PENDING' },
+      include: [{ model: User, as: 'user', attributes: ['id', 'name', 'email', 'role', 'walletBalance'] }],
+      order: [['createdAt', 'ASC']],
+    });
+    res.json({ success: true, data: withdrawals });
+  } catch (err) {
+    logger.error('[Wallet] getPendingWithdrawals error:', err);
+    res.status(500).json({ success: false, error: 'Failed to load pending withdrawals.' });
   }
 };
 
@@ -357,6 +380,7 @@ module.exports = {
   getPendingWalletDeposits,
   approveWalletDeposit,
   rejectWalletDeposit,
+  getPendingWithdrawals,
   approveWithdrawal,
   rejectWithdrawal,
   getPlatformSummary,

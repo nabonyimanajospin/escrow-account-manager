@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import EmptyState from '../components/common/EmptyState';
 import { SkeletonCard, SkeletonTable } from '../components/common/SkeletonLoader';
 import { openSecureDocument } from '../utils/imageUtils';
+import GlobalAccountingJournal from '../components/escrow/GlobalAccountingJournal';
 
 const AdminPanel = () => {
   const [loading, setLoading] = useState(true);
@@ -16,6 +17,7 @@ const AdminPanel = () => {
   const [usersList, setUsersList] = useState([]);
   const [ledgerLogs, setLedgerLogs] = useState([]);
   const [pendingDeposits, setPendingDeposits] = useState([]);
+  const [pendingWithdrawals, setPendingWithdrawals] = useState([]);
   const [actionLoading, setActionLoading] = useState(false);
   // Modal state for release/refund audit notes
   const [modal, setModal] = useState(null); // { type: 'release'|'refund', txId, txCode }
@@ -24,12 +26,13 @@ const AdminPanel = () => {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const [propRes, txnRes, userRes, logRes, depositRes] = await Promise.all([
+      const [propRes, txnRes, userRes, logRes, depositRes, withdrawalRes] = await Promise.all([
         axios.get('/properties'),
         axios.get('/admin/transactions'),
         axios.get('/auth/users'),
         axios.get('/admin/audit-logs'),
         axios.get('/admin/wallet/pending-deposits').catch(() => ({ data: { data: [] } })),
+        axios.get('/admin/wallet/pending-withdrawals').catch(() => ({ data: { data: [] } })),
       ]);
 
       setPropsList(propRes.data.data || []);
@@ -37,6 +40,7 @@ const AdminPanel = () => {
       setUsersList(userRes.data.data || []);
       setLedgerLogs(logRes.data.data || []);
       setPendingDeposits(depositRes.data.data || []);
+      setPendingWithdrawals(withdrawalRes.data.data || []);
     } catch (err) {
       console.error(err);
       toast.error('Failed to load administrative console data');
@@ -111,6 +115,34 @@ const AdminPanel = () => {
       fetchData();
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to reject deposit');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleApproveWithdrawal = async (withdrawalId) => {
+    if (!window.confirm('Confirm you have paid out this seller withdrawal (MoMo/bank)? This marks the request as paid.')) return;
+    try {
+      setActionLoading(true);
+      const res = await axios.post(`/admin/wallet/${withdrawalId}/approve`);
+      toast.success(res.data.message || 'Withdrawal marked as paid');
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to approve withdrawal');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRejectWithdrawal = async (withdrawalId) => {
+    if (!window.confirm('Reject this withdrawal and refund the amount back to the seller wallet?')) return;
+    try {
+      setActionLoading(true);
+      const res = await axios.post(`/admin/wallet/${withdrawalId}/reject`);
+      toast.success(res.data.message || 'Withdrawal rejected; funds returned to seller wallet');
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to reject withdrawal');
     } finally {
       setActionLoading(false);
     }
@@ -259,7 +291,7 @@ const AdminPanel = () => {
             <p className="text-xs text-slate-400 mt-0.5 font-bold">Select tab categories to manage properties, deals, users or ledger entries.</p>
           </div>
           <div className="flex flex-wrap gap-1.5">
-            {['properties', 'transactions', 'wallet', 'users', 'ledger'].map((tab) => (
+            {['properties', 'transactions', 'wallet', 'users', 'ledger', 'audit journal'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -269,7 +301,7 @@ const AdminPanel = () => {
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
-                {tab}{tab === 'wallet' && pendingDeposits.length > 0 ? ` (${pendingDeposits.length})` : ''}
+                {tab}{tab === 'wallet' && (pendingDeposits.length + pendingWithdrawals.length) > 0 ? ` (${pendingDeposits.length + pendingWithdrawals.length})` : ''}
               </button>
             ))}
           </div>
@@ -443,45 +475,92 @@ const AdminPanel = () => {
         )}
 
         {activeTab === 'wallet' && (
-          <div className="table-scroll">
-            <p className="text-xs text-slate-500 font-semibold mb-4">
-              Verify buyer MoMo/bank payments and credit wallets before they can lock escrow deposits.
-            </p>
-            <table className="min-w-full">
-              <thead>
-                <tr className="text-left text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">
-                  <th className="pb-3 pr-4">User</th>
-                  <th className="pb-3 pr-4">Amount</th>
-                  <th className="pb-3 pr-4">Reference</th>
-                  <th className="pb-3 pr-4">Submitted</th>
-                  <th className="pb-3">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {pendingDeposits.map((d) => (
-                  <tr key={d.id} className="hover:bg-slate-50/50">
-                    <td className="py-4 pr-4">
-                      <span className="text-sm font-bold text-slate-900 block">{d.user?.name || 'User'}</span>
-                      <span className="text-[10px] text-slate-400">{d.user?.email}</span>
-                    </td>
-                    <td className="py-4 pr-4 font-extrabold text-slate-900">${Number(d.amount).toLocaleString()}</td>
-                    <td className="py-4 pr-4 font-mono text-xs text-slate-600">{d.reference}</td>
-                    <td className="py-4 pr-4 text-xs text-slate-500">{new Date(d.createdAt).toLocaleString()}</td>
-                    <td className="py-4 flex gap-2">
-                      <button type="button" onClick={() => handleApproveDeposit(d.id)} disabled={actionLoading} className="btn-primary !py-1 !px-3 text-xs">Approve</button>
-                      <button type="button" onClick={() => handleRejectDeposit(d.id)} disabled={actionLoading} className="btn-secondary !py-1 !px-3 text-xs text-red-600">Reject</button>
-                    </td>
+          <div className="space-y-8">
+            <div className="table-scroll">
+              <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider mb-1">Seller withdrawal requests</h3>
+              <p className="text-xs text-slate-500 font-semibold mb-4">
+                These are seller “Pending Withdrawals” awaiting admin payout. Approve after you send MoMo/bank; reject to return funds to their wallet.
+              </p>
+              <table className="min-w-full">
+                <thead>
+                  <tr className="text-left text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">
+                    <th className="pb-3 pr-4">Seller</th>
+                    <th className="pb-3 pr-4">Amount</th>
+                    <th className="pb-3 pr-4">Notes</th>
+                    <th className="pb-3 pr-4">Requested</th>
+                    <th className="pb-3">Actions</th>
                   </tr>
-                ))}
-                {pendingDeposits.length === 0 && (
-                  <tr>
-                    <td colSpan="5" className="p-0 border-none">
-                      <EmptyState title="No pending wallet deposits" description="Buyer funding requests will appear here for verification." />
-                    </td>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {pendingWithdrawals.map((w) => (
+                    <tr key={w.id} className="hover:bg-slate-50/50">
+                      <td className="py-4 pr-4">
+                        <span className="text-sm font-bold text-slate-900 block">{w.user?.name || 'Seller'}</span>
+                        <span className="text-[10px] text-slate-400">{w.user?.email}</span>
+                      </td>
+                      <td className="py-4 pr-4 font-extrabold text-amber-600">
+                        ${Number(w.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="py-4 pr-4 text-xs text-slate-600 max-w-[220px] truncate">{w.notes || '—'}</td>
+                      <td className="py-4 pr-4 text-xs text-slate-500">{new Date(w.createdAt).toLocaleString()}</td>
+                      <td className="py-4 flex gap-2">
+                        <button type="button" onClick={() => handleApproveWithdrawal(w.id)} disabled={actionLoading} className="btn-primary !py-1 !px-3 text-xs">Mark paid</button>
+                        <button type="button" onClick={() => handleRejectWithdrawal(w.id)} disabled={actionLoading} className="btn-secondary !py-1 !px-3 text-xs text-red-600">Reject</button>
+                      </td>
+                    </tr>
+                  ))}
+                  {pendingWithdrawals.length === 0 && (
+                    <tr>
+                      <td colSpan="5" className="p-0 border-none">
+                        <EmptyState title="No pending seller withdrawals" description="When a seller requests a cash-out, it will appear here for admin payout." />
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="table-scroll">
+              <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider mb-1">Buyer wallet deposit requests</h3>
+              <p className="text-xs text-slate-500 font-semibold mb-4">
+                Verify buyer MoMo/bank payments and credit wallets before they can lock escrow deposits.
+              </p>
+              <table className="min-w-full">
+                <thead>
+                  <tr className="text-left text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">
+                    <th className="pb-3 pr-4">User</th>
+                    <th className="pb-3 pr-4">Amount</th>
+                    <th className="pb-3 pr-4">Reference</th>
+                    <th className="pb-3 pr-4">Submitted</th>
+                    <th className="pb-3">Actions</th>
                   </tr>
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {pendingDeposits.map((d) => (
+                    <tr key={d.id} className="hover:bg-slate-50/50">
+                      <td className="py-4 pr-4">
+                        <span className="text-sm font-bold text-slate-900 block">{d.user?.name || 'User'}</span>
+                        <span className="text-[10px] text-slate-400">{d.user?.email}</span>
+                      </td>
+                      <td className="py-4 pr-4 font-extrabold text-slate-900">${Number(d.amount).toLocaleString()}</td>
+                      <td className="py-4 pr-4 font-mono text-xs text-slate-600">{d.reference || d.notes || '—'}</td>
+                      <td className="py-4 pr-4 text-xs text-slate-500">{new Date(d.createdAt).toLocaleString()}</td>
+                      <td className="py-4 flex gap-2">
+                        <button type="button" onClick={() => handleApproveDeposit(d.id)} disabled={actionLoading} className="btn-primary !py-1 !px-3 text-xs">Approve</button>
+                        <button type="button" onClick={() => handleRejectDeposit(d.id)} disabled={actionLoading} className="btn-secondary !py-1 !px-3 text-xs text-red-600">Reject</button>
+                      </td>
+                    </tr>
+                  ))}
+                  {pendingDeposits.length === 0 && (
+                    <tr>
+                      <td colSpan="5" className="p-0 border-none">
+                        <EmptyState title="No pending wallet deposits" description="Buyer funding requests will appear here for verification." />
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
@@ -538,6 +617,15 @@ const AdminPanel = () => {
 
         {activeTab === 'ledger' && (
           <AuditLog logs={ledgerLogs} />
+        )}
+
+        {activeTab === 'audit journal' && (
+          <div className="space-y-3">
+            <p className="text-xs text-slate-500 font-semibold">
+              Full platform accounting book: each deal shows buyer, seller, and the complete journal from deposit through release.
+            </p>
+            <GlobalAccountingJournal forceAudit />
+          </div>
         )}
 
       </div>

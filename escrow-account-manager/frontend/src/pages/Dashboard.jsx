@@ -226,19 +226,29 @@ const Dashboard = () => {
           My Dashboard Overview
         </button>
 
-        <button
-          onClick={() => setDashTab('journal')}
-          className={`px-4 py-2 text-xs font-extrabold rounded-xl transition-all flex items-center gap-1.5 ${
-            dashTab === 'journal'
-              ? 'bg-slate-900 text-white shadow-xs'
-              : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-          }`}
-        >
-          <span>📊 Platform Accounting Journal</span>
-        </button>
+        {user?.role !== 'ADMIN' && (
+          <button
+            onClick={() => setDashTab('journal')}
+            className={`px-4 py-2 text-xs font-extrabold rounded-xl transition-all flex items-center gap-1.5 ${
+              dashTab === 'journal'
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            <span>My Money Journal</span>
+          </button>
+        )}
+        {user?.role === 'ADMIN' && (
+          <Link
+            to="/admin"
+            className="px-4 py-2 text-xs font-extrabold rounded-xl transition-all flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+          >
+            Open Admin Audit Journal →
+          </Link>
+        )}
       </div>
 
-      {dashTab === 'journal' ? (
+      {dashTab === 'journal' && user?.role !== 'ADMIN' ? (
         <GlobalAccountingJournal />
       ) : (
         <>
@@ -454,7 +464,7 @@ const Dashboard = () => {
                         </Link>
                         <p className="text-[10px] text-slate-400 font-semibold mt-0.5">{p.location}</p>
                         <p className="text-[10px] text-slate-500 font-medium mt-0.5">
-                          {p.listingType === 'AUCTION' ? 'Auction listing' : 'Fixed price'}
+                          Fixed price sale
                           {p.status === 'AVAILABLE' && ' · Open for offers'}
                           {p.status === 'PENDING' && ' · Active escrow in progress'}
                           {p.status === 'SOLD' && ' · Sale completed'}

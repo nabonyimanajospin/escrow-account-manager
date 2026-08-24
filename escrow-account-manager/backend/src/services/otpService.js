@@ -26,19 +26,28 @@ const issueConsensusCode = async (transaction, dbTransaction) => {
   return { code, expiresAt };
 };
 
-const verifyConsensusCode = (transaction, code) => {
+const normalizeCode = (code) => String(code || '').replace(/\s+/g, '').trim();
+
+/** @returns {{ ok: boolean, reason?: 'missing'|'expired'|'mismatch' }} */
+const checkConsensusCode = (transaction, code) => {
   if (!transaction.verificationCodeHash || !transaction.verificationCodeSalt) {
-    return false;
+    return { ok: false, reason: 'missing' };
   }
 
   if (transaction.verificationCodeExpiresAt && new Date(transaction.verificationCodeExpiresAt) < new Date()) {
-    return false;
+    return { ok: false, reason: 'expired' };
   }
 
-  return hashCode(String(code), transaction.verificationCodeSalt) === transaction.verificationCodeHash;
+  const normalized = normalizeCode(code);
+  const matches = hashCode(normalized, transaction.verificationCodeSalt) === transaction.verificationCodeHash;
+  return matches ? { ok: true } : { ok: false, reason: 'mismatch' };
 };
+
+const verifyConsensusCode = (transaction, code) => checkConsensusCode(transaction, code).ok;
 
 module.exports = {
   issueConsensusCode,
   verifyConsensusCode,
+  checkConsensusCode,
+  normalizeCode,
 };

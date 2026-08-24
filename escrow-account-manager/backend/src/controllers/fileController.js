@@ -6,6 +6,32 @@ const { Transaction, Property, Dispute, DisputeEvidence } = require('../models')
 const UPLOAD_ROOT = path.join(__dirname, '..', 'uploads');
 const SENSITIVE_CATEGORIES = new Set(['kyc', 'mutations', 'evidence', 'contracts']);
 
+/** Rebuild completion PDFs on download so old schedule-only files pick up the latest Articles template. */
+const regenerateContractIfNeeded = async (filename) => {
+  const { generateEscrowContract } = require('../services/contractService');
+  const { transactionIncludes } = require('../utils/transactionHelpers');
+
+  const suffix = `/uploads/contracts/${filename}`;
+  let tx = await Transaction.findOne({
+    where: { contractDocumentUrl: suffix },
+    include: transactionIncludes,
+  });
+
+  if (!tx) {
+    const txIdMatch = filename.match(/(TXN-[A-Z0-9-]+)/i);
+    if (txIdMatch) {
+      tx = await Transaction.findOne({
+        where: { transactionId: txIdMatch[1].toUpperCase() },
+        include: transactionIncludes,
+      });
+    }
+  }
+
+  if (tx) {
+    await generateEscrowContract(tx, filename);
+  }
+};
+
 const canAccessFile = async (category, req) => {
   if (!SENSITIVE_CATEGORIES.has(category)) {
     return true;
@@ -64,6 +90,15 @@ exports.serveFile = async (req, res, next) => {
     }
 
     const filePath = path.join(UPLOAD_ROOT, category, filename);
+
+    if (category === 'contracts') {
+      try {
+        await regenerateContractIfNeeded(filename);
+      } catch (err) {
+        // Fall through and serve any existing file if regeneration fails
+      }
+    }
+
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ success: false, message: 'File not found' });
     }

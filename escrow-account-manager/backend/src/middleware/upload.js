@@ -57,7 +57,18 @@ const upload = multer({
 // ─── Middleware factories ─────────────────────────────────────────────────────
 const uploadPropertyImage = (req, res, next) => {
   req.uploadType = 'property';
-  upload.single('image')(req, res, next);
+  // Accept up to 8 photos under field name "photos" (preferred) or legacy single "image"
+  upload.fields([
+    { name: 'photos', maxCount: 8 },
+    { name: 'image', maxCount: 1 },
+  ])(req, res, (err) => {
+    if (err) return next(err);
+    const photos = req.files?.photos || [];
+    const legacy = req.files?.image || [];
+    req.files = [...photos, ...legacy];
+    req.file = req.files[0] || undefined;
+    next();
+  });
 };
 
 const uploadMutationDoc = (req, res, next) => {

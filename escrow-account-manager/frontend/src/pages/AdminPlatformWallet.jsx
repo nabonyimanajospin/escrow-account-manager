@@ -99,8 +99,8 @@ export default function AdminPlatformWallet() {
             They live in the <strong className="text-white">Admin Panel → Transactions</strong> tab, on each deal row:
           </p>
           <ul className="text-sm text-slate-300 space-y-2 ml-4 list-disc mb-5">
-            <li><strong className="text-amber-300">⚡ Simulate MoMo Deposit</strong> — when deal status is <code className="text-xs bg-slate-800 px-1 rounded">PENDING</code></li>
-            <li><strong className="text-blue-300">⚡ Simulate Irembo Approval</strong> — when status is <code className="text-xs bg-slate-800 px-1 rounded">FUNDED</code> or <code className="text-xs bg-slate-800 px-1 rounded">MUTATION_STARTED</code></li>
+            <li><strong className="text-amber-300">Simulate MoMo Deposit</strong> — when deal status is <code className="text-xs bg-slate-800 px-1 rounded">PENDING</code></li>
+            <li><strong className="text-blue-300">Simulate Irembo Approval</strong> — when status is <code className="text-xs bg-slate-800 px-1 rounded">FUNDED</code> or <code className="text-xs bg-slate-800 px-1 rounded">MUTATION_STARTED</code></li>
           </ul>
           <Link
             to="/admin"
@@ -115,7 +115,7 @@ export default function AdminPlatformWallet() {
         <p className="text-xs text-blue-800 font-medium leading-relaxed">
           <strong className="font-bold">Note:</strong> Buyer wallet funding (real MoMo/bank references) is approved under{' '}
           <strong>Admin Panel → Wallet</strong>. Deal-level MoMo deposit simulation skips external payment and funds escrow directly for demos.
-          Full ledger detail is in <Link to="/dashboard" className="font-bold underline">Dashboard → Platform Accounting Journal</Link>.
+          Full deal-by-deal ledger is in <Link to="/admin" className="font-bold underline">Admin → Audit Journal</Link>.
         </p>
       </div>
     </div>

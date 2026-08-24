@@ -1,11 +1,11 @@
-import { useEffect, useState, useCallback } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import axios from '../api/axiosConfig';
 import { useAuth } from '../context/AuthContext';
 import StatusBadge from '../components/StatusBadge';
 import AuditLog from '../components/AuditLog';
 import toast from 'react-hot-toast';
-import { resolveImageUrl } from '../utils/imageUtils';
+import { resolveImageUrl, openSecureDocument } from '../utils/imageUtils';
 import EscrowTimeline from '../components/escrow/EscrowTimeline';
 import EscrowLedger from '../components/escrow/EscrowLedger';
 import ContractPreviewModal from '../components/escrow/ContractPreviewModal';
@@ -16,6 +16,7 @@ import { getEscrowNextStep, toneClasses } from '../utils/escrowSteps';
 const EscrowDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
 
   const [transaction, setTransaction] = useState(null);
@@ -23,6 +24,8 @@ const EscrowDetail = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [isContractModalOpen, setIsContractModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
+  const otpInputRef = useRef(null);
+  const mutationFileInputRef = useRef(null);
 
   // Form states
   const [consensusCode, setConsensusCode] = useState('');
@@ -86,6 +89,40 @@ const EscrowDetail = () => {
     fetchTransaction();
   }, [fetchTransaction]);
 
+  // From OTP popup: land on the OTP box and optionally prefill the code
+  useEffect(() => {
+    if (loading || !transaction) return;
+    if (searchParams.get('focus') !== 'otp') return;
+
+    let pendingCode = '';
+    try {
+      const raw = sessionStorage.getItem('escrow_pending_otp');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (String(parsed.dealId) === String(id) && parsed.code) {
+          pendingCode = String(parsed.code);
+        }
+        sessionStorage.removeItem('escrow_pending_otp');
+      }
+    } catch {
+      /* ignore */
+    }
+
+    if (pendingCode) setConsensusCode(pendingCode);
+
+    const t = setTimeout(() => {
+      document.getElementById('otp-verify-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      otpInputRef.current?.focus();
+      otpInputRef.current?.select?.();
+    }, 250);
+
+    const next = new URLSearchParams(searchParams);
+    next.delete('focus');
+    setSearchParams(next, { replace: true });
+
+    return () => clearTimeout(t);
+  }, [loading, transaction, searchParams, setSearchParams, id]);
+
   useEffect(() => {
     if (!user || user.role === 'ADMIN') return;
     axios.get('/wallet')
@@ -122,7 +159,7 @@ const EscrowDetail = () => {
     }
     try {
       setActionLoading(true);
-      await axios.post(`/escrow/${id}/consensus-verify`, { code: consensusCode });
+      await axios.post(`/escrow/${id}/consensus-verify`, { code: consensusCode.trim() });
       toast.success('Agreement successfully signed and authorized');
       setConsensusCode('');
       fetchTransaction();
@@ -264,7 +301,8 @@ const EscrowDetail = () => {
     try {
       setActionLoading(true);
       await axios.post(`/escrow/${id}/resend-otp`);
-      toast.success('Fresh OTP sent to your notifications, email, and phone (if registered).');
+      toast.success('Fresh OTP sent to both parties. Use the newest code from your notification bell — older codes no longer work.');
+      setConsensusCode('');
       fetchTransaction();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to resend code');
@@ -632,10 +670,36 @@ STATUS: COMPLETED MUTATION`;
       {(() => {
         const next = getEscrowNextStep(transaction, user);
         if (!next) return null;
+        const isYourTurn = next.actionKind === 'YOU';
+        const isWaiting = next.actionKind === 'WAIT';
         return (
           <div className={`p-4 rounded-xl border ${toneClasses[next.tone] || toneClasses.slate}`}>
-            <p className="text-sm font-bold">Next step: {next.title}</p>
-            <p className="text-xs font-medium mt-1 opacity-90">{next.detail}</p>
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-sm font-bold">
+                {isYourTurn ? 'What you must do now:' : isWaiting ? 'What happens next:' : 'Status:'}{' '}
+                {next.title}
+              </p>
+              {next.badge && (
+                <span
+                  className={`shrink-0 text-[10px] font-extrabold uppercase tracking-wide px-2 py-0.5 rounded-full border ${
+                    isYourTurn
+                      ? 'bg-amber-100 border-amber-300 text-amber-900'
+                      : isWaiting
+                      ? 'bg-slate-100 border-slate-300 text-slate-700'
+                      : 'bg-emerald-100 border-emerald-300 text-emerald-800'
+                  }`}
+                >
+                  {next.badge}
+                </span>
+              )}
+            </div>
+            <p className="text-xs font-medium mt-1.5 opacity-90 leading-relaxed">{next.detail}</p>
+            {isYourTurn && String(next.title).toLowerCase().includes('otp') && (
+              <p className="text-[11px] font-extrabold mt-2 flex items-center gap-1.5">
+                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-indigo-600 text-white text-[10px] animate-pulse">🔔</span>
+                Open the notification bell now — your signing code is waiting there
+              </p>
+            )}
           </div>
         );
       })()}
@@ -752,7 +816,7 @@ STATUS: COMPLETED MUTATION`;
             {/* Waiting for other party indicator */}
             {userHasSigned && ['PENDING', 'FUNDED', 'MUTATION_STARTED'].includes(status) && (
               <div className="mt-5 p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-center text-xs font-semibold leading-relaxed">
-                You have signed. Awaiting counterparty cryptographic signature for code {transaction.verificationCode}...
+                You have verified your OTP. Waiting for the other party to verify the same latest code from their notification bell.
               </div>
             )}
 
@@ -767,21 +831,26 @@ STATUS: COMPLETED MUTATION`;
 
             {/* OTP Consensus Verification Card */}
             {((isBuyer && !buyerAuthorized) || (isSeller && !sellerAuthorized)) && status !== 'COMPLETED' && status !== 'CANCELLED' && (
-              <div className="p-4 bg-indigo-50/70 border border-indigo-200 rounded-xl space-y-3">
+              <div id="otp-verify-section" className="p-4 bg-indigo-50/70 border border-indigo-200 rounded-xl space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="text-base font-bold text-primary-600">OTP</span>
                     <h4 className="text-xs font-bold text-indigo-950 font-sans">Verification OTP Approval Required</h4>
                   </div>
-                  <span className="text-[10px] font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
-                    Check notifications
+                  <span className="text-[10px] font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full animate-pulse">
+                    Open 🔔 bell
                   </span>
                 </div>
                 <p className="text-xs text-slate-600 leading-relaxed font-semibold">
-                  Please enter the verification OTP code sent to your <strong>notification panel, email, and phone</strong> to authorize this transaction step and generate your cryptographic consensus signature.
+                  <strong>Follow this order:</strong> (1) Open the top-right <strong>🔔 notification panel</strong>,
+                  (2) copy the <strong>latest</strong> 4-digit OTP, (3) paste it here and click Verify.
+                  The code is also sent to your registration <strong>email</strong> and <strong>phone</strong> when those channels are configured.
+                  Buyer and seller share one deal code — after Resend, only the newest code works.
                 </p>
                 <form onSubmit={handleVerifyConsensusCode} className="flex gap-2">
                   <input
+                    ref={otpInputRef}
+                    id="otp-verify-input"
                     type="text"
                     required
                     className="input-field text-xs font-mono tracking-widest uppercase !py-2 !px-3 font-bold flex-1"
@@ -805,7 +874,7 @@ STATUS: COMPLETED MUTATION`;
                     disabled={actionLoading}
                     className="text-[11px] font-bold text-indigo-700 hover:text-indigo-900 underline cursor-pointer flex items-center gap-1"
                   >
-                    <span>Don't see your code? Click to resend a fresh OTP to your notifications</span>
+                    <span>Resend fresh OTP to both buyer and seller</span>
                   </button>
                 </div>
               </div>
@@ -827,16 +896,25 @@ STATUS: COMPLETED MUTATION`;
                     </span>
                   </div>
                 )}
-                <p className="text-xs text-slate-500 font-semibold leading-relaxed">
-                  Both parties have signed the agreement. The buyer can deposit funds into escrow to proceed.
-                </p>
-                {isBuyer && walletBalance !== null && (
+                {!buyerAuthorized || !sellerAuthorized ? (
+                  <div className="p-3.5 bg-indigo-50 border border-indigo-200 rounded-xl text-xs font-semibold text-indigo-900 leading-relaxed">
+                    Deposit is locked until <strong>both</strong> buyer and seller verify the OTP from the 🔔 notification bell.
+                    <span className="block mt-1">
+                      Buyer signed: {buyerAuthorized ? 'Yes' : 'No'} · Seller signed: {sellerAuthorized ? 'Yes' : 'No'}
+                    </span>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500 font-semibold leading-relaxed">
+                    Both parties have signed the agreement. The buyer can deposit funds into escrow to proceed.
+                  </p>
+                )}
+                {isBuyer && walletBalance !== null && buyerAuthorized && sellerAuthorized && (
                   <div className={`p-3 rounded-lg border text-xs font-semibold ${walletBalance >= Number(transaction.amount) + Number(transaction.buyerFee || 0) ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-amber-50 border-amber-200 text-amber-900'}`}>
                     Wallet balance: <strong>${Number(walletBalance).toLocaleString()}</strong>
                     {' · '}
                     Required: <strong>${Number(Number(transaction.amount) + Number(transaction.buyerFee || 0)).toLocaleString()}</strong>
                     {walletBalance < Number(transaction.amount) + Number(transaction.buyerFee || 0) && (
-                      <span className="block mt-1">Balance is low — the system will auto-top-up for demo deposits if needed.</span>
+                      <span className="block mt-1">Balance is low — fund your wallet first, or use Add Funds if available.</span>
                     )}
                   </div>
                 )}
@@ -844,8 +922,9 @@ STATUS: COMPLETED MUTATION`;
                   <div className="flex items-center gap-3">
                     <button
                       onClick={handleDeposit}
-                      disabled={actionLoading}
-                      className="btn-primary text-xs cursor-pointer font-bold"
+                      disabled={actionLoading || !buyerAuthorized || !sellerAuthorized}
+                      className="btn-primary text-xs cursor-pointer font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={!buyerAuthorized || !sellerAuthorized ? 'Both parties must verify OTP first' : 'Deposit into escrow'}
                     >
                       {actionLoading ? 'Locking Funds...' : 'Confirm Escrow Deposit ($' + Number(Number(transaction.amount) + Number(transaction.buyerFee || 0)).toLocaleString() + ')'}
                     </button>
@@ -859,7 +938,9 @@ STATUS: COMPLETED MUTATION`;
                   </div>
                 ) : (
                   <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-400 italic">
-                    ⏳ Awaiting Buyer {transaction.buyer?.name} to deposit funds (Total: ${Number(Number(transaction.amount) + Number(transaction.buyerFee || 0)).toLocaleString()} including platform charge) into the escrow account...
+                    {!buyerAuthorized || !sellerAuthorized
+                      ? '⏳ Waiting for dual OTP verification before the buyer can deposit...'
+                      : `⏳ Awaiting Buyer ${transaction.buyer?.name} to deposit funds (Total: $${Number(Number(transaction.amount) + Number(transaction.buyerFee || 0)).toLocaleString()} including platform charge) into the escrow account...`}
                   </div>
                 )}
               </div>
@@ -869,14 +950,20 @@ STATUS: COMPLETED MUTATION`;
             {status === 'FUNDED' && (
               <div className="space-y-3">
                 <p className="text-xs text-slate-500 font-semibold leading-relaxed">
-                  Escrow holds locked deposit of <strong>${Number(Number(transaction.amount) + Number(transaction.buyerFee || 0)).toLocaleString()} USD</strong>. The Seller must initiate ownership mutation.
+                  Escrow holds locked deposit of <strong>${Number(Number(transaction.amount) + Number(transaction.buyerFee || 0)).toLocaleString()} USD</strong>. The Seller must verify OTP, then initiate ownership mutation.
                 </p>
+                {isSeller && !sellerAuthorized && (
+                  <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl text-xs font-semibold text-indigo-900">
+                    Verify the latest OTP from your 🔔 notification bell before starting mutation.
+                  </div>
+                )}
                 <div className="flex items-center gap-3">
                   {isSeller ? (
                     <button
                       onClick={handleInitiateMutation}
-                      disabled={actionLoading}
-                      className="btn-primary text-xs font-bold shadow-md hover:shadow-lg transition-all"
+                      disabled={actionLoading || !sellerAuthorized}
+                      className="btn-primary text-xs font-bold shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={!sellerAuthorized ? 'Verify OTP first' : 'Start mutation'}
                     >
                       Start Ownership Mutation
                     </button>
@@ -907,65 +994,42 @@ STATUS: COMPLETED MUTATION`;
                 {isSeller && (
                   <form onSubmit={handleUploadDoc} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
                     <p className="text-[10px] font-bold text-slate-400 uppercase">Upload Mutation Proof</p>
-                    
                     <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
-                      Use <strong>Upload Local Document</strong> (PDF or image), add a description, then click <strong>Upload File Proof</strong>. The file will appear in the sidebar before you submit.
+                      Click <strong>Browse document</strong> to pick a PDF/image, add a short description, then click <strong>Upload File Proof</strong>.
                     </p>
-                    <div className="flex gap-4">
-                      <button
-                        type="button"
-                        onClick={() => setDocUploadMode('link')}
-                        className={`px-3 py-1 text-[11px] font-bold rounded-xl border transition-all ${
-                          docUploadMode === 'link'
-                            ? 'border-primary-600 bg-primary-50 text-primary-700 shadow-sm'
-                            : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
-                        }`}
-                      >
-                        Use Document Link URL
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDocUploadMode('file')}
-                        className={`px-3 py-1 text-[11px] font-bold rounded-xl border transition-all ${
-                          docUploadMode === 'file'
-                            ? 'border-primary-600 bg-primary-50 text-primary-700 shadow-sm'
-                            : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
-                        }`}
-                      >
-                        Upload Local Document
-                      </button>
-                    </div>
+
+                    <input
+                      ref={mutationFileInputRef}
+                      type="file"
+                      accept="image/*,application/pdf"
+                      onChange={(e) => {
+                        setDocUploadMode('file');
+                        handleDocFileChange(e);
+                      }}
+                      disabled={actionLoading}
+                      className="sr-only"
+                      tabIndex={-1}
+                    />
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {docUploadMode === 'link' ? (
-                        <input
-                          type="text"
-                          required
-                          className="input-field !py-1.5 !px-3"
-                          placeholder="Platform path only, e.g. /uploads/mutations/file.pdf"
-                          value={docUrl}
-                          onChange={(e) => setDocUrl(e.target.value)}
+                      <div className="space-y-1.5">
+                        <button
+                          type="button"
                           disabled={actionLoading}
-                        />
-                      ) : (
-                        <div className="flex flex-col justify-center">
-                          <input
-                            type="file"
-                            accept="image/*,application/pdf"
-                            onChange={handleDocFileChange}
-                            disabled={actionLoading}
-                            className="block w-full text-xs text-slate-500
-                              file:mr-4 file:py-1 file:px-3
-                              file:rounded-xl file:border-0
-                              file:text-xs file:font-semibold
-                              file:bg-slate-200 file:text-slate-700
-                              hover:file:bg-slate-300 cursor-pointer"
-                          />
-                          {uploadedDocFile && (
-                            <span className="text-[10px] text-emerald-600 font-bold block mt-1">✓ {uploadedDocFile.name}</span>
-                          )}
-                        </div>
-                      )}
+                          onClick={() => {
+                            setDocUploadMode('file');
+                            mutationFileInputRef.current?.click();
+                          }}
+                          className="w-full btn-secondary text-xs !py-2 cursor-pointer"
+                        >
+                          {uploadedDocFile ? 'Change document' : 'Browse document'}
+                        </button>
+                        {uploadedDocFile ? (
+                          <p className="text-[10px] text-emerald-600 font-bold truncate">✓ {uploadedDocFile.name}</p>
+                        ) : (
+                          <p className="text-[10px] text-slate-400 font-medium">Opens your file browser immediately</p>
+                        )}
+                      </div>
                       <input
                         type="text"
                         required
@@ -976,6 +1040,25 @@ STATUS: COMPLETED MUTATION`;
                         disabled={actionLoading}
                       />
                     </div>
+
+                    <details className="text-left">
+                      <summary className="text-[11px] font-bold text-slate-500 cursor-pointer hover:text-slate-700">
+                        Or use an existing platform file path
+                      </summary>
+                      <input
+                        type="text"
+                        className="input-field !py-1.5 !px-3 mt-2"
+                        placeholder="e.g. /uploads/mutations/file.pdf"
+                        value={docUrl}
+                        onChange={(e) => {
+                          setDocUploadMode('link');
+                          setDocUrl(e.target.value);
+                          setUploadedDocFile(null);
+                        }}
+                        disabled={actionLoading}
+                      />
+                    </details>
+
                     <button
                       type="submit"
                       disabled={actionLoading}
@@ -987,23 +1070,31 @@ STATUS: COMPLETED MUTATION`;
                 )}
 
                 {/* Submitting for Admin Review */}
-                <div className="pt-3 border-t border-slate-100 flex items-center gap-3">
+                <div className="pt-3 border-t border-slate-100 space-y-2">
+                  {isSeller && !sellerAuthorized && (
+                    <p className="text-[11px] font-semibold text-indigo-800 bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2">
+                      Verify the latest OTP from your 🔔 bell before submitting for admin review.
+                    </p>
+                  )}
+                  <div className="flex items-center gap-3">
                   {isSeller ? (
                     <button
                       onClick={handleCompleteMutation}
-                      disabled={actionLoading || mutationDocCount === 0}
+                      disabled={actionLoading || mutationDocCount === 0 || !sellerAuthorized}
                       className="btn-primary text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={!sellerAuthorized ? 'Verify OTP first' : 'Submit for review'}
                     >
                       Submit for Admin Review
                     </button>
                   ) : (
                     <span className="text-xs font-bold text-slate-400 italic">Waiting for Seller to submit transfer deeds...</span>
                   )}
+                  </div>
                 </div>
 
                 {mutationDocCount === 0 && isSeller && (
                   <p className="text-[10px] text-red-600 font-bold leading-tight">
-                    Upload at least one document using <strong>Upload Local Document</strong>, then click <strong>Upload File Proof</strong>.
+                    Upload at least one document: click <strong>Browse document</strong>, then <strong>Upload File Proof</strong>.
                   </p>
                 )}
 
@@ -1377,15 +1468,13 @@ STATUS: COMPLETED MUTATION`;
                     </button>
                   )}
                   {transaction.contractDocumentUrl && (
-                    <a
-                      href={resolveImageUrl(transaction.contractDocumentUrl)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      download={`EscrowTrust_Contract_${transaction.transactionId || transaction.id}.pdf`}
+                    <button
+                      type="button"
+                      onClick={() => openSecureDocument(transaction.contractDocumentUrl)}
                       className="btn-secondary text-xs font-bold py-2 px-4 cursor-pointer inline-flex items-center gap-1.5 bg-white text-purple-800 border-purple-300 hover:bg-purple-100"
                     >
                       <span>Download PDF completion contract</span>
-                    </a>
+                    </button>
                   )}
                 </div>
               </div>
@@ -1520,15 +1609,13 @@ STATUS: COMPLETED MUTATION`;
                     Print Agreement Receipt
                   </button>
                   {transaction.contractDocumentUrl && (
-                    <a
-                      href={resolveImageUrl(transaction.contractDocumentUrl)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      download={`EscrowTrust_Contract_${transaction.transactionId || transaction.id}.pdf`}
+                    <button
+                      type="button"
+                      onClick={() => openSecureDocument(transaction.contractDocumentUrl)}
                       className="btn-primary text-xs font-semibold py-1.5 px-4 cursor-pointer inline-flex items-center gap-1.5"
                     >
                       ↓ Download PDF Contract
-                    </a>
+                    </button>
                   )}
                 </div>
               </div>

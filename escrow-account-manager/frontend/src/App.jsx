@@ -14,6 +14,7 @@ import PropertyDetail from './pages/PropertyDetail';
 import PropertyForm from './pages/PropertyForm';
 import EscrowDetail from './pages/EscrowDetail';
 import AdminPanel from './pages/AdminPanel';
+import AdminPlatformWallet from './pages/AdminPlatformWallet';
 import Profile from './pages/Profile';
 import SellerWallet from './pages/SellerWallet';
 import KYCPage from './pages/KYCPage';
@@ -86,6 +87,7 @@ function App() {
               {/* Protected Admin Console Route */}
               <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
                 <Route path="/admin" element={<AdminPanel />} />
+                <Route path="/admin/treasury" element={<AdminPlatformWallet />} />
               </Route>
 
               {/* 404 Pages */}

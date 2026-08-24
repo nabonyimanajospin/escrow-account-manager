@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { resolveImageUrl, getPropertyCoverImage, DEFAULT_PROPERTY_COVER } from '../utils/imageUtils';
+import { resolveImageUrl, getPropertyCoverImage, handlePropertyImageError } from '../utils/imageUtils';
 import axios from '../api/axiosConfig';
 import StatusBadge from '../components/StatusBadge';
 import BrandLogo from '../components/BrandLogo';
@@ -10,9 +10,9 @@ const LandingPage = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    axios.get('/properties?status=AVAILABLE')
+    axios.get('/properties?status=AVAILABLE&limit=100')
       .then((res) => {
-        setProperties(res.data.data?.slice(0, 3) || []);
+        setProperties(res.data.data || []);
       })
       .catch((err) => console.error(err))
       .finally(() => setLoading(false));
@@ -222,10 +222,8 @@ const LandingPage = () => {
                     alt={p.title}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     loading="lazy"
-                    onError={(e) => {
-                      e.currentTarget.onerror = null;
-                      e.currentTarget.src = DEFAULT_PROPERTY_COVER;
-                    }}
+                    referrerPolicy="no-referrer"
+                    onError={handlePropertyImageError}
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                   

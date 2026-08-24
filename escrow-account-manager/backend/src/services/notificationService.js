@@ -266,6 +266,25 @@ const sendConsensusCode = async ({ user, transaction, code, expiresAt }) => {
   return sendOtpEmail(user.email, user.name, code, ref, { phone: user.phone, skipSms: true, skipInApp: true });
 };
 
+/** Notify every ADMIN via in-app + email (+ SMS if phone on file). */
+const notifyAdmins = async (title, message, options = {}) => {
+  try {
+    const admins = await User.findAll({
+      where: { role: 'ADMIN' },
+      attributes: ['id', 'name', 'email', 'phone'],
+    });
+    await Promise.all(
+      admins.map((admin) =>
+        notifyUserTriChannel(admin, title, message, options).catch((err) =>
+          logger.warn(`[Notification] Admin notify failed for ${admin.id}: ${err.message}`)
+        )
+      )
+    );
+  } catch (err) {
+    logger.error('[Notification] notifyAdmins failed:', err.message);
+  }
+};
+
 module.exports = {
   sendEmail,
   sendOtpEmail,
@@ -275,4 +294,5 @@ module.exports = {
   sendConsensusCode,
   createInAppNotification,
   notifyUserTriChannel,
+  notifyAdmins,
 };
