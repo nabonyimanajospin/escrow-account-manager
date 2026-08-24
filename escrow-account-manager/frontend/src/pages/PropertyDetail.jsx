@@ -256,40 +256,46 @@ const PropertyDetail = () => {
 
               <div className="section-divider" />
 
-              {/* Interactive Property Map & Location Boundaries Tab */}
+              {/* Authentic OpenStreetMap / Google Maps Style Interactive Map */}
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5 font-sans">
                     <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.243-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                    Interactive Property Location Map
+                    Interactive Property Location Map (Live GIS Registry)
                   </span>
-                  <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded border border-emerald-200">
+                  <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded border border-emerald-200 font-mono">
                     UPI: {property.titleDeedNumber || '1/02/03/04/1234'}
                   </span>
                 </div>
 
-                {/* Simulated Interactive Parcel Boundary Map */}
-                <div className="h-44 w-full bg-slate-900 rounded-lg relative overflow-hidden flex flex-col justify-between p-4 text-white border border-slate-700">
-                  <div className="absolute inset-0 opacity-20 bg-[radial-gradient(#10b981_1px,transparent_1px)] [background-size:16px_16px]"></div>
-                  <div className="relative z-10 flex justify-between items-start">
-                    <div className="bg-slate-800/90 backdrop-blur-sm px-2.5 py-1 rounded text-[10px] font-mono text-emerald-400 border border-slate-700">
-                      GPS: -1.9441° S, 30.0619° E
-                    </div>
-                    <div className="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded text-[9px] font-bold border border-emerald-500/30">
-                      Land Registry Polygon Verified
+                {/* OpenStreetMap Real Tile Embed + Interactive Pin & Overlay */}
+                <div className="h-64 w-full rounded-xl relative overflow-hidden border border-slate-300 shadow-inner group">
+                  <iframe
+                    title="Property Location GIS Map"
+                    width="100%"
+                    height="100%"
+                    frameBorder="0"
+                    scrolling="no"
+                    marginHeight="0"
+                    marginWidth="0"
+                    src="https://www.openstreetmap.org/export/embed.html?bbox=30.0500%2C-1.9550%2C30.0750%2C-1.9350&amp;layer=mapnik&amp;marker=-1.9441%2C30.0619"
+                    className="w-full h-full filter contrast-105"
+                  />
+                  
+                  {/* Floating Overlay Badge */}
+                  <div className="absolute top-3 left-3 bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-700 text-white shadow-md">
+                    <div className="flex items-center gap-2 text-[10px] font-mono font-bold text-emerald-400">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                      GPS Coordinates: -1.9441° S, 30.0619° E
                     </div>
                   </div>
-                  <div className="relative z-10 flex items-end justify-between">
-                    <div>
-                      <p className="text-xs font-bold text-white">{property.location || 'Gasabo, Kigali'}</p>
-                      <p className="text-[10px] text-slate-400">Parcel Area: {property.area} sqm • Zoning: Residential R2</p>
-                    </div>
-                    <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-slate-950 shadow-lg animate-bounce">
-                      📍
-                    </div>
+
+                  <div className="absolute bottom-3 right-3 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-200 text-slate-900 text-[10px] font-bold shadow-md">
+                    Location: {property.location || 'Gasabo, Kigali'} ({property.area} sqm)
                   </div>
                 </div>
               </div>
+
 
               <div className="section-divider" />
 

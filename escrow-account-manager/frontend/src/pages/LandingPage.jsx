@@ -26,13 +26,14 @@ const LandingPage = () => {
       .finally(() => setLoading(false));
   }, []);
 
-  // Dynamic rotating animated hero navigation / headline
+  // Dynamic rotating animated hero navigation / headline (cycles every 2 seconds)
   useEffect(() => {
     const interval = setInterval(() => {
       setHeadlineIndex((prev) => (prev + 1) % DYNAMIC_HEADLINES.length);
-    }, 3500);
+    }, 2000);
     return () => clearInterval(interval);
   }, []);
+
 
   const currentHeadline = DYNAMIC_HEADLINES[headlineIndex];
 
