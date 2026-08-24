@@ -52,6 +52,9 @@ desktop.ini
 .vite/
 
 # ===========================
-# Prompt file (excluded intentionally)
+# Excluded folders / archives
 # ===========================
+demo/
+*.zip
 Prompt1.md
+
