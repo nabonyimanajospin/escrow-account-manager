@@ -485,10 +485,27 @@ const PropertyForm = () => {
             />
           </div>
 
-          {/* Image Selection Mode */}
+          {/* Image Selection Mode & Multi-Photo Guidance Signal */}
           <div className="space-y-3">
-            <label className="input-label font-bold text-slate-700">Property Photos (up to 8)</label>
+            <div className="flex items-center justify-between">
+              <label className="input-label font-bold text-slate-700">Property Photos (up to 8)</label>
+              <span className="text-[10px] bg-emerald-100 text-emerald-800 font-extrabold px-2 py-0.5 rounded border border-emerald-200">
+                ★ Recommended for Fast Bidding
+              </span>
+            </div>
+
+            {/* Seller Guidance Signal Box */}
+            <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl text-xs text-emerald-900 space-y-1">
+              <p className="font-bold flex items-center gap-1.5">
+                <span>📸 Multi-Angle Seller Guidance Signal:</span>
+              </p>
+              <p className="text-[11px] leading-relaxed text-emerald-800">
+                Please upload photos showing <strong>different views of the property</strong> (e.g. Exterior Front, Living Room, Kitchen, Bedrooms, and Deed Document). Listings with multi-view photos receive 3x more buyer bids!
+              </p>
+            </div>
+
             <div className="flex gap-4">
+
               <button
                 type="button"
                 onClick={() => setUploadMode('link')}

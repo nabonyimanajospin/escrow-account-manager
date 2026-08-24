@@ -62,7 +62,9 @@ jest.mock('../src/services/notificationService', () => ({
   sendWalletCreditEmail: jest.fn().mockResolvedValue(undefined),
   sendEmail: jest.fn().mockResolvedValue(undefined),
   createInAppNotification: jest.fn().mockResolvedValue(undefined),
+  notifyAdmins: jest.fn().mockResolvedValue(undefined),
 }));
+
 
 const { User, Property, Transaction, Escrow, AuditLog, LedgerEntry, Offer, WalletTransaction } = require('../src/models');
 

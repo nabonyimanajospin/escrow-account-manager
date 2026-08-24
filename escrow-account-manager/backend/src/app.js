@@ -152,6 +152,8 @@ app.use('/api/wallet',     require('./routes/wallet'));
 app.use('/api/ai',         require('./routes/ai'));
 app.use('/api/kyc',        require('./routes/kyc'));
 app.use('/api/integrations', require('./routes/integrations'));
+app.use('/api/irembo',       require('./routes/irembo'));
+
 
 app.get('/health', (req, res) => res.json({ status: 'OK', version: '2.0.0' }));
 

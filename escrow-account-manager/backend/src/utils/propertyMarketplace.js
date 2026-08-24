@@ -17,8 +17,9 @@ async function getLockedPropertyIds() {
     attributes: ['propertyId'],
     raw: true,
   });
-  return new Set(rows.map((row) => row.propertyId));
+  return new Set((rows || []).map((row) => row.propertyId));
 }
+
 
 async function propertyHasActiveEscrow(propertyId, dbTransaction = null) {
   const count = await Transaction.count({

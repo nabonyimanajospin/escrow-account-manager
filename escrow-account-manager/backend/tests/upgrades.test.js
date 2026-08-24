@@ -45,7 +45,9 @@ jest.mock('../src/services/notificationService', () => ({
   sendWalletCreditEmail: jest.fn().mockResolvedValue(undefined),
   sendEmail: jest.fn().mockResolvedValue(undefined),
   createInAppNotification: jest.fn().mockResolvedValue(undefined),
+  notifyAdmins: jest.fn().mockResolvedValue(undefined),
 }));
+
 
 jest.mock('../src/services/contractService', () => ({
   generateEscrowContract: jest.fn().mockResolvedValue('/uploads/contracts/test.pdf'),

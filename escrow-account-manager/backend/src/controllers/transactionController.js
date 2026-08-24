@@ -2067,13 +2067,66 @@ const simulateMomoWebhook = async (req, res, next) => {
     if (!transaction) {
       return res.status(404).json({ success: false, message: 'Transaction not found' });
     }
-    if (transaction.status !== 'PENDING') {
-      return res.status(400).json({ success: false, message: 'Transaction is not in PENDING state' });
-    }
-
     req.body.amount = Number(transaction.amount) + Number(transaction.buyerFee || 0);
     req.body.reference = `MOMO-SIM-${Date.now()}`;
     return depositFunds(req, res, next);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Request Lock Extension (Buyer/Seller negotiation)
+// @route   POST /api/escrow/:id/request-extension
+// @access  Private
+const requestLockExtension = async (req, res, next) => {
+
+  try {
+    const { id } = req.params;
+    const { additionalDays, reason } = req.body;
+
+    const transaction = await Transaction.findByPk(id);
+    if (!transaction) {
+      return res.status(404).json({ success: false, message: 'Transaction not found' });
+    }
+
+    const days = parseInt(additionalDays || 3, 10);
+    const updatedNotes = `${transaction.mutationNotes || ''} [LOCK EXTENSION REQUEST: +${days} Days requested by ${req.user.name} (${req.user.role}). Reason: ${reason || 'Additional processing time'}]`;
+
+    await transaction.update({ mutationNotes: updatedNotes });
+    await logAction(transaction.id, req, `Lock extension requested (+${days} days). Reason: ${reason || 'N/A'}`);
+
+    return res.json({
+      success: true,
+      message: `Lock extension request (+${days} days) submitted successfully. Waiting for counterpart approval.`,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Respond to Lock Extension Request (Approve/Reject)
+// @route   POST /api/escrow/:id/respond-extension
+// @access  Private
+const respondLockExtension = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { approved } = req.body;
+
+    const transaction = await Transaction.findByPk(id);
+    if (!transaction) {
+      return res.status(404).json({ success: false, message: 'Transaction not found' });
+    }
+
+    const statusText = approved ? 'APPROVED' : 'REJECTED';
+    const updatedNotes = `${transaction.mutationNotes || ''} [LOCK EXTENSION ${statusText} by ${req.user.name} (${req.user.role})]`;
+
+    await transaction.update({ mutationNotes: updatedNotes });
+    await logAction(transaction.id, req, `Lock extension request ${statusText} by ${req.user.name}`);
+
+    return res.json({
+      success: true,
+      message: `Lock extension request ${statusText} successfully.`,
+    });
   } catch (error) {
     next(error);
   }
@@ -2107,4 +2160,7 @@ module.exports = {
   exportMyGlobalJournalCsv,
   simulateIremboWebhook,
   simulateMomoWebhook,
+  requestLockExtension,
+  respondLockExtension,
 };
+

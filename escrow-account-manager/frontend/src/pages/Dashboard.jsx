@@ -177,8 +177,45 @@ const Dashboard = () => {
     );
   }
 
+  const activeActionTxn = recentTxns.find((t) => ACTIVE_TXN_STATES.includes(t.status));
+
   return (
     <div className="page-wrapper dashboard-wrapper space-y-7 animate-fade-in">
+      
+      {/* Smart Direct Action Portal Banner (Action-Required Screen Focus) */}
+      {activeActionTxn && (
+        <div className="card p-6 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white shadow-xl border border-indigo-500/30 rounded-2xl relative overflow-hidden">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative z-10">
+            <div className="space-y-2 max-w-2xl">
+              <div className="flex items-center gap-2.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+                <span className="text-xs font-black uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/30">
+                  ⚠️ Action Required Right Now
+                </span>
+                <span className="text-xs font-mono text-slate-400">Ref: {activeActionTxn.transactionId}</span>
+              </div>
+              <h2 className="text-xl font-black tracking-tight text-white font-sans">
+                Active Deal Needing Attention: {activeActionTxn.property?.title || 'Property Transaction'}
+              </h2>
+              <p className="text-xs text-slate-300 font-medium leading-relaxed">
+                {user?.role === 'BUYER' && activeActionTxn.status === 'PENDING'
+                  ? 'Your property reservation is pending escrow deposit. Click below to deposit capital and lock escrow.'
+                  : user?.role === 'SELLER' && (activeActionTxn.status === 'FUNDED' || activeActionTxn.status === 'MUTATION_STARTED')
+                  ? 'Buyer funds are locked in escrow! Execute land title transfer in connected Irembo Sandbox Portal now.'
+                  : `Current Status: ${activeActionTxn.status}. Click below to enter transaction workspace.`}
+              </p>
+            </div>
+
+            <Link
+              to={`/escrow/${activeActionTxn.id}`}
+              className="btn-primary py-3.5 px-8 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-sm shadow-lg shadow-emerald-500/20 whitespace-nowrap"
+            >
+              Go Direct to Action Portal &rarr;
+            </Link>
+          </div>
+        </div>
+      )}
+
       
       {/* Welcome Banner */}
       <div className="card-tinted p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">

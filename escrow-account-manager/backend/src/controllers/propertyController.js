@@ -201,8 +201,8 @@ exports.createProperty = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Please provide all required property fields' });
     }
 
-    // Platform supports fixed-price sales only (auction disabled)
-    const finalListingType = 'FIXED_PRICE';
+    const finalListingType = listingType || 'FIXED_PRICE';
+
 
     if (!upiCode || !/^\d{1,2}\/\d{2}\/\d{2}\/\d{2}\/\d{1,5}$/i.test(upiCode)) {
       return res.status(400).json({ success: false, message: 'A valid Rwandan Land Registry UPI code is required (example: 1/03/01/04/3000)' });

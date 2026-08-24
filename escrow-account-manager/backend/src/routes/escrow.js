@@ -20,8 +20,12 @@ const {
   verifyContractByChecksum,
   getMyGlobalJournal,
   exportMyGlobalJournalCsv,
+  requestLockExtension,
+  respondLockExtension,
 } = require('../controllers/transactionController');
+const { generateProtectedPdf } = require('../controllers/pdfController');
 const { raiseDispute, uploadEvidence, resolveDispute, mediateDispute } = require('../controllers/disputeController');
+
 const { acceptOffer } = require('../controllers/offerController');
 const { chatWithAI } = require('../controllers/aiController');
 const { protect } = require('../middleware/auth');
@@ -124,4 +128,12 @@ router.post('/:id/analyze-document', protect, roleCheck('SELLER', 'ADMIN'), anal
 // Get stored AI analysis report
 router.get('/:id/document-analysis', protect, getDocumentAnalysisReport);
 
+// Password-protected PDF Generation & Dynamic Status QR Code
+router.post('/:id/pdf', protect, generateProtectedPdf);
+
+// Lock Extension Negotiation
+router.post('/:id/request-extension', protect, requestLockExtension);
+router.post('/:id/respond-extension', protect, respondLockExtension);
+
 module.exports = router;
+

@@ -13,6 +13,9 @@ import TransactionJournal from '../components/escrow/TransactionJournal';
 import { SkeletonCard } from '../components/common/SkeletonLoader';
 import { getEscrowNextStep, toneClasses } from '../utils/escrowSteps';
 
+import IremboSandboxModal from '../components/escrow/IremboSandboxModal';
+import PasswordPdfModal from '../components/escrow/PasswordPdfModal';
+
 const EscrowDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -23,9 +26,12 @@ const EscrowDetail = () => {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [isContractModalOpen, setIsContractModalOpen] = useState(false);
+  const [isIremboModalOpen, setIsIremboModalOpen] = useState(false);
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const otpInputRef = useRef(null);
   const mutationFileInputRef = useRef(null);
+
 
   // Form states
   const [consensusCode, setConsensusCode] = useState('');
@@ -824,10 +830,20 @@ STATUS: COMPLETED MUTATION`;
 
           {/* WORKSPACE ACTIONS INTERFACE */}
           <div className="card p-6 bg-white space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex flex-wrap items-center justify-between border-b border-slate-100 pb-3 gap-2">
               <h3 className="text-md font-bold text-slate-900 font-sans">Workspace Actions</h3>
-              <StatusBadge status={status} />
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsPdfModalOpen(true)}
+                  className="btn-secondary text-xs py-1.5 px-3 font-extrabold flex items-center gap-1 bg-slate-900 text-white hover:bg-slate-800 border-slate-800 shadow-sm cursor-pointer"
+                >
+                  <span>🔒 Protected PDF + QR Code</span>
+                </button>
+                <StatusBadge status={status} />
+              </div>
             </div>
+
 
             {/* OTP Consensus Verification Card */}
             {((isBuyer && !buyerAuthorized) || (isSeller && !sellerAuthorized)) && status !== 'COMPLETED' && status !== 'CANCELLED' && (
@@ -957,18 +973,27 @@ STATUS: COMPLETED MUTATION`;
                     Verify the latest OTP from your 🔔 notification bell before starting mutation.
                   </div>
                 )}
-                <div className="flex items-center gap-3">
-                  {isSeller ? (
-                    <button
-                      onClick={handleInitiateMutation}
-                      disabled={actionLoading || !sellerAuthorized}
-                      className="btn-primary text-xs font-bold shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                      title={!sellerAuthorized ? 'Verify OTP first' : 'Start mutation'}
-                    >
-                      Start Ownership Mutation
-                    </button>
+                <div className="flex flex-wrap items-center gap-3">
+                  {isSeller || user?.role === 'ADMIN' ? (
+                    <>
+                      <button
+                        onClick={handleInitiateMutation}
+                        disabled={actionLoading || !sellerAuthorized}
+                        className="btn-primary text-xs font-bold shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={!sellerAuthorized ? 'Verify OTP first' : 'Start mutation'}
+                      >
+                        Start Ownership Mutation
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsIremboModalOpen(true)}
+                        className="btn-primary text-xs font-black !bg-blue-900 hover:!bg-blue-950 text-white cursor-pointer shadow-md inline-flex items-center gap-1.5"
+                      >
+                        <span>🇷🇼 Execute Title Transfer in Irembo Sandbox &rarr;</span>
+                      </button>
+                    </>
                   ) : (
-                    <span className="text-xs font-bold text-slate-400 italic">Waiting for Seller to start mutation...</span>
+                    <span className="text-xs font-bold text-slate-400 italic">Waiting for Seller to execute Irembo mutation...</span>
                   )}
                   {isBuyer && (
                     <button
@@ -980,6 +1005,7 @@ STATUS: COMPLETED MUTATION`;
                     </button>
                   )}
                 </div>
+
               </div>
             )}
 
@@ -1076,18 +1102,33 @@ STATUS: COMPLETED MUTATION`;
                       Verify the latest OTP from your 🔔 bell before submitting for admin review.
                     </p>
                   )}
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
                   {isSeller ? (
-                    <button
-                      onClick={handleCompleteMutation}
-                      disabled={actionLoading || mutationDocCount === 0 || !sellerAuthorized}
-                      className="btn-primary text-xs disabled:opacity-50 disabled:cursor-not-allowed"
-                      title={!sellerAuthorized ? 'Verify OTP first' : 'Submit for review'}
-                    >
-                      Submit for Admin Review
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setIsIremboModalOpen(true)}
+                        className="btn-primary text-xs font-black !bg-blue-900 hover:!bg-blue-950 text-white cursor-pointer shadow-md inline-flex items-center gap-1.5"
+                      >
+                        <span>🇷🇼 Execute Title Transfer in Irembo Sandbox &rarr;</span>
+                      </button>
+                      <button
+                        onClick={handleCompleteMutation}
+                        disabled={actionLoading || mutationDocCount === 0 || !sellerAuthorized}
+                        className="btn-secondary text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={
+                          !sellerAuthorized
+                            ? 'Verify OTP first'
+                            : mutationDocCount === 0
+                            ? 'Upload at least one deed document or execute in Irembo first'
+                            : 'Submit mutation for admin review'
+                        }
+                      >
+                        Submit Uploaded Docs for Review
+                      </button>
+                    </>
                   ) : (
-                    <span className="text-xs font-bold text-slate-400 italic">Waiting for Seller to submit transfer deeds...</span>
+                    <span className="text-xs font-bold text-slate-400 italic">Waiting for Seller to submit mutation or execute via Irembo...</span>
                   )}
                   </div>
                 </div>
@@ -2066,8 +2107,26 @@ STATUS: COMPLETED MUTATION`;
         transaction={transaction}
       />
 
+      {/* IREMBO GOVT LAND REGISTRY SANDBOX PORTAL MODAL */}
+      <IremboSandboxModal
+        isOpen={isIremboModalOpen}
+        onClose={() => setIsIremboModalOpen(false)}
+        transaction={transaction}
+        onMutationSuccess={() => {
+          fetchTransaction();
+        }}
+      />
+
+      {/* PASSWORD-PROTECTED PDF DOWNLOAD MODAL */}
+      <PasswordPdfModal
+        isOpen={isPdfModalOpen}
+        onClose={() => setIsPdfModalOpen(false)}
+        transactionId={transaction?.id}
+      />
+
     </div>
   );
 };
 
 export default EscrowDetail;
+
