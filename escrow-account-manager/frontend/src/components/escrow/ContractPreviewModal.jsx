@@ -235,16 +235,18 @@ const ContractPreviewModal = ({ isOpen, onClose, transaction, onOpenPdfModal }) 
               <strong>Tip:</strong> Highlight any word, sentence, or whole clause — <strong>Ask AI</strong> explains what it means, how it works, and what you should know for your role.
             </span>
           </div>
-          {isFinalized ? (
-            <button onClick={() => window.print()} className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-3 py-1 rounded text-xs transition print:hidden">
-              Print Final Contract
-            </button>
-          ) : (
-            <span className="text-[10px] font-bold text-amber-800 bg-amber-100 border border-amber-300 px-2.5 py-1 rounded">
-              Print locked until COMPLETED
-            </span>
-          )}
+          <button
+            type="button"
+            onClick={() => {
+              onClose();
+              if (onOpenPdfModal) onOpenPdfModal();
+            }}
+            className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs px-3.5 py-1.5 rounded-lg shadow-sm transition flex items-center gap-1 cursor-pointer print:hidden"
+          >
+            <span>🔒 Download Protected PDF (+ Password & QR)</span>
+          </button>
         </div>
+
 
         <div className="p-6 sm:p-8 overflow-y-auto space-y-6 flex-grow" onMouseUp={handleMouseUp} ref={contractRef}>
 
