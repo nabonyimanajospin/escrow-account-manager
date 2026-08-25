@@ -237,8 +237,9 @@ const LandingPage = () => {
                           {p.title}
                         </h3>
                         <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wide mt-0.5">
-                          📍 {p.location} • UPI: {p.titleDeedNumber || '1/02/03/04/1234'}
+                          📍 {p.location} • <span className="text-amber-700 font-mono">UPI: 🔒 Unlocks in Escrow</span>
                         </p>
+
                       </div>
 
                       <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
