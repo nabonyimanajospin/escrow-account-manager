@@ -325,15 +325,28 @@ const Navbar = () => {
           {/* Desktop Navigation Links */}
           <div className="hidden md:flex items-center space-x-6">
             <NavLink
-              to="/properties"
+              to="/"
+              end
               className={({ isActive }) =>
                 `text-sm font-semibold transition-colors ${
-                  isActive ? 'text-primary-600' : 'text-slate-600 hover:text-slate-900'
+                  isActive ? 'text-emerald-600 font-extrabold' : 'text-slate-600 hover:text-slate-900'
                 }`
               }
             >
-              Browse Properties
+              Home
             </NavLink>
+
+            <NavLink
+              to="/properties"
+              className={({ isActive }) =>
+                `text-sm font-semibold transition-colors ${
+                  isActive ? 'text-emerald-600 font-extrabold' : 'text-slate-600 hover:text-slate-900'
+                }`
+              }
+            >
+              Property Catalog
+            </NavLink>
+
 
             {isAuthenticated ? (
               <>
