@@ -1009,94 +1009,45 @@ STATUS: COMPLETED MUTATION`;
               </div>
             )}
 
-            {/* 3. Seller uploads documents & completes mutation */}
+            {/* 3. Seller completes title transfer via connected Irembo Sandbox API */}
             {status === 'MUTATION_STARTED' && (
               <div className="space-y-4">
                 <p className="text-xs text-slate-500 font-semibold leading-relaxed">
-                  Mutation is in progress. The Seller can upload files as transfer proofs, and then submit the agreement for Admin Review.
+                  Ownership mutation is in progress. No manual file upload is required — the Seller executes the land title deed transfer directly inside the connected <strong>Irembo Sandbox Portal</strong>.
                 </p>
 
-                {/* Seller Document Upload Form */}
-                {isSeller && (
-                  <form onSubmit={handleUploadDoc} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase">Upload Mutation Proof</p>
-                    <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
-                      Click <strong>Browse document</strong> to pick a PDF/image, add a short description, then click <strong>Upload File Proof</strong>.
-                    </p>
+                <div className="p-5 bg-indigo-50/80 border border-indigo-200 rounded-xl space-y-3 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-indigo-950 uppercase tracking-wider">
+                      🇷🇼 Official Irembo Government Land Registry Integration
+                    </span>
+                    <span className="text-[10px] font-bold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded border border-indigo-300">
+                      Sandbox Connected
+                    </span>
+                  </div>
+                  <p className="text-xs text-indigo-900 leading-relaxed font-medium">
+                    Click below to query parcel UPI records (`1/03/01/04/3000`), enter digital signature, and execute official title mutation directly inside the connected Irembo Land Sandbox Portal.
+                  </p>
 
-                    <input
-                      ref={mutationFileInputRef}
-                      type="file"
-                      accept="image/*,application/pdf"
-                      onChange={(e) => {
-                        setDocUploadMode('file');
-                        handleDocFileChange(e);
-                      }}
-                      disabled={actionLoading}
-                      className="sr-only"
-                      tabIndex={-1}
-                    />
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
-                        <button
-                          type="button"
-                          disabled={actionLoading}
-                          onClick={() => {
-                            setDocUploadMode('file');
-                            mutationFileInputRef.current?.click();
-                          }}
-                          className="w-full btn-secondary text-xs !py-2 cursor-pointer"
-                        >
-                          {uploadedDocFile ? 'Change document' : 'Browse document'}
-                        </button>
-                        {uploadedDocFile ? (
-                          <p className="text-[10px] text-emerald-600 font-bold truncate">✓ {uploadedDocFile.name}</p>
-                        ) : (
-                          <p className="text-[10px] text-slate-400 font-medium">Opens your file browser immediately</p>
-                        )}
-                      </div>
-                      <input
-                        type="text"
-                        required
-                        className="input-field !py-1.5 !px-3"
-                        placeholder="File Description (e.g. Draft Deed)"
-                        value={docDesc}
-                        onChange={(e) => setDocDesc(e.target.value)}
-                        disabled={actionLoading}
-                      />
-                    </div>
-
-                    <details className="text-left">
-                      <summary className="text-[11px] font-bold text-slate-500 cursor-pointer hover:text-slate-700">
-                        Or use an existing platform file path
-                      </summary>
-                      <input
-                        type="text"
-                        className="input-field !py-1.5 !px-3 mt-2"
-                        placeholder="e.g. /uploads/mutations/file.pdf"
-                        value={docUrl}
-                        onChange={(e) => {
-                          setDocUploadMode('link');
-                          setDocUrl(e.target.value);
-                          setUploadedDocFile(null);
-                        }}
-                        disabled={actionLoading}
-                      />
-                    </details>
-
+                  <div className="pt-1 flex items-center gap-3">
                     <button
-                      type="submit"
-                      disabled={actionLoading}
-                      className="btn-secondary text-xs !py-1.5 cursor-pointer"
+                      type="button"
+                      onClick={() => setIsIremboModalOpen(true)}
+                      className="btn-primary text-xs font-black !bg-blue-900 hover:!bg-blue-950 text-white cursor-pointer shadow-md inline-flex items-center gap-2"
                     >
-                      Upload File Proof
+                      <span>🇷🇼 Open Irembo Sandbox Portal & Execute Title Transfer &rarr;</span>
                     </button>
-                  </form>
-                )}
+                  </div>
+                </div>
+              </div>
+            )}
 
+
+            {/* 4. Document Review state */}
+            {status === 'MUTATION_STARTED' && (
+              <div className="space-y-4 border-t border-slate-100 pt-6">
                 {/* Submitting for Admin Review */}
-                <div className="pt-3 border-t border-slate-100 space-y-2">
+                <div className="pt-3 space-y-2">
                   {isSeller && !sellerAuthorized && (
                     <p className="text-[11px] font-semibold text-indigo-800 bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2">
                       Verify the latest OTP from your 🔔 bell before submitting for admin review.
