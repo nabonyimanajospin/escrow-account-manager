@@ -161,17 +161,23 @@ const LandingPage = () => {
               </div>
             </div>
 
-            {/* Right: Dynamic Animated Card (Coming & Going replacing one another) */}
+            {/* Right: Dynamic Animated Card (Coming & Going replacing one another with slide animation) */}
             <div className="md:col-span-8">
-              <div className={`p-6 rounded-2xl bg-gradient-to-r ${currentNav.color} shadow-xl transition-all duration-700 space-y-3 relative overflow-hidden border border-black/5`}>
+              <div
+                key={currentNav.step}
+                className={`p-6 rounded-2xl bg-gradient-to-r ${currentNav.color} shadow-xl transition-all duration-700 space-y-3 relative overflow-hidden border border-black/5 animate-fade-in`}
+              >
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-black uppercase tracking-wider bg-white/20 px-3 py-1 rounded-full backdrop-blur-md">
                     {currentNav.badge}
                   </span>
-                  <span className="text-xs font-mono font-bold opacity-90">Phase {currentNav.step} / 04</span>
+                  <div className="flex items-center gap-1.5 text-xs font-mono font-bold opacity-90">
+                    <span>Phase {currentNav.step} / 04</span>
+                    <span className="w-2 h-2 rounded-full bg-white animate-ping"></span>
+                  </div>
                 </div>
 
-                <h2 className="text-2xl font-black tracking-tight font-sans">
+                <h2 className="text-2xl font-black tracking-tight font-sans transition-all">
                   {currentNav.headline}
                 </h2>
                 <p className="text-xs text-white/95 leading-relaxed max-w-xl font-medium">
@@ -179,11 +185,14 @@ const LandingPage = () => {
                 </p>
 
                 <div className="pt-2 flex items-center justify-between text-[11px] font-bold text-white/90 border-t border-white/20">
-                  <span>✓ 100% Trustless Execution</span>
-                  <span className="animate-pulse">Auto-advancing workflow &rarr;</span>
+                  <span className="flex items-center gap-1">✓ 100% Trustless Escrow Protocol</span>
+                  <span className="animate-pulse flex items-center gap-1">
+                    Auto-cycling step navigation &rarr;
+                  </span>
                 </div>
               </div>
             </div>
+
 
           </div>
 
