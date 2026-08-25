@@ -2105,7 +2105,9 @@ STATUS: COMPLETED MUTATION`;
         isOpen={isContractModalOpen}
         onClose={() => setIsContractModalOpen(false)}
         transaction={transaction}
+        onOpenPdfModal={() => setIsPdfModalOpen(true)}
       />
+
 
       {/* IREMBO GOVT LAND REGISTRY SANDBOX PORTAL MODAL */}
       <IremboSandboxModal

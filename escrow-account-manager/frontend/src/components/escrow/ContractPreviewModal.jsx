@@ -54,7 +54,7 @@ const sanitizeExplanationMarkdown = (text = '') => {
   return out;
 };
 
-const ContractPreviewModal = ({ isOpen, onClose, transaction }) => {
+const ContractPreviewModal = ({ isOpen, onClose, transaction, onOpenPdfModal }) => {
   const { user } = useAuth();
   const [selectedText, setSelectedText] = useState('');
   const [paragraphText, setParagraphText] = useState('');
@@ -98,6 +98,7 @@ const ContractPreviewModal = ({ isOpen, onClose, transaction }) => {
   const { property, buyer, seller, amount, buyerFee, sellerFee, status, id, createdAt, transactionId, buyerAuthorized, sellerAuthorized } = transaction;
   const priceNum = parseFloat(amount || 0);
   const buyerFeeNum = parseFloat(buyerFee || (priceNum * 0.01));
+
   const sellerFeeNum = parseFloat(sellerFee || (priceNum * 0.015));
   const totalBuyerPaid = priceNum + buyerFeeNum;
   const sellerNetPayout = priceNum - sellerFeeNum;
@@ -516,12 +517,24 @@ const ContractPreviewModal = ({ isOpen, onClose, transaction }) => {
           </div>
         </div>
 
-        <div className="bg-slate-100 p-4 border-t border-slate-200 flex justify-between items-center">
+        <div className="bg-slate-100 p-4 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-3">
           <span className="text-xs text-slate-500 font-semibold">Official Document Preview • EscrowTrust Rwanda</span>
-          <button onClick={onClose} className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-6 py-2.5 rounded-xl transition">
-            Close Preview
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                onClose();
+                if (onOpenPdfModal) onOpenPdfModal();
+              }}
+              className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs px-4 py-2.5 rounded-xl shadow-md transition flex items-center gap-1.5 cursor-pointer"
+            >
+              <span>🔒 Download Protected PDF (+ Password & QR)</span>
+            </button>
+            <button onClick={onClose} className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl transition">
+              Close Preview
+            </button>
+          </div>
         </div>
+
       </div>
     </div>
   );
