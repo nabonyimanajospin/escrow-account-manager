@@ -162,7 +162,7 @@ const LandingPage = () => {
                   </div>
                 </div>
 
-                <h2 className="text-2xl font-extrabold tracking-tight font-sans transition-all">
+                <h2 className="text-2xl font-black tracking-tight text-white font-sans transition-all drop-shadow-xs">
                   {currentNav.headline}
                 </h2>
 
