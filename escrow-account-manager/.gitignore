@@ -19,11 +19,20 @@ frontend/.env.*
 *.pfx
 *.p12
 
-# Database files & Dumps
+# Database files & Dumps (SQLite / Dev DBs)
 *.sqlite
 *.sqlite3
+database.sqlite
 *.db
 *.sql
+
+# Test Coverage & Reports (Jest)
+coverage/
+
+# Hardhat & Smart Contract Compiled Artifacts
+artifacts/
+cache/
+typechain-types/
 
 # Uploaded User Documents, Contracts, and Evidence (Privacy & Security)
 backend/uploads/
@@ -32,9 +41,10 @@ backend/logs/
 backend/artifacts/
 uploads/
 logs/
-artifacts/
 
 # Build Output
+dist/
+build/
 frontend/dist/
 frontend/build/
 
@@ -55,8 +65,7 @@ desktop.ini
 *.swp
 *.swo
 
-# Test Coverage & Temp
-coverage/
+# Temporary files
 *.tmp
 *.temp
 scratch/
