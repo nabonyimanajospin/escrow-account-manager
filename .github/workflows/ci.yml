@@ -8,32 +8,13 @@ on:
   workflow_dispatch:
 
 jobs:
+  # ── Job 1: Automated Integration & Unit Tests ──────────────────────────────
   test:
     name: Automated Integration & Unit Tests
     runs-on: ubuntu-latest
 
-    services:
-      postgres:
-        image: postgres:15-alpine
-        env:
-          POSTGRES_DB: escrow_test
-          POSTGRES_USER: testuser
-          POSTGRES_PASSWORD: testpassword
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     env:
       NODE_ENV: test
-      DB_HOST: localhost
-      DB_PORT: 5432
-      DB_NAME: escrow_test
-      DB_USER: testuser
-      DB_PASSWORD: testpassword
       JWT_SECRET: ci-test-secret-key-not-for-production
       JWT_EXPIRE: 1h
 
@@ -45,25 +26,20 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-          cache: 'npm'
-          cache-dependency-path: 'escrow-account-manager/backend/package-lock.json'
 
-      - name: Install Backend Dependencies
+      - name: Install Backend Dependencies & Run Integration Tests
         run: |
           cd escrow-account-manager/backend
           npm ci
-
-      - name: Run Backend Integration Test Suite
-        run: |
-          cd escrow-account-manager/backend
           npm test
 
-      - name: Install & Build Frontend Assets
+      - name: Install Frontend Dependencies & Build Production Assets
         run: |
           cd escrow-account-manager/frontend
           npm ci
           npx vite build
 
+  # ── Job 2: Automated Docker Container Verification ────────────────────────
   docker:
     name: Build & Verify Docker Containers
     runs-on: ubuntu-latest
