@@ -178,7 +178,7 @@ exports.getMyProperties = async (req, res, next) => {
 // @access  Private (SELLER, ADMIN)
 exports.createProperty = async (req, res, next) => {
   try {
-    const { title, description, price, location, bedrooms, bathrooms, area, propertyType, images, listingType, biddingDeadline, upiCode } = req.body;
+    const { title, description, price, location, bedrooms, bathrooms, area, propertyType, images, listingType, biddingDeadline, upiCode, latitude, longitude } = req.body;
 
     const isLand = propertyType === 'LAND';
 
@@ -220,6 +220,8 @@ exports.createProperty = async (req, res, next) => {
       description,
       price,
       location,
+      latitude: latitude && !isNaN(Number(latitude)) ? Number(latitude) : null,
+      longitude: longitude && !isNaN(Number(longitude)) ? Number(longitude) : null,
       ...specs,
       propertyType,
       images: finalImages,
@@ -259,7 +261,7 @@ exports.updateProperty = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Cannot update a property that is in an active transaction' });
     }
 
-    const { title, description, price, location, bedrooms, bathrooms, area, propertyType, images, listingType, biddingDeadline, upiCode } = req.body;
+    const { title, description, price, location, bedrooms, bathrooms, area, propertyType, images, listingType, biddingDeadline, upiCode, latitude, longitude } = req.body;
 
     const finalUpiCode = upiCode !== undefined ? upiCode : property.upiCode;
     if (!finalUpiCode || !/^\d{1,2}\/\d{2}\/\d{2}\/\d{2}\/\d{1,5}$/i.test(finalUpiCode)) {
@@ -290,6 +292,8 @@ exports.updateProperty = async (req, res, next) => {
       description: description !== undefined ? description : property.description,
       price: price !== undefined ? price : property.price,
       location: location !== undefined ? location : property.location,
+      latitude: latitude !== undefined ? (latitude && !isNaN(Number(latitude)) ? Number(latitude) : null) : property.latitude,
+      longitude: longitude !== undefined ? (longitude && !isNaN(Number(longitude)) ? Number(longitude) : null) : property.longitude,
       ...specs,
       propertyType: finalPropertyType,
       images: finalImages,

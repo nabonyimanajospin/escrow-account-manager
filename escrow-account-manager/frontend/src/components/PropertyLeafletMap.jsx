@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
+import { GeoSearchControl, OpenStreetMapProvider } from 'leaflet-geosearch';
+import 'leaflet-geosearch/dist/geosearch.css';
 
 // Fix default Leaflet icon assets in Webpack/Vite bundlers
 import iconUrl from 'leaflet/dist/images/marker-icon.png';
@@ -43,7 +45,6 @@ const resolveCoordinates = (locationStr, defaultLat = -1.9441, defaultLng = 30.0
       return coords;
     }
   }
-  // Generate deterministic offset based on location string hash so different addresses get distinct pins
   let hash = 0;
   for (let i = 0; i < query.length; i++) {
     hash = (hash << 5) - hash + query.charCodeAt(i);
@@ -60,6 +61,44 @@ const MapViewRecenter = ({ center }) => {
   useEffect(() => {
     map.setView(center, map.getZoom());
   }, [center, map]);
+  return null;
+};
+
+// OpenStreetMap Address Search Control plugin component
+const SearchControl = ({ onSelect }) => {
+  const map = useMap();
+
+  useEffect(() => {
+    const provider = new OpenStreetMapProvider();
+    const searchControl = new GeoSearchControl({
+      provider,
+      style: 'bar',
+      autoClose: true,
+      showMarker: false,
+      retainZoomLevel: false,
+      searchLabel: 'Search property address (e.g. Nyarutarama, Kigali)',
+    });
+
+    map.addControl(searchControl);
+
+    const handleSearchLocation = (result) => {
+      if (onSelect && result?.location) {
+        onSelect({
+          address: result.location.label,
+          lat: result.location.y,
+          lng: result.location.x,
+        });
+      }
+    };
+
+    map.on('geosearch/showlocation', handleSearchLocation);
+
+    return () => {
+      map.removeControl(searchControl);
+      map.off('geosearch/showlocation', handleSearchLocation);
+    };
+  }, [map, onSelect]);
+
   return null;
 };
 
@@ -120,7 +159,25 @@ const PropertyLeafletMap = ({
   const handleMapClick = ({ lat, lng }) => {
     setCurrentMarkerPos([lat, lng]);
     if (onLocationSelect) {
-      onLocationSelect({ lat: lat.toFixed(6), lng: lng.toFixed(6) });
+      onLocationSelect({ lat: Number(lat).toFixed(6), lng: Number(lng).toFixed(6) });
+    }
+  };
+
+  const handleSearchResult = ({ address, lat, lng }) => {
+    setCurrentMarkerPos([lat, lng]);
+    if (onLocationSelect) {
+      onLocationSelect({ address, lat: Number(lat).toFixed(6), lng: Number(lng).toFixed(6) });
+    }
+  };
+
+  const handleMarkerDragEnd = (e) => {
+    const marker = e.target;
+    if (marker != null) {
+      const latLng = marker.getLatLng();
+      setCurrentMarkerPos([latLng.lat, latLng.lng]);
+      if (onLocationSelect) {
+        onLocationSelect({ lat: latLng.lat.toFixed(6), lng: latLng.lng.toFixed(6) });
+      }
     }
   };
 
@@ -188,9 +245,18 @@ const PropertyLeafletMap = ({
         
         <MapViewRecenter center={currentMarkerPos} />
         
+        <SearchControl onSelect={handleSearchResult} />
+
         {interactiveSelect && <MapClickPinHandler onLocationSelected={handleMapClick} />}
 
-        <Marker position={currentMarkerPos} icon={customMarkerIcon}>
+        <Marker
+          position={currentMarkerPos}
+          icon={customMarkerIcon}
+          draggable={interactiveSelect}
+          eventHandlers={{
+            dragend: handleMarkerDragEnd,
+          }}
+        >
           <Popup className="custom-leaflet-popup">
             <div className="p-1 space-y-1.5 max-w-xs font-sans">
               {propertyImage && (
@@ -212,7 +278,7 @@ const PropertyLeafletMap = ({
               )}
               {interactiveSelect ? (
                 <span className="text-[9px] text-indigo-600 font-bold block">
-                  ✓ Pin set at this position! Click anywhere on map to reposition pin.
+                  ✓ Draggable Marker! Drag pin or click map/search bar to set property location.
                 </span>
               ) : (
                 <span className="text-[9px] text-emerald-700 font-bold block">
@@ -228,7 +294,7 @@ const PropertyLeafletMap = ({
       <div className="absolute bottom-2 left-2 right-2 z-[1000] bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-200 text-slate-900 text-[10px] font-bold shadow-md flex items-center justify-between">
         <span>📍 {locationName || 'Kigali, Rwanda'}</span>
         <span className="text-emerald-700 font-mono">
-          {interactiveSelect ? 'Click map to place exact property pin' : 'Scroll/Drag map to explore neighborhood'}
+          {interactiveSelect ? 'Search address or drag pin to adjust location' : 'Scroll/Drag map to explore neighborhood'}
         </span>
       </div>
 

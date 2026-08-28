@@ -377,15 +377,20 @@ const PropertyForm = () => {
                   locationName={location}
                   latitude={latitude}
                   longitude={longitude}
-                  height="220px"
+                  height="260px"
                   propertyTitle={title || 'Property Listing'}
                   propertyPrice={price}
                   upiCode={upiCode}
                   interactiveSelect={true}
-                  onLocationSelect={({ lat, lng }) => {
+                  onLocationSelect={({ address, lat, lng }) => {
                     setLatitude(lat);
                     setLongitude(lng);
-                    toast.success(`Location pin set to GPS (${lat}, ${lng})!`);
+                    if (address) {
+                      setLocation(address);
+                      toast.success(`Address updated to "${address}"!`);
+                    } else {
+                      toast.success(`Location pin set to GPS (${lat}, ${lng})!`);
+                    }
                   }}
                 />
               </div>
