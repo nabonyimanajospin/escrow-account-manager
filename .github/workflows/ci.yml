@@ -8,7 +8,6 @@ on:
   workflow_dispatch:
 
 jobs:
-  # ── Job 1: Automated Integration & Unit Tests ──────────────────────────────
   test:
     name: Automated Integration & Unit Tests
     runs-on: ubuntu-latest
@@ -22,24 +21,23 @@ jobs:
       - name: Checkout Repository Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 18 Environment
+      - name: Setup Node.js 20 Environment
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
 
       - name: Install Backend Dependencies & Run Integration Tests
         run: |
           cd escrow-account-manager/backend
-          npm ci
+          npm install --legacy-peer-deps
           npm test
 
       - name: Install Frontend Dependencies & Build Production Assets
         run: |
           cd escrow-account-manager/frontend
-          npm ci
+          npm install --legacy-peer-deps
           npx vite build
 
-  # ── Job 2: Automated Docker Container Verification ────────────────────────
   docker:
     name: Build & Verify Docker Containers
     runs-on: ubuntu-latest
