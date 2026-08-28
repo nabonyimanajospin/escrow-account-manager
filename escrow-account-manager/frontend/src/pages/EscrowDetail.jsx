@@ -858,10 +858,7 @@ STATUS: COMPLETED MUTATION`;
                   </span>
                 </div>
                 <p className="text-xs text-slate-600 leading-relaxed font-semibold">
-                  <strong>Follow this order:</strong> (1) Open the top-right <strong>🔔 notification panel</strong>,
-                  (2) copy the <strong>latest</strong> 4-digit OTP, (3) paste it here and click Verify.
-                  The code is also sent to your registration <strong>email</strong> and <strong>phone</strong> when those channels are configured.
-                  Buyer and seller share one deal code — after Resend, only the newest code works.
+                  <strong>Approval Verification:</strong> Check your registered <strong>email inbox</strong> or <strong>phone SMS</strong> for your verification approval code. Enter the code below to approve state signatures.
                 </p>
                 <form onSubmit={handleVerifyConsensusCode} className="flex gap-2">
                   <input

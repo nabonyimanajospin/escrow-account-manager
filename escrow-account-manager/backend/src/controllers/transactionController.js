@@ -414,18 +414,9 @@ const depositFunds = async (req, res, next) => {
         );
       }
 
-      // Overpayment alert: Block submitted amounts exceeding total required by more than 2,000 RWF (~$1.50 USD)
-      const OVERPAYMENT_RWF_LIMIT_USD = 1.50; // equivalent to 2,000 Rwandan Francs
-      if (submittedAmount > totalRequired + OVERPAYMENT_RWF_LIMIT_USD) {
-        throw Object.assign(
-          new Error(`Overpayment blocked! You cannot submit an excess amount exceeding the required price by more than 2,000 RWF (~$1.50). Required exact total: $${totalRequired.toFixed(2)} USD.`),
-          { statusCode: 400 }
-        );
-      }
-
       const paymentVerification = await paymentProvider.verifyEscrowDeposit({
         transaction,
-        amount,
+        amount: totalRequired,
         reference: paymentReference,
       });
       if (!paymentVerification.verified) {
@@ -559,7 +550,12 @@ const depositFunds = async (req, res, next) => {
       }
     });
 
-    res.status(200).json({ success: true, message: 'Funds successfully deposited into escrow.', data: result });
+    const excess = parseFloat(amount) - notifyContext.amount;
+    const message = excess > 0.01
+      ? `Notice: Your submitted deposit ($${parseFloat(amount).toFixed(2)}) was greater than the required total ($${notifyContext.amount.toFixed(2)}). The system deducted only the exact required amount ($${notifyContext.amount.toFixed(2)}) for escrow lock, and your remaining change ($${excess.toFixed(2)}) remains safely in your wallet balance!`
+      : 'Funds successfully deposited and locked in escrow.';
+
+    res.status(200).json({ success: true, message, data: result });
   } catch (error) {
     if (error.statusCode) {
       return res.status(error.statusCode).json({ success: false, message: error.message });

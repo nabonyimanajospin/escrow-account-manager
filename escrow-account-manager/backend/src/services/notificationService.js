@@ -258,12 +258,15 @@ const sendWalletCreditEmail = async (toEmail, toName, amount, newBalance, transa
 const sendConsensusCode = async ({ user, transaction, code, expiresAt }) => {
   const ref = transaction.reference || transaction.transactionId || `TXN-${transaction.id}`;
 
-  await notifyUserTriChannel(user, '🔐 Verification Approval Code', `Your verification approval code for deal ${ref} is: ${code}`, {
-    skipEmail: true,
-    smsText: `[EscrowTrust] Deal ${ref} — your approval code is ${code}. Expires in 10 min.`,
+  // In-app notification informs user that code was sent to Email & SMS (no raw code in bell)
+  await Notification.create({
+    userId: user.id,
+    title: '🔐 Verification Approval Code Sent',
+    message: `A 6-digit OTP verification code for deal ${ref} has been delivered to your email (${user.email || 'on file'}) and phone SMS. Enter the code in the transaction workspace to sign.`,
   });
 
-  return sendOtpEmail(user.email, user.name, code, ref, { phone: user.phone, skipSms: true, skipInApp: true });
+  // Deliver raw OTP code via Email & SMS
+  return sendOtpEmail(user.email, user.name, code, ref, { phone: user.phone, skipSms: false, skipInApp: true });
 };
 
 /** Notify every ADMIN via in-app + email (+ SMS if phone on file). */
