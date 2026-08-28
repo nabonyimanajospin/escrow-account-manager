@@ -123,15 +123,15 @@ const getTransaction = async (req, res, next) => {
 
     const txData = transaction.toJSON();
 
-    // Privacy Masking Matrix: Hide counterpart contacts for Buyer and Seller; Admin sees full contacts.
+    // Privacy Matrix: Omit counterpart email and phone for Buyer and Seller; Admin sees full contacts.
     if (req.user.role !== 'ADMIN') {
       if (txData.seller && req.user.id !== txData.sellerId) {
-        txData.seller.email = txData.seller.email ? `${txData.seller.email.slice(0, 3)}••••@••••.com` : 'Protected';
-        txData.seller.phone = txData.seller.phone ? `${txData.seller.phone.slice(0, 5)}••••••` : 'Protected';
+        delete txData.seller.email;
+        delete txData.seller.phone;
       }
       if (txData.buyer && req.user.id !== txData.buyerId) {
-        txData.buyer.email = txData.buyer.email ? `${txData.buyer.email.slice(0, 3)}••••@••••.com` : 'Protected';
-        txData.buyer.phone = txData.buyer.phone ? `${txData.buyer.phone.slice(0, 5)}••••••` : 'Protected';
+        delete txData.buyer.email;
+        delete txData.buyer.phone;
       }
     }
 
