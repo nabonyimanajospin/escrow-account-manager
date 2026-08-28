@@ -31,9 +31,12 @@ const LOCATION_COORDINATES_MAP = {
   gasabo: [-1.9380, 30.0950],
   kanombe: [-1.9680, 30.1450],
   bugesera: [-2.1400, 30.0800],
+  nyamata: [-2.1450, 30.0880],
+  rwamagana: [-1.9480, 30.4340],
   rubavu: [-1.7000, 29.2600],
   musanze: [-1.5000, 29.6300],
   huye: [-2.5900, 29.7400],
+  karongi: [-2.0650, 29.3550],
   kigali: [-1.9441, 30.0619],
 };
 
@@ -76,7 +79,7 @@ const SearchControl = ({ onSelect }) => {
       autoClose: true,
       showMarker: false,
       retainZoomLevel: false,
-      searchLabel: 'Search property address (e.g. Nyarutarama, Kigali)',
+      searchLabel: 'Search property address or region (e.g. Nyarutarama, Bugesera)',
     });
 
     map.addControl(searchControl);
@@ -181,11 +184,29 @@ const PropertyLeafletMap = ({
     }
   };
 
+  const handleUseCurrentGpsLocation = () => {
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = pos.coords.latitude.toFixed(6);
+          const lng = pos.coords.longitude.toFixed(6);
+          setCurrentMarkerPos([Number(lat), Number(lng)]);
+          if (onLocationSelect) {
+            onLocationSelect({ lat, lng });
+          }
+        },
+        (err) => {
+          console.error('Device GPS geolocation error:', err);
+        }
+      );
+    }
+  };
+
   return (
     <div className="relative w-full rounded-2xl overflow-hidden border border-slate-300 shadow-md group">
       
       {/* Layer selector & Map Controls Header */}
-      <div className="absolute top-3 right-3 z-[1000] bg-white/90 backdrop-blur-md p-1.5 rounded-xl border border-slate-200 shadow-lg flex items-center gap-1 text-xs">
+      <div className="absolute top-3 right-3 z-[1000] bg-white/90 backdrop-blur-md p-1.5 rounded-xl border border-slate-200 shadow-lg flex flex-wrap items-center gap-1 text-xs">
         <button
           type="button"
           onClick={() => setMapLayer('streets')}
@@ -205,8 +226,9 @@ const PropertyLeafletMap = ({
               ? 'bg-emerald-600 text-white shadow-xs'
               : 'text-slate-600 hover:bg-slate-100'
           }`}
+          title="Best for rural land without roads — shows aerial satellite imagery"
         >
-          🛰️ Satellite
+          🛰️ Satellite (Rural)
         </button>
         <button
           type="button"
@@ -219,6 +241,16 @@ const PropertyLeafletMap = ({
         >
           ⛰️ Topo
         </button>
+        {interactiveSelect && (
+          <button
+            type="button"
+            onClick={handleUseCurrentGpsLocation}
+            className="px-2.5 py-1 rounded-lg font-extrabold bg-indigo-600 hover:bg-indigo-700 text-white transition-colors cursor-pointer shadow-xs"
+            title="Automatically place pin on your current device GPS location"
+          >
+            🎯 Use My Device GPS
+          </button>
+        )}
       </div>
 
       {/* Top Left GPS Coordinates Badge */}
@@ -278,7 +310,7 @@ const PropertyLeafletMap = ({
               )}
               {interactiveSelect ? (
                 <span className="text-[9px] text-indigo-600 font-bold block">
-                  ✓ Draggable Marker! Drag pin or click map/search bar to set property location.
+                  ✓ Draggable Marker! Drag pin or click map/satellite to set property location.
                 </span>
               ) : (
                 <span className="text-[9px] text-emerald-700 font-bold block">
@@ -294,7 +326,7 @@ const PropertyLeafletMap = ({
       <div className="absolute bottom-2 left-2 right-2 z-[1000] bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-200 text-slate-900 text-[10px] font-bold shadow-md flex items-center justify-between">
         <span>📍 {locationName || 'Kigali, Rwanda'}</span>
         <span className="text-emerald-700 font-mono">
-          {interactiveSelect ? 'Search address or drag pin to adjust location' : 'Scroll/Drag map to explore neighborhood'}
+          {interactiveSelect ? 'Toggle 🛰️ Satellite to find rural land without roads' : 'Scroll/Drag map to explore neighborhood'}
         </span>
       </div>
 
