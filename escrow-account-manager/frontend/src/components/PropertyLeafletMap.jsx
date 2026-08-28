@@ -37,6 +37,8 @@ const LOCATION_COORDINATES_MAP = {
   musanze: [-1.5000, 29.6300],
   huye: [-2.5900, 29.7400],
   karongi: [-2.0650, 29.3550],
+  muhanga: [-1.9800, 29.7500],
+  kabgayi: [-1.9830, 29.7550],
   kigali: [-1.9441, 30.0619],
 };
 
@@ -69,7 +71,7 @@ const MapViewRecenter = ({ center }) => {
     }, 150);
     const t2 = setTimeout(() => {
       map.invalidateSize();
-    }, 400);
+    }, 450);
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
@@ -90,7 +92,7 @@ const SearchControl = ({ onSelect }) => {
       autoClose: true,
       showMarker: false,
       retainZoomLevel: false,
-      searchLabel: 'Search property address or region (e.g. Nyarutarama, Bugesera)',
+      searchLabel: 'Search location (e.g. Kabgayi, Muhanga)',
     });
 
     map.addControl(searchControl);
@@ -147,7 +149,7 @@ const PropertyLeafletMap = ({
   locationName = '',
   latitude,
   longitude,
-  height = '320px',
+  height = '360px',
   propertyTitle = 'Property Location',
   propertyPrice,
   propertyImage,
@@ -214,10 +216,13 @@ const PropertyLeafletMap = ({
   };
 
   return (
-    <div className="relative w-full rounded-2xl overflow-hidden border border-slate-300 shadow-md group">
+    <div
+      className="relative w-full rounded-2xl overflow-hidden border border-slate-300 shadow-md group"
+      style={{ height, minHeight: height }}
+    >
       
       {/* Layer selector & Map Controls Header */}
-      <div className="absolute top-3 right-3 z-[1000] bg-white/90 backdrop-blur-md p-1.5 rounded-xl border border-slate-200 shadow-lg flex flex-wrap items-center gap-1 text-xs">
+      <div className="absolute top-3 right-3 z-[1000] bg-white/95 backdrop-blur-md p-1.5 rounded-xl border border-slate-200 shadow-lg flex flex-wrap items-center gap-1 text-xs">
         <button
           type="button"
           onClick={() => setMapLayer('streets')}
@@ -239,7 +244,7 @@ const PropertyLeafletMap = ({
           }`}
           title="Best for rural land without roads — shows aerial satellite imagery"
         >
-          🛰️ Satellite (Rural)
+          🛰️ Satellite
         </button>
         <button
           type="button"
@@ -259,7 +264,7 @@ const PropertyLeafletMap = ({
             className="px-2.5 py-1 rounded-lg font-extrabold bg-indigo-600 hover:bg-indigo-700 text-white transition-colors cursor-pointer shadow-xs"
             title="Automatically place pin on your current device GPS location"
           >
-            🎯 Use My Device GPS
+            🎯 Device GPS
           </button>
         )}
       </div>
@@ -277,8 +282,8 @@ const PropertyLeafletMap = ({
         center={currentMarkerPos}
         zoom={14}
         scrollWheelZoom={true}
-        style={{ height, width: '100%' }}
-        className="z-0"
+        style={{ height: '100%', width: '100%' }}
+        className="z-0 h-full w-full"
       >
         <TileLayer
           url={TILE_PROVIDERS[mapLayer].url}
@@ -333,9 +338,9 @@ const PropertyLeafletMap = ({
         </Marker>
       </MapContainer>
 
-      {/* Interactive Helper Banner */}
+      {/* Bottom Overlay Helper Banner */}
       <div className="absolute bottom-2 left-2 right-2 z-[1000] bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-200 text-slate-900 text-[10px] font-bold shadow-md flex items-center justify-between">
-        <span>📍 {locationName || 'Kigali, Rwanda'}</span>
+        <span>📍 {locationName || 'Rwanda'}</span>
         <span className="text-emerald-700 font-mono">
           {interactiveSelect ? 'Toggle 🛰️ Satellite to find rural land without roads' : 'Scroll/Drag map to explore neighborhood'}
         </span>
