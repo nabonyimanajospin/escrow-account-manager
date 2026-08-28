@@ -2,12 +2,12 @@ name: CI/CD Automated Testing & Docker Build Pipeline
 
 on:
   push:
-    branches: [main, master, develop]
+    branches: ["*"]
   pull_request:
-    branches: [main, master]
+    branches: ["*"]
+  workflow_dispatch:
 
 jobs:
-  # ── Job 1: Automated Integration & Unit Tests ──────────────────────────────
   test:
     name: Automated Integration & Unit Tests
     runs-on: ubuntu-latest
@@ -46,25 +46,24 @@ jobs:
         with:
           node-version: '18'
           cache: 'npm'
-          cache-dependency-path: '**/package-lock.json'
+          cache-dependency-path: 'backend/package-lock.json'
 
       - name: Install Backend Dependencies
         run: |
-          if [ -d "backend" ]; then cd backend; fi
+          cd backend
           npm ci
 
       - name: Run Backend Integration Test Suite
         run: |
-          if [ -d "backend" ]; then cd backend; fi
+          cd backend
           npm test
 
       - name: Install & Build Frontend Assets
         run: |
-          if [ -d "frontend" ]; then cd frontend; fi
+          cd frontend
           npm ci
           npx vite build
 
-  # ── Job 2: Automated Docker Build Verification ─────────────────────────────
   docker:
     name: Build & Verify Docker Containers
     runs-on: ubuntu-latest
@@ -80,15 +79,15 @@ jobs:
       - name: Build Backend Docker Image
         uses: docker/build-push-action@v5
         with:
-          context: ${{ (stat('backend') && 'backend') || '.' }}
-          file: ${{ (stat('backend') && 'backend/Dockerfile') || 'Dockerfile' }}
+          context: ./backend
+          file: ./backend/Dockerfile
           push: false
           tags: escrowtrust-backend:latest
 
       - name: Build Frontend Docker Image
         uses: docker/build-push-action@v5
         with:
-          context: ${{ (stat('frontend') && 'frontend') || '.' }}
-          file: ${{ (stat('frontend') && 'frontend/Dockerfile') || 'Dockerfile' }}
+          context: ./frontend
+          file: ./frontend/Dockerfile
           push: false
           tags: escrowtrust-frontend:latest
