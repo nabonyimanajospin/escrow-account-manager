@@ -1,41 +1,62 @@
 # Dependencies
 node_modules/
 .npm
+package-lock.json.bak
 
-# Environment variables — NEVER commit these
+# Environment variables — NEVER commit secrets or credentials
 .env
-.env.local
-.env.development
-.env.production
+.env.*
+!.env.example
 backend/.env
+backend/.env.*
 frontend/.env
+frontend/.env.*
 
-# Uploaded files (user documents, images, generated contracts)
+# Sensitive Keys & Certificates
+*.pem
+*.crt
+*.key
+*.pfx
+*.p12
+
+# Database files & Dumps
+*.sqlite
+*.sqlite3
+*.db
+*.sql
+
+# Uploaded User Documents, Contracts, and Evidence (Privacy & Security)
 backend/uploads/
 backend/src/uploads/
+backend/logs/
+backend/artifacts/
+uploads/
+logs/
+artifacts/
 
-# Build output
+# Build Output
 frontend/dist/
 frontend/build/
 
-# Logs
+# Logs & Debugging Output
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# OS files
+# OS System Files
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# Editor/IDE
-.vscode/settings.json
+# IDE & Editor Files
+.vscode/
 .idea/
+*.swp
+*.swo
 
-# Test coverage
+# Test Coverage & Temp
 coverage/
-
-# Temporary files
 *.tmp
 *.temp
+scratch/
