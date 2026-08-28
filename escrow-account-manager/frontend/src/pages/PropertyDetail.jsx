@@ -264,11 +264,6 @@ const PropertyDetail = () => {
                     <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.243-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                     Interactive GIS Location Map (Live Leaflet Vector Registry)
                   </span>
-                  <span className="text-[10px] font-bold bg-amber-100 text-amber-900 px-2 py-0.5 rounded border border-amber-300 font-mono">
-                    {user && (user.id === property.sellerId || activeTxn?.buyerId === user.id || user.role === 'ADMIN')
-                      ? `UPI: ${property.upiCode || property.titleDeedNumber || '1/02/03/04/1234'}`
-                      : `UPI: ${property.upiCode ? property.upiCode.split('/')[0] + '/' + (property.upiCode.split('/')[1] || '02') + '/••/••/••••' : '1/02/••/••/••••'} (🔒 Unlocks in Escrow)`}
-                  </span>
                 </div>
 
                 <PropertyLeafletMap
@@ -476,7 +471,7 @@ const PropertyDetail = () => {
                   <span>🔒 Safe Escrow Protection</span>
                 </p>
                 <p className="text-[11px] text-slate-600 leading-snug">
-                  All communication, offers, and title deed transfers are protected in-app via the Escrow Account Manager protocol (Amazon / AliExpress standard).
+                  All communication, offers, and title deed transfers are protected in-app via the Escrow Account Manager protocol.
                 </p>
               </div>
             </div>
