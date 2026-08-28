@@ -1,7 +1,8 @@
 # ===========================
-# Node.js
+# Node.js & Dependencies
 # ===========================
 node_modules/
+.npm
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -11,10 +12,52 @@ yarn-error.log*
 # NEVER push .env files
 # ===========================
 .env
-.env.local
-.env.development
-.env.production
-.env.test
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+frontend/.env
+frontend/.env.*
+
+# ===========================
+# Sensitive Keys & Certificates
+# ===========================
+*.pem
+*.crt
+*.key
+*.pfx
+*.p12
+
+# ===========================
+# SQLite & Database Dumps
+# ===========================
+*.sqlite
+*.sqlite3
+database.sqlite
+*.db
+*.sql
+
+# ===========================
+# Test Coverage & Reports (Jest)
+# ===========================
+coverage/
+
+# ===========================
+# Hardhat / Smart Contracts
+# ===========================
+artifacts/
+cache/
+typechain-types/
+
+# ===========================
+# User Uploads & User Data (Multer)
+# ===========================
+uploads/
+backend/uploads/
+backend/src/uploads/
+backend/logs/
+backend/artifacts/
+logs/
 
 # ===========================
 # Build Output
@@ -22,12 +65,8 @@ yarn-error.log*
 dist/
 build/
 out/
-
-# ===========================
-# Logs
-# ===========================
-logs/
-*.log
+frontend/dist/
+frontend/build/
 
 # ===========================
 # OS Files
@@ -45,16 +84,20 @@ desktop.ini
 *.ntvs*
 *.njsproj
 *.sln
+*.swp
+*.swo
 
 # ===========================
-# Vite
+# Vite & Temporary Scratch Files
 # ===========================
 .vite/
+*.tmp
+*.temp
+scratch/
 
 # ===========================
-# Excluded folders / archives
+# Excluded Archives & Prompts
 # ===========================
 demo/
 *.zip
 Prompt1.md
-
