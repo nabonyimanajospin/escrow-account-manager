@@ -14,6 +14,10 @@ jobs:
 
     env:
       NODE_ENV: test
+      DB_NAME: escrow_test
+      DB_USER: postgres
+      DB_PASSWORD: jospin123
+      DB_HOST: localhost
       JWT_SECRET: ci-test-secret-key-not-for-production
       JWT_EXPIRE: 1h
 

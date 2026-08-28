@@ -10,9 +10,17 @@ const logger = require('./utils/logger');
 require('dotenv').config();
 
 // ─── Startup Environment Validation ──────────────────────────────────────────
+if (process.env.NODE_ENV === 'test') {
+  process.env.DB_NAME = process.env.DB_NAME || 'escrow_test';
+  process.env.DB_USER = process.env.DB_USER || 'postgres';
+  process.env.DB_PASSWORD = process.env.DB_PASSWORD || 'jospin123';
+  process.env.DB_HOST = process.env.DB_HOST || 'localhost';
+  process.env.JWT_SECRET = process.env.JWT_SECRET || 'ci-test-secret-key';
+}
+
 const REQUIRED_ENV = ['DB_NAME', 'DB_USER', 'DB_PASSWORD', 'DB_HOST', 'JWT_SECRET'];
 const missingEnv = REQUIRED_ENV.filter((key) => !process.env[key]);
-if (missingEnv.length > 0) {
+if (missingEnv.length > 0 && process.env.NODE_ENV !== 'test') {
   logger.error(`[FATAL] Missing required environment variables: ${missingEnv.join(', ')}`);
   logger.error('[FATAL] Server cannot start. Please check your .env file.');
   process.exit(1);
