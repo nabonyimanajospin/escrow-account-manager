@@ -8,6 +8,7 @@ import CurrencyConverter from '../components/CurrencyConverter';
 import PriceBreakdown from '../components/common/PriceBreakdown';
 import { resolveImageUrl, getPropertyCoverImage, handlePropertyImageError } from '../utils/imageUtils';
 import { calculatePlatformFees, getRoleAwareListingPrice } from '../utils/platformFees';
+import PropertyLeafletMap from '../components/PropertyLeafletMap';
 
 const PropertyDetail = () => {
   const { id } = useParams();
@@ -256,12 +257,12 @@ const PropertyDetail = () => {
 
               <div className="section-divider" />
 
-              {/* Authentic OpenStreetMap / Google Maps Style Interactive Map */}
+              {/* Authentic Leaflet GIS Location Map */}
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5 font-sans">
                     <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.243-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                    Interactive Property Location Map (Live GIS Registry)
+                    Interactive GIS Location Map (Live Leaflet Vector Registry)
                   </span>
                   <span className="text-[10px] font-bold bg-amber-100 text-amber-900 px-2 py-0.5 rounded border border-amber-300 font-mono">
                     {user && (user.id === property.sellerId || activeTxn?.buyerId === user.id || user.role === 'ADMIN')
@@ -270,33 +271,16 @@ const PropertyDetail = () => {
                   </span>
                 </div>
 
-
-                {/* OpenStreetMap Real Tile Embed + Interactive Pin & Overlay */}
-                <div className="h-64 w-full rounded-xl relative overflow-hidden border border-slate-300 shadow-inner group">
-                  <iframe
-                    title="Property Location GIS Map"
-                    width="100%"
-                    height="100%"
-                    frameBorder="0"
-                    scrolling="no"
-                    marginHeight="0"
-                    marginWidth="0"
-                    src="https://www.openstreetmap.org/export/embed.html?bbox=30.0500%2C-1.9550%2C30.0750%2C-1.9350&amp;layer=mapnik&amp;marker=-1.9441%2C30.0619"
-                    className="w-full h-full filter contrast-105"
-                  />
-                  
-                  {/* Floating Overlay Badge */}
-                  <div className="absolute top-3 left-3 bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-700 text-white shadow-md">
-                    <div className="flex items-center gap-2 text-[10px] font-mono font-bold text-emerald-400">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-                      GPS Coordinates: -1.9441° S, 30.0619° E
-                    </div>
-                  </div>
-
-                  <div className="absolute bottom-3 right-3 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-200 text-slate-900 text-[10px] font-bold shadow-md">
-                    Location: {property.location || 'Gasabo, Kigali'} ({property.area} sqm)
-                  </div>
-                </div>
+                <PropertyLeafletMap
+                  locationName={property.location}
+                  latitude={property.latitude}
+                  longitude={property.longitude}
+                  height="280px"
+                  propertyTitle={property.title}
+                  propertyPrice={property.price}
+                  propertyImage={resolveImageUrl(getPropertyCoverImage(property.images))}
+                  upiCode={property.upiCode}
+                />
               </div>
 
 

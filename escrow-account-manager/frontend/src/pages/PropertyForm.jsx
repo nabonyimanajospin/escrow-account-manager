@@ -4,6 +4,7 @@ import axios from '../api/axiosConfig';
 import { useAuth } from '../context/AuthContext';
 import { resolveImageUrl } from '../utils/imageUtils';
 import PriceBreakdown from '../components/common/PriceBreakdown';
+import PropertyLeafletMap from '../components/PropertyLeafletMap';
 import toast from 'react-hot-toast';
 
 const PropertyForm = () => {
@@ -25,6 +26,8 @@ const PropertyForm = () => {
   const [bathrooms, setBathrooms] = useState('1');
   const [area, setArea] = useState('80');
   const [upiCode, setUpiCode] = useState('');
+  const [latitude, setLatitude] = useState('');
+  const [longitude, setLongitude] = useState('');
   const [imageInput, setImageInput] = useState(''); // Comma separated URLs
   const [uploadMode, setUploadMode] = useState('file'); // 'link' or 'file'
   const [imageFiles, setImageFiles] = useState([]); // File[]
@@ -221,6 +224,8 @@ const PropertyForm = () => {
       formData.append('area', Number(area));
       formData.append('listingType', 'FIXED_PRICE');
       formData.append('upiCode', upiCode);
+      if (latitude) formData.append('latitude', latitude);
+      if (longitude) formData.append('longitude', longitude);
       imagesArray.forEach((url) => formData.append('images', url));
       if (uploadMode === 'file') {
         imageFiles.forEach((file) => formData.append('photos', file));
@@ -364,23 +369,25 @@ const PropertyForm = () => {
               {/* Interactive GIS Location Map Selector Preview */}
               <div className="mt-2.5 p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
                 <div className="flex items-center justify-between text-[10px] font-bold text-slate-600">
-                  <span className="flex items-center gap-1">📍 Live GIS Map Pin Preview:</span>
+                  <span className="flex items-center gap-1">📍 Interactive Leaflet GIS Location Pin Selector:</span>
                   <span className="text-emerald-700 font-mono font-bold">{location || 'Kigali, Rwanda'}</span>
                 </div>
-                <div className="h-32 w-full rounded-lg overflow-hidden border border-slate-300 relative shadow-inner">
-                  <iframe
-                    title="Seller Location GIS Preview"
-                    width="100%"
-                    height="100%"
-                    frameBorder="0"
-                    scrolling="no"
-                    src={`https://www.openstreetmap.org/export/embed.html?bbox=30.0400%2C-1.9600%2C30.0800%2C-1.9300&amp;layer=mapnik&amp;marker=-1.9441%2C30.0619`}
-                    className="w-full h-full filter contrast-105"
-                  />
-                  <div className="absolute bottom-1.5 right-1.5 bg-white/95 px-2 py-0.5 rounded text-[9px] font-bold text-slate-800 border shadow-xs">
-                    ✓ GIS Location Verified
-                  </div>
-                </div>
+
+                <PropertyLeafletMap
+                  locationName={location}
+                  latitude={latitude}
+                  longitude={longitude}
+                  height="220px"
+                  propertyTitle={title || 'Property Listing'}
+                  propertyPrice={price}
+                  upiCode={upiCode}
+                  interactiveSelect={true}
+                  onLocationSelect={({ lat, lng }) => {
+                    setLatitude(lat);
+                    setLongitude(lng);
+                    toast.success(`Location pin set to GPS (${lat}, ${lng})!`);
+                  }}
+                />
               </div>
             </div>
           </div>

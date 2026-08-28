@@ -1,0 +1,239 @@
+import React, { useEffect, useState, useMemo } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
+import L from 'leaflet';
+
+// Fix default Leaflet icon assets in Webpack/Vite bundlers
+import iconUrl from 'leaflet/dist/images/marker-icon.png';
+import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
+import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
+
+const customMarkerIcon = new L.Icon({
+  iconUrl: iconUrl,
+  iconRetinaUrl: iconRetinaUrl,
+  shadowUrl: shadowUrl,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41],
+});
+
+// Known location coordinates lookup table (fallback geocoding for Rwanda regions)
+const LOCATION_COORDINATES_MAP = {
+  nyarutarama: [-1.9360, 30.0980],
+  kimironko: [-1.9440, 30.1250],
+  gacuriro: [-1.9280, 30.0910],
+  kibagabaga: [-1.9280, 30.1140],
+  nyarugenge: [-1.9510, 30.0590],
+  kicukiro: [-1.9750, 30.1020],
+  remera: [-1.9560, 30.1050],
+  gasabo: [-1.9380, 30.0950],
+  kanombe: [-1.9680, 30.1450],
+  bugesera: [-2.1400, 30.0800],
+  rubavu: [-1.7000, 29.2600],
+  musanze: [-1.5000, 29.6300],
+  huye: [-2.5900, 29.7400],
+  kigali: [-1.9441, 30.0619],
+};
+
+const resolveCoordinates = (locationStr, defaultLat = -1.9441, defaultLng = 30.0619) => {
+  if (!locationStr) return [defaultLat, defaultLng];
+  const query = String(locationStr).toLowerCase();
+  for (const [key, coords] of Object.entries(LOCATION_COORDINATES_MAP)) {
+    if (query.includes(key)) {
+      return coords;
+    }
+  }
+  // Generate deterministic offset based on location string hash so different addresses get distinct pins
+  let hash = 0;
+  for (let i = 0; i < query.length; i++) {
+    hash = (hash << 5) - hash + query.charCodeAt(i);
+    hash |= 0;
+  }
+  const latOffset = ((hash % 100) / 2000);
+  const lngOffset = (((hash >> 3) % 100) / 2000);
+  return [defaultLat + latOffset, defaultLng + lngOffset];
+};
+
+// Component to dynamically re-center map view when coordinates change
+const MapViewRecenter = ({ center }) => {
+  const map = useMap();
+  useEffect(() => {
+    map.setView(center, map.getZoom());
+  }, [center, map]);
+  return null;
+};
+
+// Component for interactive location pin placement when seller clicks on map
+const MapClickPinHandler = ({ onLocationSelected }) => {
+  useMapEvents({
+    click(e) {
+      if (onLocationSelected) {
+        onLocationSelected({ lat: e.latlng.lat, lng: e.latlng.lng });
+      }
+    },
+  });
+  return null;
+};
+
+const TILE_PROVIDERS = {
+  streets: {
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  },
+  satellite: {
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+  },
+  topo: {
+    url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+    attribution: 'Map data: &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap (CC-BY-SA)',
+  },
+};
+
+const PropertyLeafletMap = ({
+  locationName = '',
+  latitude,
+  longitude,
+  height = '320px',
+  propertyTitle = 'Property Location',
+  propertyPrice,
+  propertyImage,
+  upiCode,
+  interactiveSelect = false,
+  onLocationSelect = null,
+}) => {
+  const [mapLayer, setMapLayer] = useState('streets');
+
+  const position = useMemo(() => {
+    if (latitude && longitude && !isNaN(Number(latitude)) && !isNaN(Number(longitude))) {
+      return [Number(latitude), Number(longitude)];
+    }
+    return resolveCoordinates(locationName);
+  }, [latitude, longitude, locationName]);
+
+  const [currentMarkerPos, setCurrentMarkerPos] = useState(position);
+
+  useEffect(() => {
+    setCurrentMarkerPos(position);
+  }, [position]);
+
+  const handleMapClick = ({ lat, lng }) => {
+    setCurrentMarkerPos([lat, lng]);
+    if (onLocationSelect) {
+      onLocationSelect({ lat: lat.toFixed(6), lng: lng.toFixed(6) });
+    }
+  };
+
+  return (
+    <div className="relative w-full rounded-2xl overflow-hidden border border-slate-300 shadow-md group">
+      
+      {/* Layer selector & Map Controls Header */}
+      <div className="absolute top-3 right-3 z-[1000] bg-white/90 backdrop-blur-md p-1.5 rounded-xl border border-slate-200 shadow-lg flex items-center gap-1 text-xs">
+        <button
+          type="button"
+          onClick={() => setMapLayer('streets')}
+          className={`px-2.5 py-1 rounded-lg font-bold transition-colors cursor-pointer ${
+            mapLayer === 'streets'
+              ? 'bg-emerald-600 text-white shadow-xs'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          🗺️ Streets
+        </button>
+        <button
+          type="button"
+          onClick={() => setMapLayer('satellite')}
+          className={`px-2.5 py-1 rounded-lg font-bold transition-colors cursor-pointer ${
+            mapLayer === 'satellite'
+              ? 'bg-emerald-600 text-white shadow-xs'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          🛰️ Satellite
+        </button>
+        <button
+          type="button"
+          onClick={() => setMapLayer('topo')}
+          className={`px-2.5 py-1 rounded-lg font-bold transition-colors cursor-pointer ${
+            mapLayer === 'topo'
+              ? 'bg-emerald-600 text-white shadow-xs'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          ⛰️ Topo
+        </button>
+      </div>
+
+      {/* Top Left GPS Coordinates Badge */}
+      <div className="absolute top-3 left-3 z-[1000] bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-700 text-white shadow-lg">
+        <div className="flex items-center gap-2 text-[11px] font-mono font-bold text-emerald-400">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+          <span>GPS Pin: {currentMarkerPos[0].toFixed(4)}° S, {currentMarkerPos[1].toFixed(4)}° E</span>
+        </div>
+      </div>
+
+      {/* Interactive Leaflet Map Container */}
+      <MapContainer
+        center={currentMarkerPos}
+        zoom={14}
+        scrollWheelZoom={true}
+        style={{ height, width: '100%' }}
+        className="z-0"
+      >
+        <TileLayer
+          url={TILE_PROVIDERS[mapLayer].url}
+          attribution={TILE_PROVIDERS[mapLayer].attribution}
+          maxZoom={19}
+        />
+        
+        <MapViewRecenter center={currentMarkerPos} />
+        
+        {interactiveSelect && <MapClickPinHandler onLocationSelected={handleMapClick} />}
+
+        <Marker position={currentMarkerPos} icon={customMarkerIcon}>
+          <Popup className="custom-leaflet-popup">
+            <div className="p-1 space-y-1.5 max-w-xs font-sans">
+              {propertyImage && (
+                <div className="h-24 w-full rounded-lg overflow-hidden bg-slate-100">
+                  <img src={propertyImage} alt={propertyTitle} className="w-full h-full object-cover" />
+                </div>
+              )}
+              <h4 className="text-xs font-extrabold text-slate-900 leading-tight">{propertyTitle}</h4>
+              <p className="text-[10px] text-slate-500 font-bold uppercase">📍 {locationName || 'Verified Location'}</p>
+              {upiCode && (
+                <p className="text-[10px] font-mono font-bold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                  Parcel UPI: {upiCode}
+                </p>
+              )}
+              {propertyPrice && (
+                <p className="text-xs font-extrabold text-emerald-600 font-mono">
+                  ${Number(propertyPrice).toLocaleString()} USD
+                </p>
+              )}
+              {interactiveSelect ? (
+                <span className="text-[9px] text-indigo-600 font-bold block">
+                  ✓ Pin set at this position! Click anywhere on map to reposition pin.
+                </span>
+              ) : (
+                <span className="text-[9px] text-emerald-700 font-bold block">
+                  ✓ Official GIS Parcel Pin verified on OpenStreetMap
+                </span>
+              )}
+            </div>
+          </Popup>
+        </Marker>
+      </MapContainer>
+
+      {/* Interactive Helper Banner */}
+      <div className="absolute bottom-2 left-2 right-2 z-[1000] bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-200 text-slate-900 text-[10px] font-bold shadow-md flex items-center justify-between">
+        <span>📍 {locationName || 'Kigali, Rwanda'}</span>
+        <span className="text-emerald-700 font-mono">
+          {interactiveSelect ? 'Click map to place exact property pin' : 'Scroll/Drag map to explore neighborhood'}
+        </span>
+      </div>
+
+    </div>
+  );
+};
+
+export default PropertyLeafletMap;

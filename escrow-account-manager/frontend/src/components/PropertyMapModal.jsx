@@ -1,10 +1,13 @@
 import React from 'react';
+import PropertyLeafletMap from './PropertyLeafletMap';
+import { resolveImageUrl, getPropertyCoverImage } from '../utils/imageUtils';
 
 const PropertyMapModal = ({ property, isOpen, onClose }) => {
   if (!isOpen || !property) return null;
 
   const locationName = property.location || 'Kigali, Rwanda';
   const upiDisplay = property.upiCode || '1/02/03/04/1234';
+  const coverImg = resolveImageUrl(getPropertyCoverImage(property.images));
 
   return (
     <div
@@ -12,7 +15,7 @@ const PropertyMapModal = ({ property, isOpen, onClose }) => {
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl border border-slate-200 animate-scale-up"
+        className="bg-white rounded-2xl max-w-3xl w-full overflow-hidden shadow-2xl border border-slate-200 animate-scale-up"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
@@ -20,7 +23,7 @@ const PropertyMapModal = ({ property, isOpen, onClose }) => {
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
             <h3 className="text-base font-extrabold font-sans">
-              📍 Property GIS Location Map — {property.title}
+              📍 Interactive Property Location GIS Map — {property.title}
             </h3>
           </div>
           <button
@@ -52,54 +55,39 @@ const PropertyMapModal = ({ property, isOpen, onClose }) => {
             </div>
           </div>
 
-          {/* Embedded Interactive Map */}
-          <div className="h-72 w-full rounded-xl relative overflow-hidden border border-slate-300 shadow-inner group">
-            <iframe
-              title={`GIS Location Map for ${property.title}`}
-              width="100%"
-              height="100%"
-              frameBorder="0"
-              scrolling="no"
-              marginHeight="0"
-              marginWidth="0"
-              src="https://www.openstreetmap.org/export/embed.html?bbox=30.0500%2C-1.9550%2C30.0750%2C-1.9350&amp;layer=mapnik&amp;marker=-1.9441%2C30.0619"
-              className="w-full h-full filter contrast-105"
-            />
-
-            {/* Floating Info Overlay */}
-            <div className="absolute top-3 left-3 bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-700 text-white shadow-md">
-              <div className="flex items-center gap-2 text-[10px] font-mono font-bold text-emerald-400">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                Verified GPS Pin: -1.9441° S, 30.0619° E
-              </div>
-            </div>
-
-            <div className="absolute bottom-3 right-3 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-200 text-slate-900 text-[10px] font-bold shadow-md">
-              Target Price: ${Number(property.price).toLocaleString()} USD
-            </div>
-          </div>
+          {/* Real Leaflet Map Component */}
+          <PropertyLeafletMap
+            locationName={locationName}
+            latitude={property.latitude}
+            longitude={property.longitude}
+            height="340px"
+            propertyTitle={property.title}
+            propertyPrice={property.price}
+            propertyImage={coverImg}
+            upiCode={upiDisplay}
+          />
 
           <p className="text-xs text-slate-500 leading-relaxed font-medium">
-            This land parcel location is registered on the connected Irembo Land Registry Sandbox. Exact deed details and seller mutation keys unlock automatically inside the Escrow workspace once funds are locked.
+            This map uses real Leaflet vector tiles and satellite imagery connected to the Irembo Land Registry Sandbox. You can toggle between <strong>Streets</strong>, <strong>Satellite</strong>, and <strong>Topo</strong> view, zoom into the neighborhood, or drag the map.
           </p>
         </div>
 
         {/* Modal Footer */}
         <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
           <a
-            href="https://www.openstreetmap.org/?mlat=-1.9441&amp;mlon=30.0619#map=15/-1.9441/30.0619"
+            href={`https://www.openstreetmap.org/?query=${encodeURIComponent(locationName)}`}
             target="_blank"
             rel="noopener noreferrer"
             className="text-xs font-bold text-emerald-600 hover:text-emerald-700 underline flex items-center gap-1"
           >
-            Open in Full Satellite Map &rarr;
+            Open in External Satellite Map &rarr;
           </a>
           <button
             type="button"
             onClick={onClose}
             className="btn-secondary py-1.5 px-4 text-xs font-bold"
           >
-            Close Map Preview
+            Close Map Window
           </button>
         </div>
       </div>
