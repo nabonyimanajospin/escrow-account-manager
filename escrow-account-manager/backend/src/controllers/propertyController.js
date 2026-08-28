@@ -201,6 +201,18 @@ exports.createProperty = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Please provide all required property fields' });
     }
 
+    if (Number(price) <= 0) {
+      return res.status(400).json({ success: false, message: 'Property price must be a positive amount greater than 0' });
+    }
+
+    if (Number(area) <= 0) {
+      return res.status(400).json({ success: false, message: 'Property area must be greater than 0' });
+    }
+
+    if (biddingDeadline && new Date(biddingDeadline) < new Date()) {
+      return res.status(400).json({ success: false, message: 'Bidding deadline date cannot be set in the past' });
+    }
+
     const finalListingType = listingType || 'FIXED_PRICE';
 
 

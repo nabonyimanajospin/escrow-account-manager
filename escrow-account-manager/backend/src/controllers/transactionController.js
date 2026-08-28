@@ -401,6 +401,27 @@ const depositFunds = async (req, res, next) => {
       }
 
       const totalRequired = parseFloat(transaction.amount) + parseFloat(transaction.buyerFee || 0);
+      const submittedAmount = parseFloat(amount);
+
+      if (isNaN(submittedAmount) || submittedAmount <= 0) {
+        throw Object.assign(new Error('Deposit amount must be a positive number greater than 0'), { statusCode: 400 });
+      }
+
+      if (submittedAmount < totalRequired) {
+        throw Object.assign(
+          new Error(`Underpayment blocked! Submitted amount ($${submittedAmount.toFixed(2)}) is less than the required total ($${totalRequired.toFixed(2)})`),
+          { statusCode: 400 }
+        );
+      }
+
+      // Overpayment alert: Block submitted amounts exceeding total required by more than 2,000 RWF (~$1.50 USD)
+      const OVERPAYMENT_RWF_LIMIT_USD = 1.50; // equivalent to 2,000 Rwandan Francs
+      if (submittedAmount > totalRequired + OVERPAYMENT_RWF_LIMIT_USD) {
+        throw Object.assign(
+          new Error(`Overpayment blocked! You cannot submit an excess amount exceeding the required price by more than 2,000 RWF (~$1.50). Required exact total: $${totalRequired.toFixed(2)} USD.`),
+          { statusCode: 400 }
+        );
+      }
 
       const paymentVerification = await paymentProvider.verifyEscrowDeposit({
         transaction,

@@ -209,6 +209,18 @@ const PropertyForm = () => {
 
     const isLand = propertyType === 'LAND';
 
+    if (Number(price) <= 0) {
+      setError('Property price must be a positive amount greater than $0.');
+      toast.error('Property price must be a positive amount greater than $0.');
+      return;
+    }
+
+    if (Number(area) <= 0) {
+      setError('Property area must be greater than 0 sqm.');
+      toast.error('Property area must be greater than 0 sqm.');
+      return;
+    }
+
     try {
       setLoading(true);
 
