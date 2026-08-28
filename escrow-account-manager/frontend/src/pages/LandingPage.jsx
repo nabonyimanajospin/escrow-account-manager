@@ -4,6 +4,7 @@ import { resolveImageUrl, getPropertyCoverImage, handlePropertyImageError } from
 import axios from '../api/axiosConfig';
 import StatusBadge from '../components/StatusBadge';
 import BrandLogo from '../components/BrandLogo';
+import PropertyMapModal from '../components/PropertyMapModal';
 
 // Decorative Postal-Card Corner Floral Filigree SVG Component (Light Mode)
 const PostalCardCornerDecoration = ({ position }) => {
@@ -17,7 +18,6 @@ const PostalCardCornerDecoration = ({ position }) => {
   return (
     <div className={`absolute w-32 h-32 pointer-events-none ${positionClasses[position]}`}>
       <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
-        {/* Postal Card Vintage Corner Floral Line-Art */}
         <path d="M10 10 C30 10 50 30 50 50 C30 50 10 30 10 10 Z" stroke="currentColor" strokeWidth="1.5" />
         <path d="M10 10 L110 10 M10 10 L10 110" stroke="currentColor" strokeWidth="2" strokeDasharray="3 3" />
         <path d="M25 25 C45 15 75 25 85 45 C65 55 45 45 25 25 Z" fill="currentColor" fillOpacity="0.1" />
@@ -34,34 +34,38 @@ const DYNAMIC_NAV_CAROUSEL = [
   {
     step: "01",
     navTitle: "Browse & Reserve",
-    headline: "Verified Real Estate Listings",
-    desc: "Browse verified properties with full parcel UPI details and zero seller-contact leaks.",
-    badge: "Step 1 • Selection",
-    color: "from-amber-500 to-emerald-600 text-white",
+    headline: "Verified Real Estate Listings Catalog",
+    desc: "Browse verified properties with full parcel UPI details and zero seller-contact leaks. Inspect photos and GIS maps on first sight.",
+    badge: "Phase 1 • Selection & Map View",
+    color: "from-amber-500 via-emerald-600 to-teal-700 text-white",
+    icon: "🏠",
   },
   {
     step: "02",
     navTitle: "Lock Escrow Funds",
-    headline: "Capital Locked in Custody",
-    desc: "Buyer funds are locked in a neutral virtual escrow account. Neither party can withdraw unilaterally.",
-    badge: "Step 2 • Fund Protection",
-    color: "from-emerald-600 to-teal-700 text-white",
+    headline: "Capital Locked in Neutral Virtual Vault",
+    desc: "Buyer funds are locked safely in a neutral escrow account. Neither party can withdraw unilaterally until conditions are fulfilled.",
+    badge: "Phase 2 • 100% Capital Custody",
+    color: "from-emerald-600 via-teal-700 to-indigo-800 text-white",
+    icon: "🔒",
   },
   {
     step: "03",
-    navTitle: "Irembo Registry Fetch",
-    headline: "Automated Title Deed Verification",
-    desc: "No manual file uploads needed! Sellers request land deed verification directly via connected Irembo Sandbox API.",
-    badge: "Step 3 • Land Sandbox",
-    color: "from-blue-600 to-indigo-700 text-white",
+    navTitle: "Irembo Registry Check",
+    headline: "Automated Land Deed Title Verification",
+    desc: "No manual paperwork needed! Sellers request land deed verification directly via connected Irembo Sandbox API.",
+    badge: "Phase 3 • Irembo Land Sandbox",
+    color: "from-blue-600 via-indigo-700 to-purple-800 text-white",
+    icon: "📄",
   },
   {
     step: "04",
     navTitle: "Instant Mutation & Payout",
-    headline: "Title Transfer & Fund Settlement",
-    desc: "Payment is released to Seller only after Irembo mutation is verified. Buyer refunded if mutation fails.",
-    badge: "Step 4 • Final Settlement",
-    color: "from-purple-600 to-indigo-700 text-white",
+    headline: "Title Transfer & Instant Settlement",
+    desc: "Payment is released to Seller only after Irembo mutation is verified. Buyer receives full refund if title mutation fails.",
+    badge: "Phase 4 • Final Transfer & Payout",
+    color: "from-purple-600 via-indigo-700 to-slate-900 text-white",
+    icon: "⚡",
   },
 ];
 
@@ -69,25 +73,36 @@ const LandingPage = () => {
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
   const [navIndex, setNavIndex] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const [selectedMapProperty, setSelectedMapProperty] = useState(null);
+  const [isMapModalOpen, setIsMapModalOpen] = useState(false);
 
   useEffect(() => {
     axios.get('/properties?status=AVAILABLE&limit=100')
       .then((res) => {
         setProperties(res.data.data || []);
       })
-      .catch((err) => console.error(err))
+      .catch((err) => console.error('Failed to fetch properties:', err))
       .finally(() => setLoading(false));
   }, []);
 
-  // Dynamic rotating animated navigation cards (coming, going, replacing one another every 2.5s)
+  // Dynamic rotating animated navigation cards (coming, going, replacing one another every 3s)
   useEffect(() => {
+    if (isPaused) return;
     const interval = setInterval(() => {
       setNavIndex((prev) => (prev + 1) % DYNAMIC_NAV_CAROUSEL.length);
-    }, 2500);
+    }, 3000);
     return () => clearInterval(interval);
-  }, []);
+  }, [isPaused]);
 
   const currentNav = DYNAMIC_NAV_CAROUSEL[navIndex];
+
+  const handleOpenMap = (property, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setSelectedMapProperty(property);
+    setIsMapModalOpen(true);
+  };
 
   return (
     <div className="space-y-12 pb-20 font-sans">
@@ -95,7 +110,7 @@ const LandingPage = () => {
       {/* ── ALIEXPRESS BRIGHT NEAR-WHITE POSTAL HERO SECTION ── */}
       <section className="relative pt-6 pb-10 overflow-hidden bg-gradient-to-br from-amber-50/70 via-white to-slate-50 text-slate-900 border-b border-amber-300/50 shadow-sm">
         
-        {/* Postal Card Vintage Corner Floral Line-Art (Warm Amber/Gold) */}
+        {/* Postal Card Vintage Corner Floral Line-Art */}
         <PostalCardCornerDecoration position="top-left" />
         <PostalCardCornerDecoration position="top-right" />
         <PostalCardCornerDecoration position="bottom-left" />
@@ -103,7 +118,7 @@ const LandingPage = () => {
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 space-y-6">
 
-          {/* Top Postal Seal Header Strip (Bright White/Cream Container) */}
+          {/* Top Header Banner */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border border-amber-200/80 bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-md">
             <div className="flex items-center gap-3.5">
               <BrandLogo variant="icon" imgClassName="h-10 w-auto drop-shadow-sm" />
@@ -119,30 +134,40 @@ const LandingPage = () => {
 
             <div className="flex items-center gap-3">
               <Link to="/properties" className="btn-primary py-2 px-5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-black shadow-md shadow-emerald-600/20">
-                Browse Properties ({properties.length}) &rarr;
+                Browse Catalog ({properties.length}) &rarr;
               </Link>
               <Link to="/register" className="btn-secondary py-2 px-4 text-xs bg-white text-slate-800 border-slate-300 hover:bg-slate-50">
-                Register
+                Get Started
               </Link>
             </div>
           </div>
 
-          {/* Dynamic Replacing Navigation Showcase (Coming & Going Animated Nav Cards) */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
-            
+          {/* DYNAMIC REPLACING NAVIGATION CAROUSEL (Coming & Going Animated Nav Cards) */}
+          <div
+            className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center"
+            onMouseEnter={() => setIsPaused(true)}
+            onMouseLeave={() => setIsPaused(false)}
+          >
             {/* Left: Dynamic Navigation Tabs Indicator */}
             <div className="md:col-span-4 space-y-2">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
-                Dynamic Workflow Navigation:
-              </span>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                  Dynamic Escrow Workflow:
+                </span>
+                <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                  {isPaused ? '⏸ Paused' : '▶ Auto-Replacing'}
+                </span>
+              </div>
+
               <div className="space-y-1.5">
                 {DYNAMIC_NAV_CAROUSEL.map((item, idx) => {
                   const isActive = idx === navIndex;
                   return (
                     <button
                       key={item.step}
+                      type="button"
                       onClick={() => setNavIndex(idx)}
-                      className={`w-full text-left p-2.5 rounded-xl border transition-all duration-500 flex items-center justify-between ${
+                      className={`w-full text-left p-2.5 rounded-xl border transition-all duration-500 flex items-center justify-between cursor-pointer ${
                         isActive
                           ? 'bg-white border-emerald-500 text-slate-900 shadow-md shadow-emerald-500/10 scale-[1.02] ring-2 ring-emerald-500/20'
                           : 'bg-white/60 border-slate-200 text-slate-500 hover:text-slate-800'
@@ -154,14 +179,17 @@ const LandingPage = () => {
                         </span>
                         <span className="text-xs font-bold">{item.navTitle}</span>
                       </div>
-                      {isActive && <span className="text-emerald-600 text-xs font-black animate-pulse">✦</span>}
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs">{item.icon}</span>
+                        {isActive && <span className="text-emerald-600 text-xs font-black animate-pulse">✦</span>}
+                      </div>
                     </button>
                   );
                 })}
               </div>
             </div>
 
-            {/* Right: Dynamic Animated Card (Coming & Going replacing one another with slide animation) */}
+            {/* Right: Dynamic Replacing Card with Transition Keyframes */}
             <div className="md:col-span-8">
               <div
                 key={currentNav.step}
@@ -173,34 +201,44 @@ const LandingPage = () => {
                   </span>
                   <div className="flex items-center gap-1.5 text-xs font-mono font-bold opacity-90">
                     <span>Phase {currentNav.step} / 04</span>
-                    <span className="w-2 h-2 rounded-full bg-white animate-ping"></span>
+                    <span className="w-2 h-2 rounded-full bg-white animate-ping" />
                   </div>
                 </div>
 
-                <h2 className="text-2xl font-black tracking-tight font-sans transition-all">
-                  {currentNav.headline}
-                </h2>
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl">{currentNav.icon}</span>
+                  <h2 className="text-2xl font-black tracking-tight font-sans transition-all">
+                    {currentNav.headline}
+                  </h2>
+                </div>
+
                 <p className="text-xs text-white/95 leading-relaxed max-w-xl font-medium">
                   {currentNav.desc}
                 </p>
 
+                {/* Animated Progress Bar */}
+                <div className="w-full bg-white/20 h-1 rounded-full overflow-hidden">
+                  <div
+                    className="bg-white h-full transition-all duration-1000 ease-linear"
+                    style={{ width: `${((navIndex + 1) / DYNAMIC_NAV_CAROUSEL.length) * 100}%` }}
+                  />
+                </div>
+
                 <div className="pt-2 flex items-center justify-between text-[11px] font-bold text-white/90 border-t border-white/20">
-                  <span className="flex items-center gap-1">✓ 100% Trustless Escrow Protocol</span>
+                  <span className="flex items-center gap-1">✓ 100% Neutral Escrow Guarantee</span>
                   <span className="animate-pulse flex items-center gap-1">
-                    Auto-cycling step navigation &rarr;
+                    Auto-switching dynamic showcase &rarr;
                   </span>
                 </div>
               </div>
             </div>
-
-
           </div>
 
           {/* FIRST-SIGHT PRODUCT CATALOG (AliExpress Bright Style — Immediately visible above fold) */}
           <div className="pt-2 space-y-3">
             <div className="flex items-center justify-between border-b border-amber-200/80 pb-2">
               <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 animate-ping"></span>
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 animate-ping" />
                 <h2 className="text-xs font-black uppercase tracking-wider text-slate-800 font-sans">
                   Instant First-Sight Property Catalog (No Scroll Needed)
                 </h2>
@@ -211,7 +249,7 @@ const LandingPage = () => {
             {loading ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 {[1, 2, 3].map((n) => (
-                  <div key={n} className="h-56 bg-slate-200/60 rounded-xl animate-pulse"></div>
+                  <div key={n} className="h-56 bg-slate-200/60 rounded-xl animate-pulse" />
                 ))}
               </div>
             ) : properties.length === 0 ? (
@@ -221,8 +259,10 @@ const LandingPage = () => {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 {properties.slice(0, 3).map((p) => (
-                  <div key={p.id} className="bg-white rounded-2xl overflow-hidden border border-slate-200 hover:border-emerald-500 transition-all flex flex-col justify-between group shadow-lg hover:shadow-emerald-500/10">
-                    
+                  <div
+                    key={p.id}
+                    className="bg-white rounded-2xl overflow-hidden border border-slate-200 hover:border-emerald-500 transition-all flex flex-col justify-between group shadow-lg hover:shadow-emerald-500/10"
+                  >
                     {/* Image & Price Tag */}
                     <div className="h-36 bg-slate-100 relative overflow-hidden">
                       <img
@@ -239,16 +279,24 @@ const LandingPage = () => {
                       </div>
                     </div>
 
-                    {/* Meta info */}
+                    {/* Meta info & Map Button */}
                     <div className="p-3.5 space-y-2.5 bg-white">
                       <div>
                         <h3 className="text-sm font-extrabold text-slate-900 truncate font-sans group-hover:text-emerald-600 transition-colors">
                           {p.title}
                         </h3>
-                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wide mt-0.5">
-                          📍 {p.location} • <span className="text-amber-700 font-mono">UPI: 🔒 Unlocks in Escrow</span>
-                        </p>
-
+                        <div className="flex items-center justify-between mt-1">
+                          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wide">
+                            📍 {p.location}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={(e) => handleOpenMap(p, e)}
+                            className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded border border-indigo-200 transition-colors flex items-center gap-1 cursor-pointer"
+                          >
+                            📍 View on Map
+                          </button>
+                        </div>
                       </div>
 
                       <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
@@ -263,7 +311,6 @@ const LandingPage = () => {
                         </Link>
                       </div>
                     </div>
-
                   </div>
                 ))}
               </div>
@@ -276,36 +323,57 @@ const LandingPage = () => {
       {/* ── ABOUT US & TRUSTLESS SYSTEM EXPLANATION ── */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
         <div className="text-center space-y-1.5">
-          <h2 className="text-2xl font-extrabold text-slate-900 font-sans">About Escrow Account Manager</h2>
-          <p className="text-xs text-slate-500 font-semibold max-w-2xl mx-auto">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 border border-emerald-300 text-emerald-900 text-xs font-black uppercase tracking-wider">
+            <span> About Escrow Account Manager</span>
+          </div>
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 font-sans">
+            How EscrowTrust Protects Your Property Transactions
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-500 font-semibold max-w-2xl mx-auto">
             Eliminating real estate buyer and seller fraud through neutral virtual escrow custody and official Irembo land registry integration.
           </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          
-          <div className="card p-5 bg-red-50/40 border-red-200/60 space-y-3">
-            <div className="flex items-center gap-2 text-red-600 font-bold text-sm">
-              <span>✕</span> Traditional Property Risk
+          <div className="card p-6 bg-red-50/40 border-red-200/60 space-y-4">
+            <div className="flex items-center gap-2 text-red-700 font-extrabold text-base">
+              <span>✕</span> Traditional Property Transaction Risks
             </div>
-            <ul className="space-y-1.5 text-xs text-slate-600 font-medium">
-              <li>✕ Buyer pays upfront $\rightarrow$ seller defaults or disappears with money.</li>
-              <li>✕ Seller transfers deed $\rightarrow$ buyer fails to deliver payment.</li>
-              <li>✕ Off-platform contact leaks lead to scams and fee bypass.</li>
+            <ul className="space-y-2.5 text-xs text-slate-700 font-medium">
+              <li className="flex items-start gap-2">
+                <span className="text-red-500 font-bold">✕</span>
+                <span><strong>Advance Payment Defaults:</strong> Buyers pay money upfront directly to sellers, risking default or sellers disappearing with capital.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-red-500 font-bold">✕</span>
+                <span><strong>Deed Transfer Delays:</strong> Sellers transfer official land title deeds without verified assurance of buyer payment.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-red-500 font-bold">✕</span>
+                <span><strong>Off-Platform Contact Leaks:</strong> Direct off-platform payments lead to scams, unverified contracts, and fee bypass.</span>
+              </li>
             </ul>
           </div>
 
-          <div className="card p-5 bg-emerald-50/40 border-emerald-200/60 space-y-3">
-            <div className="flex items-center gap-2 text-emerald-700 font-bold text-sm">
-              <span>✓</span> Escrow Platform Protection
+          <div className="card p-6 bg-emerald-50/40 border-emerald-200/60 space-y-4">
+            <div className="flex items-center gap-2 text-emerald-800 font-extrabold text-base">
+              <span>✓</span> Escrow Platform Trustless Protection
             </div>
-            <ul className="space-y-1.5 text-xs text-slate-600 font-medium">
-              <li>✓ Buyer funds locked in neutral virtual escrow balance ($0 risk).</li>
-              <li>✓ Official land deed verified directly via connected Irembo Sandbox API.</li>
-              <li>✓ Payment released ONLY after verified mutation; refunded if failed.</li>
+            <ul className="space-y-2.5 text-xs text-slate-700 font-medium">
+              <li className="flex items-start gap-2">
+                <span className="text-emerald-600 font-bold">✓</span>
+                <span><strong>Neutral Capital Lock:</strong> Buyer funds are locked securely in a virtual escrow account until deed mutation is verified ($0 risk).</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-emerald-600 font-bold">✓</span>
+                <span><strong>Automated Land Registry Check:</strong> Title deeds are verified directly via the connected Irembo Sandbox API.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-emerald-600 font-bold">✓</span>
+                <span><strong>Automated Payout & Refunds:</strong> Payment is released to Seller ONLY after verified land mutation; buyer receives full refund if mutation fails.</span>
+              </li>
             </ul>
           </div>
-
         </div>
       </section>
 
@@ -314,7 +382,7 @@ const LandingPage = () => {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-extrabold text-slate-900 font-sans">All Available Properties</h2>
-            <p className="text-xs text-slate-500 font-semibold">Explore verified listings ready for instant purchase.</p>
+            <p className="text-xs text-slate-500 font-semibold">Explore verified listings ready for instant escrow contracts.</p>
           </div>
           <Link to="/properties" className="text-xs font-bold text-emerald-600 hover:text-emerald-700">
             View All ({properties.length}) &rarr;
@@ -324,13 +392,16 @@ const LandingPage = () => {
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[1, 2, 3].map((n) => (
-              <div key={n} className="h-64 bg-slate-100 rounded-2xl animate-pulse"></div>
+              <div key={n} className="h-64 bg-slate-100 rounded-2xl animate-pulse" />
             ))}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {properties.map((p) => (
-              <Link key={p.id} to={`/properties/${p.id}`} className="card overflow-hidden group flex flex-col justify-between h-[360px] cursor-pointer block border border-slate-200">
+              <div
+                key={p.id}
+                className="card overflow-hidden group flex flex-col justify-between h-[380px] border border-slate-200 hover:border-emerald-500 transition-all shadow-md hover:shadow-xl"
+              >
                 <div className="h-44 bg-slate-100 relative overflow-hidden">
                   <img
                     src={resolveImageUrl(getPropertyCoverImage(p.images))}
@@ -346,22 +417,53 @@ const LandingPage = () => {
                     ${Number(p.price).toLocaleString()} USD
                   </div>
                 </div>
-                <div className="p-5 flex-grow flex flex-col justify-between bg-white">
+
+                <div className="p-5 flex-grow flex flex-col justify-between bg-white space-y-3">
                   <div>
-                    <h3 className="text-base font-extrabold text-slate-900 truncate font-sans group-hover:text-emerald-600 transition-colors">{p.title}</h3>
-                    <p className="text-[11px] text-slate-400 font-bold uppercase tracking-wide mt-0.5">{p.location}</p>
-                    <p className="text-xs text-slate-500 line-clamp-2 mt-2 font-medium">{p.description}</p>
+                    <h3 className="text-base font-extrabold text-slate-900 truncate font-sans group-hover:text-emerald-600 transition-colors">
+                      {p.title}
+                    </h3>
+                    <div className="flex items-center justify-between mt-1">
+                      <p className="text-[11px] text-slate-400 font-bold uppercase tracking-wide">
+                        📍 {p.location}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={(e) => handleOpenMap(p, e)}
+                        className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded border border-indigo-200 transition-colors cursor-pointer"
+                      >
+                        📍 View Map
+                      </button>
+                    </div>
+                    <p className="text-xs text-slate-500 line-clamp-2 mt-2 font-medium">
+                      {p.description}
+                    </p>
                   </div>
-                  <div className="flex items-center justify-between pt-3 mt-3 border-t border-slate-100">
-                    <span className="text-xs font-bold text-slate-400">{p.bedrooms} Beds • {p.area} sqm</span>
-                    <span className="text-emerald-600 font-extrabold text-xs">Buy in Escrow &rarr;</span>
+
+                  <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+                    <span className="text-xs font-bold text-slate-400">
+                      {p.bedrooms} Beds • {p.area} sqm
+                    </span>
+                    <Link
+                      to={`/properties/${p.id}`}
+                      className="text-emerald-600 font-extrabold text-xs hover:text-emerald-700"
+                    >
+                      Buy in Escrow &rarr;
+                    </Link>
                   </div>
                 </div>
-              </Link>
+              </div>
             ))}
           </div>
         )}
       </section>
+
+      {/* Property Location Map Modal */}
+      <PropertyMapModal
+        property={selectedMapProperty}
+        isOpen={isMapModalOpen}
+        onClose={() => setIsMapModalOpen(false)}
+      />
 
     </div>
   );

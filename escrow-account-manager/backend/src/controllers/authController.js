@@ -142,8 +142,13 @@ exports.login = async (req, res, next) => {
 // @route   POST /api/auth/logout
 // @access  Private
 exports.logout = async (req, res, next) => {
-  res.cookie('escrowtrust_token', 'none', {
-    expires: new Date(Date.now() + 10 * 1000),
+  res.clearCookie('escrowtrust_token', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+  });
+  res.cookie('escrowtrust_token', '', {
+    expires: new Date(0),
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
