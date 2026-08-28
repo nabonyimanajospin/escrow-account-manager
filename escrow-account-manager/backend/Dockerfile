@@ -1,10 +1,10 @@
-FROM node:18-alpine
+FROM node:20-alpine
 
 WORKDIR /app
 
 # Install dependencies first (layer cache)
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm install --legacy-peer-deps --omit=dev
 
 # Copy source
 COPY . .
