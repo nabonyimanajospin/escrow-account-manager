@@ -121,9 +121,21 @@ const getTransaction = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Not authorized to view this transaction' });
     }
 
+    const txData = transaction.toJSON();
 
+    // Privacy Masking Matrix: Hide counterpart contacts for Buyer and Seller; Admin sees full contacts.
+    if (req.user.role !== 'ADMIN') {
+      if (txData.seller && req.user.id !== txData.sellerId) {
+        txData.seller.email = txData.seller.email ? `${txData.seller.email.slice(0, 3)}••••@••••.com` : 'Protected';
+        txData.seller.phone = txData.seller.phone ? `${txData.seller.phone.slice(0, 5)}••••••` : 'Protected';
+      }
+      if (txData.buyer && req.user.id !== txData.buyerId) {
+        txData.buyer.email = txData.buyer.email ? `${txData.buyer.email.slice(0, 3)}••••@••••.com` : 'Protected';
+        txData.buyer.phone = txData.buyer.phone ? `${txData.buyer.phone.slice(0, 5)}••••••` : 'Protected';
+      }
+    }
 
-    res.status(200).json({ success: true, data: transaction });
+    res.status(200).json({ success: true, data: txData });
   } catch (error) {
     next(error);
   }

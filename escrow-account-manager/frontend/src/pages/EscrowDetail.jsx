@@ -15,6 +15,8 @@ import { getEscrowNextStep, toneClasses } from '../utils/escrowSteps';
 
 import IremboSandboxModal from '../components/escrow/IremboSandboxModal';
 import PasswordPdfModal from '../components/escrow/PasswordPdfModal';
+import ConfirmModal from '../components/common/ConfirmModal';
+import SimulatedNotificationModal from '../components/escrow/SimulatedNotificationModal';
 
 const EscrowDetail = () => {
   const { id } = useParams();
@@ -28,6 +30,20 @@ const EscrowDetail = () => {
   const [isContractModalOpen, setIsContractModalOpen] = useState(false);
   const [isIremboModalOpen, setIsIremboModalOpen] = useState(false);
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+
+  // In-App Confirm & Simulated Notification Modal States
+  const [confirmConfig, setConfirmConfig] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'warning',
+    onConfirm: () => {},
+  });
+
+  const [simulatedNotify, setSimulatedNotify] = useState({
+    isOpen: false,
+    otpCode: '',
+  });
   const [activeTab, setActiveTab] = useState('overview');
   const otpInputRef = useRef(null);
   const mutationFileInputRef = useRef(null);
@@ -176,29 +192,36 @@ const EscrowDetail = () => {
     }
   };
 
-  const handleDeposit = async () => {
+  const handleDeposit = () => {
     const total = Number(transaction.amount) + Number(transaction.buyerFee || 0);
-    if (!window.confirm(`Confirm escrow deposit of $${total.toLocaleString()} from your platform wallet?`)) return;
-
-    try {
-      setActionLoading(true);
-      const res = await axios.post(`/escrow/${id}/deposit`, {
-        amount: total,
-        reference: `DEP-${Date.now()}`,
-      });
-      toast.success(res.data.message || 'Funds successfully deposited and locked in escrow!');
-      await fetchTransaction();
-      if (user?.role === 'BUYER') {
-        axios.get('/wallet')
-          .then((w) => setWalletBalance(w.data.wallet?.balance ?? 0))
-          .catch(() => {});
-      }
-    } catch (err) {
-      const msg = err.response?.data?.message || err.message || 'Deposit processing failed';
-      toast.error(msg);
-    } finally {
-      setActionLoading(false);
-    }
+    setConfirmConfig({
+      isOpen: true,
+      title: 'Confirm Escrow Capital Deposit',
+      message: `Do you want to deposit exact escrow capital of $${total.toLocaleString()} USD from your wallet into custody?`,
+      type: 'info',
+      onConfirm: async () => {
+        setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
+        try {
+          setActionLoading(true);
+          const res = await axios.post(`/escrow/${id}/deposit`, {
+            amount: total,
+            reference: `DEP-${Date.now()}`,
+          });
+          toast.success(res.data.message || 'Funds successfully deposited and locked in escrow!');
+          await fetchTransaction();
+          if (user?.role === 'BUYER') {
+            axios.get('/wallet')
+              .then((w) => setWalletBalance(w.data.wallet?.balance ?? 0))
+              .catch(() => {});
+          }
+        } catch (err) {
+          const msg = err.response?.data?.message || err.message || 'Deposit processing failed';
+          toast.error(msg);
+        } finally {
+          setActionLoading(false);
+        }
+      },
+    });
   };
 
   const handleInitiateMutation = async () => {
@@ -338,18 +361,26 @@ const EscrowDetail = () => {
   };
 
 
-  const handleConfirmReceipt = async () => {
-    if (!window.confirm('Do you want to confirm that you have successfully received the released payout funds? This will permanently close the escrow agreement and transfer property deed ownership.')) return;
-    try {
-      setActionLoading(true);
-      await axios.post(`/escrow/${id}/confirm-receipt`);
-      toast.success('Funds receipt confirmed. Transaction completed successfully.');
-      fetchTransaction();
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Confirmation failed');
-    } finally {
-      setActionLoading(false);
-    }
+  const handleConfirmReceipt = () => {
+    setConfirmConfig({
+      isOpen: true,
+      title: 'Confirm Payout Payout Receipt',
+      message: 'Do you want to confirm that you have received the released payout funds? This will permanently finalize settlement.',
+      type: 'info',
+      onConfirm: async () => {
+        setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
+        try {
+          setActionLoading(true);
+          await axios.post(`/escrow/${id}/confirm-receipt`);
+          toast.success('Funds receipt confirmed. Transaction completed successfully.');
+          fetchTransaction();
+        } catch (err) {
+          toast.error(err.response?.data?.message || 'Confirmation failed');
+        } finally {
+          setActionLoading(false);
+        }
+      },
+    });
   };
 
   const handleVerifyRegistry = async () => {
@@ -2072,6 +2103,30 @@ STATUS: COMPLETED MUTATION`;
         isOpen={isPdfModalOpen}
         onClose={() => setIsPdfModalOpen(false)}
         transactionId={transaction?.id}
+      />
+
+      {/* REUSABLE IN-APP CONFIRMATION DIALOG */}
+      <ConfirmModal
+        isOpen={confirmConfig.isOpen}
+        title={confirmConfig.title}
+        message={confirmConfig.message}
+        type={confirmConfig.type}
+        onConfirm={confirmConfig.onConfirm}
+        onCancel={() => setConfirmConfig((prev) => ({ ...prev, isOpen: false }))}
+      />
+
+      {/* SIMULATED EMAIL & SMS NOTIFICATION PROTOTYPE MODAL */}
+      <SimulatedNotificationModal
+        isOpen={simulatedNotify.isOpen}
+        userEmail={user?.email}
+        userPhone={user?.phone}
+        otpCode={simulatedNotify.otpCode}
+        onAutoFillAndProceed={(code) => {
+          setConsensusCode(code);
+          setSimulatedNotify({ isOpen: false, otpCode: '' });
+          toast.success('Approval code auto-filled from verified SMS/Email notification!');
+        }}
+        onCancel={() => setSimulatedNotify({ isOpen: false, otpCode: '' })}
       />
 
     </div>
