@@ -58,11 +58,22 @@ const resolveCoordinates = (locationStr, defaultLat = -1.9441, defaultLng = 30.0
   return [defaultLat + latOffset, defaultLng + lngOffset];
 };
 
-// Component to dynamically re-center map view when coordinates change
+// Component to dynamically re-center map view and invalidate size when coordinates change
 const MapViewRecenter = ({ center }) => {
   const map = useMap();
   useEffect(() => {
+    map.invalidateSize();
     map.setView(center, map.getZoom());
+    const t1 = setTimeout(() => {
+      map.invalidateSize();
+    }, 150);
+    const t2 = setTimeout(() => {
+      map.invalidateSize();
+    }, 400);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
   }, [center, map]);
   return null;
 };

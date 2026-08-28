@@ -1,6 +1,17 @@
 @import "tailwindcss";
 @import "leaflet/dist/leaflet.css";
 
+/* Leaflet Modal & Container Tile Render Fixes */
+.leaflet-container {
+  width: 100% !important;
+  height: 100% !important;
+  z-index: 1;
+}
+.leaflet-control-container .leaflet-top,
+.leaflet-control-container .leaflet-bottom {
+  z-index: 100 !important;
+}
+
 /* ═══════════════════════════════════════════════════════════
    ESCROWTRUST — CORPORATE BLUE & EMERALD DESIGN SYSTEM
    Premium slate / white background with tech blue and emerald accents
