@@ -256,7 +256,7 @@ describe('POST /api/escrow/:id/initiate-mutation', () => {
       .set('Authorization', `Bearer ${tokenFor.seller(2)}`);
 
     expect(res.status).toBe(200);
-    expect(txn.update).toHaveBeenCalledWith(expect.objectContaining({ status: 'MUTATION_STARTED' }), expect.any(Object));
+    expect(txn.update).toHaveBeenCalledWith(expect.objectContaining({ status: 'AWAITING_RECEIPT' }), expect.any(Object));
   });
 
   it('rejects if status is not FUNDED', async () => {

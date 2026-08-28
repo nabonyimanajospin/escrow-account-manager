@@ -38,7 +38,7 @@ const money = (n) => `$${Number(n || 0).toLocaleString('en-US', { minimumFractio
  * Generates a PDF escrow completion contract and saves it to disk.
  * @returns {Promise<string>} Relative path like /uploads/contracts/CONTRACT-xxx.pdf
  */
-const generateEscrowContract = async (transaction, customFilename = null) => {
+const generateEscrowContract = async (transaction, customFilename = null, customPassword = null) => {
   const contractsDir = path.join(__dirname, '..', 'uploads', 'contracts');
   if (!fs.existsSync(contractsDir)) fs.mkdirSync(contractsDir, { recursive: true });
 
@@ -90,7 +90,12 @@ const generateEscrowContract = async (transaction, customFilename = null) => {
   });
 
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ margin: 50, size: 'A4' });
+    const docOptions = { margin: 50, size: 'A4' };
+    if (customPassword) {
+      docOptions.userPassword = String(customPassword);
+      docOptions.ownerPassword = String(customPassword);
+    }
+    const doc = new PDFDocument(docOptions);
     const stream = fs.createWriteStream(filePath);
     doc.pipe(stream);
 

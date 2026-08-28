@@ -569,7 +569,7 @@ const depositFunds = async (req, res, next) => {
 // @access  Private (SELLER)
 const initiateMutation = async (req, res, next) => {
   try {
-    const transaction = await Transaction.findByPk(req.params.id);
+    const transaction = await Transaction.findByPk(req.params.id, { include: transactionIncludes });
     if (!transaction) {
       return res.status(404).json({ success: false, message: 'Transaction not found' });
     }
@@ -585,38 +585,46 @@ const initiateMutation = async (req, res, next) => {
     if (!transaction.sellerAuthorized) {
       return res.status(400).json({
         success: false,
-        message: 'Seller must verify the OTP from the notification bell before starting mutation.',
+        message: 'Seller must verify the OTP approval code before requesting Irembo automated mutation.',
       });
     }
 
+    // Call automated Irembo Land Registry Sandbox API
+    const upiCode = transaction.property?.upiCode || '1/03/01/04/3000';
+    const iremboResult = await registryService.executeIremboMutation({
+      upiCode,
+      sellerName: transaction.seller?.name,
+      buyerName: transaction.buyer?.name,
+    });
+
     await sequelize.transaction(async (t) => {
+      const currentDocs = transaction.mutationDocuments || [];
+      const mutationDocuments = [...currentDocs, {
+        documentUrl: `/irembo/mutations/${iremboResult.mutationReference}.pdf`,
+        description: `Automated Irembo Land Deed Title Mutation Certificate (${iremboResult.mutationReference})`,
+        sha256Checksum: crypto.createHash('sha256').update(iremboResult.mutationReference).digest('hex'),
+        uploadedAt: new Date(),
+      }];
+
       await transaction.update({
-        status: 'MUTATION_STARTED',
+        status: 'AWAITING_RECEIPT',
         mutationStartDate: new Date(),
+        mutationEndDate: new Date(),
+        mutationDocuments,
         buyerAuthorized: false,
         sellerAuthorized: false,
       }, { transaction: t });
 
-      // Issue OTP to BOTH buyer and seller upon mutation initiation
-      await issueAndDeliverConsensusOtp(transaction, t, 'BOTH');
-
-      await logAction(transaction.id, req, `Seller initiated ownership mutation (legal transfer)`, { transaction: t });
+      await logAction(transaction.id, req, `Automated Irembo Land Deed Mutation executed successfully via API (Ref: ${iremboResult.mutationReference})`, { transaction: t });
       
-      // Reload transaction to get buyer details
-      const txWithUsers = await Transaction.findByPk(transaction.id, {
-        include: transactionIncludes,
-        transaction: t
-      });
-
-      // Notify buyer that mutation has started
-      if (txWithUsers.buyer && txWithUsers.buyer.email) {
-        await notificationService.sendTransactionStatusEmail(txWithUsers.buyer.email, txWithUsers.buyer.name, 'MUTATION_STARTED', txWithUsers.id, txWithUsers.amount);
-        await notificationService.createInAppNotification(txWithUsers.buyerId, 'Mutation Started', 'The seller has initiated the legal property transfer process.');
+      if (transaction.buyer?.email) {
+        await notificationService.sendTransactionStatusEmail(transaction.buyer.email, transaction.buyer.name, 'MUTATION_STARTED', transaction.id, transaction.amount);
+        await notificationService.createInAppNotification(transaction.buyerId, '🏛️ Irembo Mutation Verified', `Irembo API completed automated deed title transfer (Ref: ${iremboResult.mutationReference}). Please confirm receipt.`);
       }
     });
 
     const result = await Transaction.findByPk(transaction.id, { include: transactionIncludes });
-    res.status(200).json({ success: true, message: 'Mutation process successfully initiated.', data: result });
+    res.status(200).json({ success: true, message: 'Irembo Automated Land Mutation completed successfully via API gateway.', data: result });
   } catch (error) {
     next(error);
   }

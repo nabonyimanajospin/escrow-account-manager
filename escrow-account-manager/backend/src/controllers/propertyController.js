@@ -118,7 +118,7 @@ exports.getProperties = async (req, res, next) => {
 exports.getProperty = async (req, res, next) => {
   try {
     const property = await Property.findByPk(req.params.id, {
-      include: [{ model: User, as: 'seller', attributes: ['id', 'name', 'email', 'phone'] }],
+      include: [{ model: User, as: 'seller', attributes: ['id', 'name'] }],
     });
 
     if (!property) {
